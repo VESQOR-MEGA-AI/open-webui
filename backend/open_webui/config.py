@@ -208,7 +208,8 @@ if CUSTOM_NAME:
                         r.raw.decode_content = True
                         shutil.copyfileobj(r.raw, f)
 
-            WEBUI_NAME = data['name']
+            if WEBUI_NAME == 'Open WebUI' and 'name' in data and data['name']:
+                WEBUI_NAME = data['name']
     except Exception as e:
         log.exception(e)
         pass
