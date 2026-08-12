@@ -669,7 +669,12 @@
 		<div class="flex-auto w-0 pl-1 relative">
 			{#if !compactPreview}
 				<Name>
-					<Tooltip content={model?.name ?? message.model} placement="top-start">
+					<Tooltip
+						content={model?.info?.meta?.description
+							? `${model?.name ?? message.model} — ${model.info.meta.description}`
+							: (model?.name ?? message.model)}
+						placement="top-start"
+					>
 						<span id="response-message-model-name" class="line-clamp-1 text-black dark:text-white">
 							{model?.name ?? message.model}
 						</span>
