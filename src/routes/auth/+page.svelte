@@ -197,7 +197,8 @@
 		if (($config?.features?.auth_trusted_header ?? false) || $config?.features?.auth === false) {
 			await signInHandler();
 		} else {
-			onboarding = $config?.onboarding ?? false;
+			// VESQOR: landing page always shown to unauthenticated users
+			onboarding = !form && !error;
 		}
 	});
 </script>
@@ -212,7 +213,7 @@
 	bind:show={onboarding}
 	getStartedHandler={() => {
 		onboarding = false;
-		mode = $config?.features.enable_ldap ? 'ldap' : 'signup';
+		mode = $config?.features.enable_ldap ? 'ldap' : 'signin';
 	}}
 />
 
