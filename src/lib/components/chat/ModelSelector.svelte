@@ -57,20 +57,29 @@
 	$: if (selectedModels.length > 1 && !compareModels) {
 		compareModels = true;
 	}
-</script>
 
-<div class="flex min-w-0 max-w-full flex-col items-start">
-	<div class="flex min-w-0 max-w-full">
-		<div class="min-w-0 max-w-full overflow-hidden">
-			<div class="min-w-0 max-w-full">
-				<Selector
-					id="model"
-					placeholder={$i18n.t('Select a model')}
-					items={$models.map((model) => ({
-						value: model.id,
-						label: model.name,
-						model: model
-					}))}
+	// VESQOR: hide base models that back a custom model (e.g. vesqor-reasoning
+	// backs "VESQOR MEGA AI") — the custom model is the only surface users see.
+	$: baseModelIds = new Set(
+		$models
+			.map((model) => model.base_model_id)
+			.filter((id): id is string => typeof id === 'string' && id.length > 0)
+	);
+	$: visibleModels = $models.filter((model) => !baseModelIds.has(model.id));
+	</script>
+
+	<div class="flex min-w-0 max-w-full flex-col items-start">
+		<div class="flex min-w-0 max-w-full">
+			<div class="min-w-0 max-w-full overflow-hidden">
+				<div class="min-w-0 max-w-full">
+					<Selector
+						id="model"
+						placeholder={$i18n.t('Select a model')}
+						items={visibleModels.map((model) => ({
+							value: model.id,
+							label: model.name,
+							model: model
+						}))}
 					{pinModelHandler}
 					{className}
 					{triggerClassName}
