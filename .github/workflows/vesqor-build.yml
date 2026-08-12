@@ -20,6 +20,8 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Build frontend (no pyodide)
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
         run: npx vite build
 
       - name: Upload build artifact
