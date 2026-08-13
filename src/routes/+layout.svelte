@@ -158,6 +158,12 @@
 	};
 
 	const setupSocket = async (enableWebsocket) => {
+		let socketToken = null;
+		try {
+			socketToken = localStorage.token;
+		} catch (error) {
+			// storage denied
+		}
 		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
 			reconnection: true,
 			reconnectionDelay: 1000,
@@ -165,7 +171,7 @@
 			randomizationFactor: 0.5,
 			path: '/ws/socket.io',
 			transports: enableWebsocket ? ['websocket'] : ['polling', 'websocket'],
-			auth: { token: localStorage.token }
+			auth: { token: socketToken }
 		});
 		await socket.set(_socket);
 
@@ -192,7 +198,7 @@
 			disconnectReason = null;
 			hasConnectedOnce = true;
 
-			const res = await getVersion(localStorage.token);
+			const res = await getVersion(socketToken);
 
 			const deploymentId = res?.deployment_id ?? null;
 			const version = res?.version ?? null;
@@ -227,9 +233,21 @@
 
 			console.log('version', version);
 
-			if (localStorage.getItem('token')) {
+			let hasToken = false;
+			try {
+				hasToken = !!localStorage.getItem('token');
+			} catch (error) {
+				// storage denied
+			}
+			if (hasToken) {
+				let joinToken = null;
+				try {
+					joinToken = localStorage.token;
+				} catch (error) {
+					// storage denied
+				}
 				// Emit user-join event with auth token
-				_socket.emit('user-join', { auth: { token: localStorage.token } });
+				_socket.emit('user-join', { auth: { token: joinToken } });
 			} else {
 				console.warn('No token found in localStorage, user-join event not emitted');
 			}
@@ -1112,7 +1130,13 @@
 		// Call visibility change handler initially to set state on load
 		handleVisibilityChange();
 
-		theme.set(localStorage.theme);
+		let savedTheme = null;
+		try {
+			savedTheme = localStorage.theme;
+		} catch (error) {
+			// storage denied (private mode / sandbox) — fall back to default
+		}
+		theme.set(savedTheme);
 
 		mobile.set(window.innerWidth < BREAKPOINT);
 
@@ -1160,8 +1184,20 @@
 		// Initialize i18n even if we didn't get a backend config,
 		// so `/error` can show something that's not `undefined`.
 
-		initI18n(localStorage?.locale);
-		if (!localStorage.locale) {
+		let savedLocale = null;
+		try {
+			savedLocale = localStorage?.locale;
+		} catch (error) {
+			// storage denied
+		}
+		initI18n(savedLocale);
+		let hasLocale = false;
+		try {
+			hasLocale = !!localStorage.locale;
+		} catch (error) {
+			// storage denied
+		}
+		if (!hasLocale) {
 			const languages = await getLanguages();
 			const browserLanguages = navigator.languages
 				? navigator.languages
@@ -1181,9 +1217,16 @@
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
 
-				if (localStorage.token) {
+				let token = null;
+				try {
+					token = localStorage.token;
+				} catch (error) {
+					// storage denied
+				}
+
+				if (token) {
 					// Get Session User Info
-					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
+					const sessionUser = await getSessionUser(token).catch((error) => {
 						toast.error(`${error}`);
 						return null;
 					});
@@ -1194,7 +1237,7 @@
 						// (fire-and-forget: must not block first paint)
 						const timezone = getUserTimezone();
 						if (timezone) {
-							updateUserTimezone(localStorage.token, timezone).catch(() => {});
+							updateUserTimezone(token, timezone).catch(() => {});
 						}
 
 						// Relay auth token to desktop app for API access
@@ -1202,12 +1245,16 @@
 							window.electronAPI
 								.send({
 									type: 'token:update',
-									token: localStorage.token
+									token
 								})
 								.catch(() => {});
 						}
 					} else {
-						localStorage.removeItem('token');
+						try {
+							localStorage.removeItem('token');
+						} catch (error) {
+							// storage denied
+						}
 						await user.set(null);
 					}
 				}
