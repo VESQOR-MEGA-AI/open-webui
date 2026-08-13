@@ -44,6 +44,7 @@ from open_webui.utils.context_compaction import compact_chat_branch, get_chat_co
 from open_webui.utils.misc import get_message_list
 from open_webui.utils.models import get_all_models
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger(__name__)
@@ -1300,6 +1301,44 @@ async def compact_chat_by_id(
 ############################
 # GetChatById
 ############################
+
+
+@router.get('/older')
+async def get_older_chats(
+    before_updated_at: int,
+    before_id: str | None = None,
+    limit: int = 50,
+    user=Depends(get_verified_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """VESQOR (2026-08-13): cursor-paginated older chats.
+
+    Bootstrap returns only the last 7 days (max 100). This endpoint pages
+    further back with a (updated_at, id) cursor so pagination stays stable
+    when several chats share the same updated_at. Uses ix_chat_user_updated_id.
+    """
+    limit = max(1, min(limit, 100))
+    stmt = text(
+        """
+        SELECT
+            id, title, created_at, updated_at, archived, pinned,
+            folder_id, meta, summary
+        FROM chat
+        WHERE user_id = :user_id
+          AND (updated_at, id) < (:before_updated_at, :before_id)
+        ORDER BY updated_at DESC, id DESC
+        LIMIT :limit
+        """
+    )
+    params = {
+        'user_id': user.id,
+        'before_updated_at': before_updated_at,
+        'before_id': before_id or '',
+        'limit': limit,
+    }
+    result = await db.execute(stmt, params)
+    rows = result.mappings().all()
+    return [dict(row) for row in rows]
 
 
 @router.get('/{id}', response_model=ChatResponse | None)
