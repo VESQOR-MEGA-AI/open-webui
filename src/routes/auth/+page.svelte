@@ -289,7 +289,7 @@
 										id="logo"
 										crossorigin="anonymous"
 										src="{WEBUI_BASE_URL}/static/favicon.png"
-										class="size-24 rounded-full"
+										class="size-32 rounded-full shadow-lg"
 										alt="{$WEBUI_NAME} logo"
 									/>
 								</div>
