@@ -1229,31 +1229,6 @@
 
 		await tick();
 
-		const finishSplash = async () => {
-			// Ждём окончания splash-видео (с фолбэком на 18с, если видео
-			// не загрузилось или уже закончилось — не блокируем приложение).
-			const splash = document.getElementById('splash-screen');
-			const video = document.getElementById('splash-video');
-
-			if (video && !video.ended) {
-				try {
-					await Promise.race([
-						new Promise((resolve) => video.addEventListener('ended', resolve, { once: true })),
-						new Promise((resolve) => setTimeout(resolve, 18000))
-					]);
-				} catch {
-					/* ignore */
-				}
-			}
-
-			if (splash) {
-				splash.style.transition = 'opacity 0.7s ease';
-				splash.style.opacity = '0';
-				await new Promise((resolve) => setTimeout(resolve, 700));
-				splash.remove();
-			}
-		};
-
 		if (
 			document.documentElement.classList.contains('her') &&
 			document.getElementById('progress-bar')
@@ -1268,7 +1243,7 @@
 
 			await loadingProgress.set(100);
 
-			await finishSplash();
+			document.getElementById('splash-screen')?.remove();
 
 			const audio = new Audio(`/audio/greeting.mp3`);
 			const playAudio = () => {
@@ -1280,7 +1255,7 @@
 
 			loaded = true;
 		} else {
-			await finishSplash();
+			document.getElementById('splash-screen')?.remove();
 			loaded = true;
 		}
 

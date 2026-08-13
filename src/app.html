@@ -71,10 +71,12 @@
 					metaThemeColorTag.setAttribute('content', '#171717');
 				}
 
-				const preloadHref = '/vesqor-splash.mp4';
+				const preloadHref = document.documentElement.classList.contains('dark')
+					? '/static/splash-dark.png'
+					: '/static/splash.png';
 				const preload = document.createElement('link');
 				preload.rel = 'preload';
-				preload.as = 'video';
+				preload.as = 'image';
 				preload.href = preloadHref;
 				preload.setAttribute('fetchpriority', 'high');
 				document.head.appendChild(preload);
@@ -108,11 +110,7 @@
 						return;
 					}
 
-					// Видео-сплэш заменяет логотип-картинку; картинка — только
-					// если видео не удалось вставить (фолбэк).
-					if (splash && !document.getElementById('splash-video')) {
-						splash.prepend(logo);
-					}
+					if (splash) splash.prepend(logo);
 				});
 			})();
 		</script>
@@ -134,35 +132,6 @@
 					overflow-y: scroll !important;
 				}
 			</style>
-
-			<div
-				id="splash-video-wrap"
-				style="
-					position: absolute;
-					inset: 0;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					overflow: hidden;
-					background: #000;
-				"
-			>
-				<video
-					id="splash-video"
-					autoplay
-					muted
-					playsinline
-					preload="auto"
-					style="
-						width: 100%;
-						height: 100%;
-						object-fit: contain;
-						background: #000;
-					"
-				>
-					<source src="/vesqor-splash.mp4" type="video/mp4" />
-				</video>
-			</div>
 
 			<div
 				style="
@@ -227,7 +196,7 @@
 		}
 
 		#splash-screen {
-			background: #000;
+			background: #fff;
 		}
 
 		html.dark #splash-screen {
