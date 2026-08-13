@@ -11,6 +11,7 @@
 	let show = false;
 	let opacity = 1;
 	let videoEl: HTMLVideoElement | undefined;
+	let showSkip = false; // только если автоплей заблокирован браузером
 
 	const blockScroll = () => {
 		document.body.style.overflow = 'hidden';
@@ -59,8 +60,9 @@
 		try {
 			await videoEl.play();
 		} catch {
-			// Автоплей заблокирован — не оставляем пользователя в ловушке:
-			// показываем кнопку «Пропустить» (она всегда внизу справа)
+			// Автоплей заблокирован браузером — без кнопки пользователь
+			// застрянет навсегда. Показываем «Пропустить» ТОЛЬКО здесь.
+			showSkip = true;
 		}
 	});
 
@@ -84,9 +86,11 @@
 			preload="auto"
 			class="vesqor-splash-video"
 		></video>
-		<div class="vesqor-splash-skip" role="button" tabindex="-1" on:click={finish}>
-			Пропустить
-		</div>
+		{#if showSkip}
+			<div class="vesqor-splash-skip" role="button" tabindex="-1" on:click={finish}>
+				Пропустить
+			</div>
+		{/if}
 	</div>
 {/if}
 
