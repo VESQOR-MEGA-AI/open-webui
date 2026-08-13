@@ -280,7 +280,13 @@
 			}).catch((e) => console.error('Failed to load user settings:', e))
 		]);
 
-		selectedTerminalId.set(localStorage.selectedTerminalId ?? null);
+		let selectedTerminal = null;
+		try {
+			selectedTerminal = localStorage.selectedTerminalId ?? null;
+		} catch (error) {
+			// storage denied — fall back to no terminal
+		}
+		selectedTerminalId.set(selectedTerminal);
 
 		const loadToolServers = setToolServers().catch((e) => {
 			console.error('Failed to load tool servers:', e);
@@ -401,11 +407,17 @@
 		// Check for version updates
 		if ($user?.role === 'admin' && $config?.features?.enable_version_update_check) {
 			// Check if the user has dismissed the update toast in the last 24 hours
-			if (localStorage.dismissedUpdateToast) {
-				const dismissedUpdateToast = new Date(Number(localStorage.dismissedUpdateToast));
+			let dismissedUpdateToast = null;
+			try {
+				dismissedUpdateToast = localStorage.dismissedUpdateToast;
+			} catch (error) {
+				// storage denied
+			}
+			if (dismissedUpdateToast) {
+				const dismissedUpdateToastDate = new Date(Number(dismissedUpdateToast));
 				const now = new Date();
 
-				if (now - dismissedUpdateToast > 24 * 60 * 60 * 1000) {
+				if (now - dismissedUpdateToastDate > 24 * 60 * 60 * 1000) {
 					checkForVersionUpdates();
 				}
 			} else {
@@ -414,17 +426,31 @@
 		}
 		// Persist showControls: track open/close state separately from saved size
 		// chatControlsSize always retains the last width for openPane()
-		await showControls.set(!$mobile ? localStorage.showControls === 'true' : false);
+		let showControlsInitial = false;
+		try {
+			showControlsInitial = !$mobile ? localStorage.showControls === 'true' : false;
+		} catch (error) {
+			// storage denied
+		}
+		await showControls.set(showControlsInitial);
 		showControls.subscribe((value) => {
-			localStorage.showControls = value ? 'true' : 'false';
+			try {
+				localStorage.showControls = value ? 'true' : 'false';
+			} catch (error) {
+				// storage denied
+			}
 		});
 
 		// Persist selectedTerminalId across page loads
 		selectedTerminalId.subscribe((value) => {
-			if (value === null) {
-				delete localStorage.selectedTerminalId;
-			} else {
-				localStorage.selectedTerminalId = value;
+			try {
+				if (value === null) {
+					delete localStorage.selectedTerminalId;
+				} else {
+					localStorage.selectedTerminalId = value;
+				}
+			} catch (error) {
+				// storage denied
 			}
 		});
 
