@@ -32,6 +32,7 @@ class Auth(Base):  # credential ↔ user linkage
     email = Column(String)  # login address, kept in sync with User.email
     password = Column(Text)  # argon2 / bcrypt hash
     active = Column(Boolean)  # account soft-disable toggle
+    verified = Column(Boolean)  # email verified via one-time token
 
 
 class AuthModel(BaseModel):
@@ -41,6 +42,7 @@ class AuthModel(BaseModel):
     email: str
     password: str
     active: bool = True
+    verified: bool = False
 
 
 class Token(BaseModel):
@@ -122,6 +124,7 @@ class AuthsTable:
                 email=email,
                 password=password,
                 active=True,
+                verified=False,
             )
             session.add(credential)
 
@@ -192,6 +195,30 @@ class AuthsTable:
                 return
             _, found_user = match
             return UserModel.model_validate(found_user)
+
+    async def is_email_verified(
+        self,
+        user_id: str,
+        db: AsyncSession | None = None,
+    ) -> bool:
+        """Return whether the auth row for *user_id* is email-verified."""
+        async with get_async_db_context(db) as session:
+            auth_row = await session.get(Auth, user_id)
+            return bool(auth_row and auth_row.verified)
+
+    async def mark_verified_by_id(
+        self,
+        user_id: str,
+        db: AsyncSession | None = None,
+    ) -> bool:
+        """Set verified=true on the auth row (after a successful token check)."""
+        async with get_async_db_context(db) as session:
+            auth_row = await session.get(Auth, user_id)
+            if auth_row is None:
+                return False
+            auth_row.verified = True
+            await session.commit()
+            return True
 
     async def update_email_by_id(
         self,

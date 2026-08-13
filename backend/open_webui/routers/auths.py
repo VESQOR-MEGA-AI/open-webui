@@ -28,6 +28,9 @@ from open_webui.env import (
     OAUTH_TOKEN_EXCHANGE_RATE_LIMIT,
     OAUTH_TOKEN_EXCHANGE_RATE_LIMIT_WINDOW,
     OAUTH_TOKEN_EXCHANGE_TRUSTED_CLIENT_IDS,
+    SMTP_HOST,
+    SMTP_VERIFY_ENABLED,
+    VERIFY_EMAIL_URL,
     WEBUI_AUTH,
     WEBUI_AUTH_COOKIE_SAME_SITE,
     WEBUI_AUTH_COOKIE_SECURE,
@@ -50,6 +53,7 @@ from open_webui.models.auths import (
     UpdatePasswordForm,
 )
 from open_webui.models.config import Config
+from open_webui.models.email_verification import EmailVerifications
 from open_webui.models.groups import Groups
 from open_webui.models.oauth_sessions import OAuthSessions
 from open_webui.models.users import (
@@ -64,8 +68,7 @@ from open_webui.utils.auth import (
     create_api_key,
     create_token,
     decode_token,
-    get_admin_user,
-    get_current_user,
+    get_admin_user, get_current_user,
     get_http_authorization_cred,
     get_password_hash,
     get_verified_user,
@@ -77,6 +80,7 @@ from open_webui.utils.groups import apply_default_group_assignment
 from open_webui.utils.misc import parse_duration, validate_email_format
 from open_webui.utils.rate_limit import RateLimiter
 from open_webui.utils.redis import get_redis_client
+from open_webui.utils.vesqor_mailer import send_verification_email
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -814,6 +818,15 @@ async def signin(
         )
 
     if user:
+        # ── VESQOR: email verification gate ───────────────────────────
+        # A signup without a verified email must not get a session.
+        if SMTP_VERIFY_ENABLED and SMTP_HOST:
+            verified = await Auths.is_email_verified(user.id, db=db)
+            if not verified:
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN,
+                    detail='Please verify your email address before signing in.',
+                )
         return await create_session_response(request, user, db, response, set_cookie=True, source=auth_source)
     else:
         raise HTTPException(400, detail=ERROR_MESSAGES.INVALID_CRED)
@@ -922,6 +935,28 @@ async def signup(
             form_data.profile_image_url,
             db=db,
         )
+
+        # ── VESQOR: email verification ─────────────────────────────────
+        # A fresh signup gets role 'pending' and is NOT issued a session.
+        # We send a one-time verification link; the account activates when
+        # the user clicks it. Sign-in while unverified returns 403.
+        if SMTP_VERIFY_ENABLED and SMTP_HOST:
+            token = await EmailVerifications.create_token(user.id, db=db)
+            base_url = (VERIFY_EMAIL_URL or str(request.base_url)).rstrip('/')
+            verify_url = f'{base_url}/verify-email?token={token}'
+            ok = send_verification_email(form_data.email.lower(), verify_url)
+            if not ok:
+                # Mail failed — do not strand the user with an unusable account.
+                await Users.update_user_by_id(user.id, {'role': 'pending'}, db=db)
+                raise HTTPException(
+                    500,
+                    detail='We could not send the verification email. Please try again.',
+                )
+        else:
+            # SMTP not configured: fall back to auto-verified pending→user
+            await Users.update_user_by_id(user.id, {'role': 'user'}, db=db)
+            await Auths.mark_verified_by_id(user.id, db=db)
+
         await publish_event(
             request,
             EVENTS.AUTH_SIGNUP,
@@ -930,7 +965,13 @@ async def signup(
             subject_type='user',
             data={'email': user.email},
         )
-        return await create_session_response(request, user, db, response, set_cookie=True)
+
+        # VESQOR: do not create a session on signup — the user must verify
+        # their email first. The frontend shows a 'check your inbox' screen.
+        return JSONResponse(
+            status_code=201,
+            content={'detail': 'Verification email sent', 'verification_required': True},
+        )
     except HTTPException:
         raise
     except Exception as err:
@@ -1037,6 +1078,64 @@ async def signout(request: Request, response: Response, db: AsyncSession = Depen
         )
 
     return JSONResponse(status_code=200, content={'status': True}, headers=response.headers)
+
+
+# ── VESQOR: email verification ──────────────────────────────────────────
+@router.get('/verify-email')
+async def verify_email(
+    token: str,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Validate a one-time email-verification token and activate the account.
+
+    On success the user's role is promoted pending → user and verified=true.
+    The frontend then redirects to the sign-in page.
+    """
+    if not SMTP_VERIFY_ENABLED or not SMTP_HOST:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Not found.')
+
+    user_id = await EmailVerifications.consume_token(token, db=db)
+    if not user_id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail='Invalid or expired verification link. Please sign up again.',
+        )
+
+    await Auths.mark_verified_by_id(user_id, db=db)
+    user = await Users.get_user_by_id(user_id, db=db)
+    if user and user.role == 'pending':
+        await Users.update_user_by_id(user_id, {'role': 'user'}, db=db)
+
+    return JSONResponse(
+        status_code=200,
+        content={'detail': 'Email verified. You can now sign in.', 'verified': True},
+    )
+
+
+@router.post('/resend-verification')
+async def resend_verification(
+    form_data: SigninForm,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Re-send the verification email for an unverified account."""
+    if not SMTP_VERIFY_ENABLED or not SMTP_HOST:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Not found.')
+
+    user = await Users.get_user_by_email(form_data.email.lower(), db=db)
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.INVALID_CRED)
+
+    if await Auths.is_email_verified(user.id, db=db):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail='Email is already verified.')
+
+    token = await EmailVerifications.create_token(user.id, db=db)
+    base_url = (VERIFY_EMAIL_URL or '').rstrip('/')
+    verify_url = f'{base_url}/verify-email?token={token}'
+    ok = send_verification_email(form_data.email.lower(), verify_url)
+    if not ok:
+        raise HTTPException(500, detail='Could not send verification email. Try again later.')
+
+    return JSONResponse(status_code=200, content={'detail': 'Verification email sent.'})
 
 
 ############################

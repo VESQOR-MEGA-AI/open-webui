@@ -44,6 +44,9 @@
 
 	let submitting = false;
 
+	// VESQOR: shown after signup — "check your inbox for the verification link"
+	let verificationRequired = false;
+
 	const setSessionUser = async (sessionUser, redirectPath: string | null = null) => {
 		if (sessionUser) {
 			console.log(sessionUser);
@@ -87,14 +90,18 @@
 			}
 		}
 
-		const sessionUser = await userSignUp(name, email, password, generateInitialsImage(name)).catch(
-			(error) => {
-				toast.error(`${error}`);
-				return null;
+		try {
+			const res = await userSignUp(name, email, password, generateInitialsImage(name));
+			// VESQOR: signup no longer returns a session — it returns 201 with
+			// verification_required. Show the "check your inbox" screen.
+			if (res && res.verification_required) {
+				verificationRequired = true;
+				return;
 			}
-		);
-
-		await setSessionUser(sessionUser);
+			await setSessionUser(res);
+		} catch (error) {
+			toast.error(`${error}`);
+		}
 	};
 
 	const ldapSignInHandler = async () => {
@@ -244,6 +251,38 @@
 				{:else}
 					<div class="my-auto flex flex-col justify-center items-center">
 						<div id="auth-login-card" class=" sm:max-w-md my-auto pb-10 w-full dark:text-gray-100">
+							{#if verificationRequired}
+								<div class="flex flex-col items-center text-center">
+									<div class="flex justify-center mb-6">
+										<img
+											id="logo"
+											crossorigin="anonymous"
+											src="{WEBUI_BASE_URL}/static/favicon.png"
+											class="size-24 rounded-full"
+											alt="{$WEBUI_NAME} logo"
+										/>
+									</div>
+									<div class="text-2xl font-normal">
+										{$i18n.t('Check your email')}
+									</div>
+									<p class="mt-3 text-sm font-normal text-gray-600 dark:text-gray-400">
+										{$i18n.t(
+											'We sent a verification link to {{email}}. Click it to activate your account, then sign in.',
+											{ email: email }
+										)}
+									</p>
+									<button
+										class="mt-6 w-full rounded-full bg-black text-white dark:bg-white dark:text-black font-normal text-sm py-2.5 hover:opacity-90 transition"
+										type="button"
+										on:click={() => {
+											verificationRequired = false;
+											mode = 'signin';
+										}}
+									>
+										{$i18n.t('Back to sign in')}
+									</button>
+								</div>
+							{:else}
 							{#if $config?.metadata?.auth_logo_position === 'center'}
 								<div class="flex justify-center mb-6">
 									<img
@@ -596,6 +635,7 @@
 										>
 									</button>
 								</div>
+							{/if}
 							{/if}
 						</div>
 						{#if $config?.metadata?.login_footer}
