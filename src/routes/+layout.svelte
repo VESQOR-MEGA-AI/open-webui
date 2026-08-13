@@ -74,7 +74,6 @@
 
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
-	import SplashVideo from '$lib/components/chat/SplashVideo.svelte';
 	import SyncStatsModal from '$lib/components/chat/Settings/SyncStatsModal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { getOutputText } from '$lib/components/chat/Messages/structuredOutput';
@@ -1230,6 +1229,31 @@
 
 		await tick();
 
+		const finishSplash = async () => {
+			// Ждём окончания splash-видео (с фолбэком на 18с, если видео
+			// не загрузилось или уже закончилось — не блокируем приложение).
+			const splash = document.getElementById('splash-screen');
+			const video = document.getElementById('splash-video') as HTMLVideoElement | null;
+
+			if (video && !video.ended) {
+				try {
+					await Promise.race([
+						new Promise((resolve) => video.addEventListener('ended', resolve, { once: true })),
+						new Promise((resolve) => setTimeout(resolve, 18000))
+					]);
+				} catch {
+					/* ignore */
+				}
+			}
+
+			if (splash) {
+				splash.style.transition = 'opacity 0.7s ease';
+				splash.style.opacity = '0';
+				await new Promise((resolve) => setTimeout(resolve, 700));
+				splash.remove();
+			}
+		};
+
 		if (
 			document.documentElement.classList.contains('her') &&
 			document.getElementById('progress-bar')
@@ -1244,7 +1268,7 @@
 
 			await loadingProgress.set(100);
 
-			document.getElementById('splash-screen')?.remove();
+			await finishSplash();
 
 			const audio = new Audio(`/audio/greeting.mp3`);
 			const playAudio = () => {
@@ -1256,7 +1280,7 @@
 
 			loaded = true;
 		} else {
-			document.getElementById('splash-screen')?.remove();
+			await finishSplash();
 			loaded = true;
 		}
 
@@ -1334,9 +1358,6 @@
 		<slot />
 	{/if}
 {/if}
-
-<!-- VESQOR: splash-видео при первом визите (блокирует UI до конца) -->
-<SplashVideo />
 
 {#if $config?.features.enable_community_sharing}
 	<SyncStatsModal bind:show={showSyncStatsModal} eventData={syncStatsEventData} />
