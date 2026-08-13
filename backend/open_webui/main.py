@@ -839,6 +839,13 @@ if ENABLE_SCIM:
 @app.get('/api/models')
 @app.get('/api/v1/models')  # Experimental: Compatibility with OpenAI API
 async def get_models(request: Request, refresh: bool = False, user=Depends(get_verified_user)):
+    # VESQOR: models change only via admin actions, so a short TTL cache makes
+    # page loads instant. Each uncached call costs ~10 Neon round-trips (~3.8s).
+    _now = time.time()
+    _cache = getattr(request.app.state, 'MODELS_API_CACHE', None)
+    if _cache and not refresh and _now - _cache['ts'] < 60:
+        return _cache['data']
+
     all_models = await get_all_models(request, refresh=refresh, user=user)
 
     # Filter out filter pipelines
@@ -884,6 +891,7 @@ async def get_models(request: Request, refresh: bool = False, user=Depends(get_v
         log.debug(
             f'/api/models returned filtered models accessible to the user: {json.dumps([model.get("id") for model in models])}'
         )
+    request.app.state.MODELS_API_CACHE = {'ts': _now, 'data': {'data': models}}
     return {'data': models}
 
 

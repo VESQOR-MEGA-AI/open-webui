@@ -543,6 +543,26 @@ async def _tts_mistral(request, payload, file_path, file_body_path, user):
         await _raise_tts_error(exc, r)
 
 
+async def _tts_edge(request, payload, file_path, file_body_path, user):
+    """Generate speech via Microsoft Edge neural voices (edge-tts, free, no API key)."""
+    import edge_tts
+
+    voice = (payload.get('voice') or await Config.get('audio.tts.voice') or 'en-US-JennyNeural').strip()
+    rate = await Config.get('audio.tts.edge.rate') or '+0%'
+    volume = await Config.get('audio.tts.edge.volume') or '+0%'
+    pitch = await Config.get('audio.tts.edge.pitch') or '+0Hz'
+
+    try:
+        comm = edge_tts.Communicate(payload['input'], voice, rate=rate, volume=volume, pitch=pitch)
+        await comm.save(str(file_path))
+        async with aiofiles.open(file_body_path, 'w') as f:
+            await f.write(json.dumps(payload))
+        return FileResponse(file_path)
+    except Exception as exc:
+        log.exception(exc)
+        await _raise_tts_error(exc, None)
+
+
 # Dispatcher map: engine name -> handler
 _TTS_ENGINES = {
     'openai': _tts_openai,
@@ -550,6 +570,7 @@ _TTS_ENGINES = {
     'azure': _tts_azure,
     'transformers': _tts_transformers,
     'mistral': _tts_mistral,
+    'edge': _tts_edge,
 }
 
 
@@ -1430,6 +1451,18 @@ async def get_available_voices(request) -> dict:
                     return result
             except Exception as e:
                 log.error(f'Error fetching Mistral voices: {e}')
+
+    if engine == 'edge':
+        # Microsoft Edge neural voices — curated soft female voices (no API key needed)
+        return {
+            'en-US-JennyNeural': 'Jenny (English US) — soft female',
+            'en-US-AriaNeural': 'Aria (English US) — female',
+            'en-US-EmmaNeural': 'Emma (English US) — female',
+            'en-US-AvaNeural': 'Ava (English US) — female',
+            'en-GB-SoniaNeural': 'Sonia (English UK) — female',
+            'en-AU-NatashaNeural': 'Natasha (English AU) — female',
+            'ru-RU-SvetlanaNeural': 'Svetlana (Russian) — female',
+        }
 
     return {}
 
