@@ -64,7 +64,7 @@ jobs:
             cp build/robots.txt /var/www/vesqor-webui/
             cp build/opensearch.xml /var/www/vesqor-webui/
             cp build/favicon.png /var/www/vesqor-webui/ 2>/dev/null || true
-            cp build/static/vesqor-splash.mp4 /var/www/vesqor-webui/static/ 2>/dev/null || true
+            cp build/vesqor-splash.mp4 /var/www/vesqor-webui/ 2>/dev/null || true
             # Перегенерация VESQOR-логотипов (CI-артефакт ставит дефолтные Open WebUI)
             if [ -f /root/.hermes/scripts/vesqor-branding.sh ]; then
               /root/.hermes/scripts/vesqor-branding.sh || true
