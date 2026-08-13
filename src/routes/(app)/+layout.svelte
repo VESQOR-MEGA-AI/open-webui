@@ -89,6 +89,20 @@
 		}
 	};
 
+	// VESQOR: IndexedDB must never block first paint. If the browser denies
+	// access (private mode, sandboxed iframe, storage partition), bail out
+	// fast instead of hanging the whole onMount chain.
+	const checkLocalDBChatsSafe = async () => {
+		try {
+			await Promise.race([
+				checkLocalDBChats(),
+				new Promise((resolve) => setTimeout(resolve, 1500))
+			]);
+		} catch (error) {
+			// ignore — chat list loads from the backend anyway
+		}
+	};
+
 	const setUserSettings = async (cb?: () => Promise<void>) => {
 		let userSettings = await getUserSettings(localStorage.token).catch((error) => {
 			console.error(error);
@@ -252,9 +266,13 @@
 			return;
 		}
 
-		clearChatInputStorage();
+		try {
+			clearChatInputStorage();
+		} catch (error) {
+			// storage may be denied (private mode / sandbox) — never block load
+		}
 		await Promise.all([
-			checkLocalDBChats(),
+			checkLocalDBChatsSafe(),
 			setBanners().catch((e) => console.error('Failed to load banners:', e)),
 			setTools().catch((e) => console.error('Failed to load tools:', e)),
 			setUserSettings(async () => {
