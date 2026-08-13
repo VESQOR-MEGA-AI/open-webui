@@ -74,6 +74,7 @@
 
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
+	import SplashVideo from '$lib/components/chat/SplashVideo.svelte';
 	import SyncStatsModal from '$lib/components/chat/Settings/SyncStatsModal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { getOutputText } from '$lib/components/chat/Messages/structuredOutput';
@@ -1333,6 +1334,9 @@
 		<slot />
 	{/if}
 {/if}
+
+<!-- VESQOR: splash-видео при первом визите (блокирует UI до конца) -->
+<SplashVideo />
 
 {#if $config?.features.enable_community_sharing}
 	<SyncStatsModal bind:show={showSyncStatsModal} eventData={syncStatsEventData} />
