@@ -30,3 +30,44 @@ jobs:
           name: vesqor-webui-build
           path: build/
           retention-days: 14
+
+      - name: Copy build to VESQOR server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 154.59.110.75
+          username: root
+          key: ${{ secrets.VESQOR_DEPLOY_KEY }}
+          port: 22
+          source: "build"
+          target: "/tmp/vesqor-ci-deploy"
+
+      - name: Deploy to VESQOR server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: 154.59.110.75
+          username: root
+          key: ${{ secrets.VESQOR_DEPLOY_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /tmp/vesqor-ci-deploy
+            # Очистка перезаписываемых путей (static/ НЕ трогаем — там VESQOR-логотипы)
+            rm -rf /var/www/vesqor-webui/_app /var/www/vesqor-webui/assets /var/www/vesqor-webui/wasm
+            rm -f /var/www/vesqor-webui/index.html /var/www/vesqor-webui/manifest.json
+            rm -f /var/www/vesqor-webui/robots.txt /var/www/vesqor-webui/opensearch.xml
+            rm -f /var/www/vesqor-webui/favicon.png
+            cp -r build/_app /var/www/vesqor-webui/
+            cp -r build/assets /var/www/vesqor-webui/
+            cp -r build/wasm /var/www/vesqor-webui/
+            cp build/index.html /var/www/vesqor-webui/
+            cp build/manifest.json /var/www/vesqor-webui/
+            cp build/robots.txt /var/www/vesqor-webui/
+            cp build/opensearch.xml /var/www/vesqor-webui/
+            cp build/favicon.png /var/www/vesqor-webui/ 2>/dev/null || true
+            cp build/static/vesqor-splash.mp4 /var/www/vesqor-webui/static/ 2>/dev/null || true
+            # Перегенерация VESQOR-логотипов (CI-артефакт ставит дефолтные Open WebUI)
+            if [ -f /root/.hermes/scripts/vesqor-branding.sh ]; then
+              /root/.hermes/scripts/vesqor-branding.sh || true
+            fi
+            chown -R www-data:www-data /var/www/vesqor-webui 2>/dev/null || true
+            echo "DEPLOY OK"
