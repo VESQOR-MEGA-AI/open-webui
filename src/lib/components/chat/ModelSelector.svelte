@@ -59,10 +59,11 @@
 	}
 
 	// VESQOR: hide base models that back a custom model (e.g. vesqor-reasoning
-	// backs "VESQOR MEGA AI") — the custom model is the only surface users see.
+	// backs "Lizz") — the custom model is the only surface users see.
+	// NOTE: the API nests base_model_id under model.info (not top-level).
 	$: baseModelIds = new Set(
 		$models
-			.map((model) => model.base_model_id)
+			.map((model) => model.info?.base_model_id)
 			.filter((id): id is string => typeof id === 'string' && id.length > 0)
 	);
 	$: visibleModels = $models.filter((model) => !baseModelIds.has(model.id));
