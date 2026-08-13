@@ -1233,7 +1233,7 @@
 			// Ждём окончания splash-видео (с фолбэком на 18с, если видео
 			// не загрузилось или уже закончилось — не блокируем приложение).
 			const splash = document.getElementById('splash-screen');
-			const video = document.getElementById('splash-video') as HTMLVideoElement | null;
+			const video = document.getElementById('splash-video');
 
 			if (video && !video.ended) {
 				try {
