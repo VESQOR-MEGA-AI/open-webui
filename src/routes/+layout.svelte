@@ -1190,16 +1190,11 @@
 
 					if (sessionUser) {
 						await user.set(sessionUser);
-						try {
-							await config.set(await getBackendConfig());
-						} catch (error) {
-							console.error('Error refreshing backend config:', error);
-						}
-
 						// Keep user timezone in sync on every app load/refresh
+						// (fire-and-forget: must not block first paint)
 						const timezone = getUserTimezone();
 						if (timezone) {
-							updateUserTimezone(localStorage.token, timezone);
+							updateUserTimezone(localStorage.token, timezone).catch(() => {});
 						}
 
 						// Relay auth token to desktop app for API access
