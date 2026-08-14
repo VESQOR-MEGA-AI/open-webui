@@ -86,12 +86,12 @@
 		selectedSystemTerminal?.id ||
 		selectedDirectTerminal?.name ||
 		selectedDirectTerminal?.url?.replace(/^https?:\/\//, '') ||
-		$i18n.t('Terminal');
+		$i18n.t('VESQOR MEGA AI');
 </script>
 
 <div class="flex items-center translate-x-0.5">
 	<Dropdown bind:show align="start">
-		<Tooltip content={$i18n.t('Terminal')} placement="top">
+		<Tooltip content="VESQOR MEGA AI" placement="top">
 			<button
 				type="button"
 				class="flex items-center gap-1.5 translate-y-[1px] text-[13px] text-gray-600 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/40 dark:hover:text-gray-200 transition rounded-lg cursor-pointer {$selectedTerminalId &&
