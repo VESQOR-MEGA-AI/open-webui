@@ -178,8 +178,12 @@
 
 	const getAvailableModelIds = () =>
 		$models.filter((m) => !(m?.info?.meta?.hidden ?? false)).map((m) => m.id);
-	const getDefaultModelIds = () =>
-		$config?.default_models ? $config.default_models.split(',') : [];
+	const getDefaultModelIds = () => {
+		const dm = $config?.default_models;
+		if (!dm) return [];
+		if (Array.isArray(dm)) return dm;
+		return String(dm).split(',');
+	};
 	const normalizeSelectedModels = (modelIds: string[] = []) => {
 		const availableModels = getAvailableModelIds();
 		const defaultModels = getDefaultModelIds();
@@ -1725,7 +1729,11 @@
 			.filter((m) => !(m?.info?.meta?.hidden ?? false))
 			.map((m) => m.id);
 
-		const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
+		const defaultModels = Array.isArray($config?.default_models)
+			? $config.default_models
+			: $config?.default_models
+				? String($config.default_models).split(',')
+				: [];
 
 		if ($page.url.searchParams.get('models') || $page.url.searchParams.get('model')) {
 			const urlModels = (
