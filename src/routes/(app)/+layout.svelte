@@ -258,33 +258,18 @@
 	};
 
 	onMount(async () => {
-		// VESQOR: the user store may still be resolving when this layout mounts
-		// right after a sign-in redirect. Wait briefly for it instead of
-		// jumping to /auth (which would strand the app on the spinner).
-		if ($user === undefined || $user === null) {
-			const resolved = await new Promise<boolean>((resolve) => {
-				const unsub = user.subscribe((u) => {
-					if (u !== undefined) {
-						unsub();
-						resolve(true);
-					}
-				});
-				setTimeout(() => {
-					unsub();
-					resolve(false);
-				}, 4000);
-			});
-			if (!resolved) {
-				await gotoAuth();
-				return;
-			}
-		}
+		// VESQOR: never strand the app on the spinner. loaded=true is set in a
+		// finally block so the main surface ALWAYS mounts; if the session user
+		// isn't resolved yet, the reactive gotoAuth() block below handles the
+		// redirect (it fires once $user becomes defined — or immediately if it
+		// was never going to be).
 		try {
 			await runInit();
 		} catch (e) {
 			console.error('[vesqor-init] layout onMount failed:', e);
 		} finally {
 			loaded = true;
+			console.log('[vesqor-init] layout loaded=true');
 		}
 	});
 
