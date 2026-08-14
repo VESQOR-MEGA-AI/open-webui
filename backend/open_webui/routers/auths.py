@@ -825,14 +825,17 @@ async def signin(
             local = await Users.get_user_by_email(form_data.email.lower(), db=db)
             if not local:
                 # First sign-in from this app: mirror the authdb row locally
-                # with the SAME id so JWT sessions are interchangeable.
-                local = await Users.insert_new_user(
-                    authdb_user["id"],
-                    authdb_user["name"] or form_data.email.lower().split("@")[0],
-                    form_data.email.lower(),
-                    '/user.png',
-                    authdb_user["role"] if authdb_user["role"] in {'admin', 'user', 'pending'} else 'user',
+                # with the SAME id so JWT sessions are interchangeable. Use
+                # insert_new_auth so BOTH the `user` row and the `auth` row
+                # (which carries the verified flag) exist. The local password
+                # is a placeholder — authdb is the credential source of truth.
+                local = await Auths.insert_new_auth(
+                    email=form_data.email.lower(),
+                    password="!authdb-projection!",
+                    name=authdb_user["name"] or form_data.email.lower().split("@")[0],
+                    role=authdb_user["role"] if authdb_user["role"] in {'admin', 'user', 'pending'} else 'user',
                     db=db,
+                    user_id_override=authdb_user["id"],
                 )
             # Mirror the verified status from authdb — a verified account
             # must not be gated by the local email-verification check.
