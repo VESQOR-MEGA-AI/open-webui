@@ -834,6 +834,10 @@ async def signin(
                     authdb_user["role"] if authdb_user["role"] in {'admin', 'user', 'pending'} else 'user',
                     db=db,
                 )
+                # Mirror the verified status from authdb — a verified account
+                # must not be gated by the local email-verification check.
+                if authdb_user.get("email_verified"):
+                    await Auths.mark_verified_by_id(local.id, db=db)
             user = local
         else:
             # Not in authdb — fall back to the local credential (legacy users).
