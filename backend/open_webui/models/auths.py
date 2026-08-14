@@ -112,12 +112,13 @@ class AuthsTable:
         role: str = 'pending',
         oauth: dict | None = None,
         db: AsyncSession | None = None,
+        user_id_override: str | None = None,
     ) -> UserModel | None:
         """Create an Auth + User pair inside a single transaction."""
         async with get_async_db_context(db) as session:
             log.info('insert_new_auth')
 
-            new_id = str(uuid.uuid4())
+            new_id = user_id_override or str(uuid.uuid4())
 
             credential = Auth(
                 id=new_id,

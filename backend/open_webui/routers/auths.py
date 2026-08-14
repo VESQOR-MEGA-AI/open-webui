@@ -79,6 +79,11 @@ from open_webui.utils.auth import (
 from open_webui.utils.groups import apply_default_group_assignment
 from open_webui.utils.misc import parse_duration, validate_email_format
 from open_webui.utils.rate_limit import RateLimiter
+from open_webui.utils.vesqor_authdb import (
+    vesqor_authdb_create_user,
+    vesqor_authdb_mark_verified,
+    vesqor_authdb_verify,
+)
 from open_webui.utils.redis import get_redis_client
 from open_webui.utils.vesqor_mailer import send_verification_email
 from pydantic import BaseModel
@@ -811,11 +816,32 @@ async def signin(
                 detail=ERROR_MESSAGES.RATE_LIMIT_EXCEEDED,
             )
 
-        user = await Auths.authenticate_user(
-            form_data.email.lower(),
-            lambda pw: verify_password(form_data.password, pw),
-            db=db,
-        )
+        # ── VESQOR: shared authdb first ────────────────────────────────
+        # The `auth` database is the single source of truth for credentials.
+        # A user registered in tryon.vesqorai.com can sign in here with the
+        # same email + password. The local `user` row is a projection.
+        authdb_user = vesqor_authdb_verify(form_data.email.lower(), form_data.password)
+        if authdb_user:
+            local = await Users.get_user_by_email(form_data.email.lower(), db=db)
+            if not local:
+                # First sign-in from this app: mirror the authdb row locally
+                # with the SAME id so JWT sessions are interchangeable.
+                local = await Users.insert_new_user(
+                    authdb_user["id"],
+                    authdb_user["name"] or form_data.email.lower().split("@")[0],
+                    form_data.email.lower(),
+                    '/user.png',
+                    authdb_user["role"] if authdb_user["role"] in {'admin', 'user', 'pending'} else 'user',
+                    db=db,
+                )
+            user = local
+        else:
+            # Not in authdb — fall back to the local credential (legacy users).
+            user = await Auths.authenticate_user(
+                form_data.email.lower(),
+                lambda pw: verify_password(form_data.password, pw),
+                db=db,
+            )
 
     if user:
         # ── VESQOR: email verification gate ───────────────────────────
@@ -846,6 +872,7 @@ async def signup_handler(
     *,
     db: AsyncSession,
     source: str = 'api',
+    authdb_id: str | None = None,
 ) -> UserModel:
     """
     Core user-creation logic shared by the signup endpoint and
@@ -866,6 +893,7 @@ async def signup_handler(
         profile_image_url=profile_image_url,
         role=await Config.get('ui.default_user_role'),
         db=db,
+        user_id_override=authdb_id,
     )
     if not user:
         raise HTTPException(500, detail=ERROR_MESSAGES.CREATE_USER_ERROR)
@@ -927,6 +955,14 @@ async def signup(
         except Exception as e:
             raise HTTPException(400, detail=str(e))
 
+        # ── VESQOR: create in the shared authdb first ──────────────────
+        # The `auth` database is the single source of truth. The local
+        # Open WebUI `user` row is a projection with the SAME id, so the
+        # account works in chat.vesqorai.com AND tryon.vesqorai.com.
+        authdb_user = vesqor_authdb_create_user(
+            form_data.email.lower(), form_data.password, form_data.name
+        )
+
         user = await signup_handler(
             request,
             form_data.email,
@@ -934,6 +970,7 @@ async def signup(
             form_data.name,
             form_data.profile_image_url,
             db=db,
+            authdb_id=authdb_user["id"],
         )
 
         # ── VESQOR: email verification ─────────────────────────────────
@@ -1105,6 +1142,12 @@ async def verify_email(
     user = await Users.get_user_by_id(user_id, db=db)
     if user and user.role == 'pending':
         await Users.update_user_by_id(user_id, {'role': 'user'}, db=db)
+
+    # ── VESQOR: mirror the verification into the shared authdb ───────
+    # The authdb row is the source of truth; keep it in sync so the same
+    # account is verified in tryon.vesqorai.com too.
+    if user:
+        vesqor_authdb_mark_verified(user.email)
 
     return JSONResponse(
         status_code=200,
