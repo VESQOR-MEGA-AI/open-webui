@@ -258,10 +258,37 @@
 	};
 
 	onMount(async () => {
+		// VESQOR: the user store may still be resolving when this layout mounts
+		// right after a sign-in redirect. Wait briefly for it instead of
+		// jumping to /auth (which would strand the app on the spinner).
 		if ($user === undefined || $user === null) {
-			await gotoAuth();
-			return;
+			const resolved = await new Promise<boolean>((resolve) => {
+				const unsub = user.subscribe((u) => {
+					if (u !== undefined) {
+						unsub();
+						resolve(true);
+					}
+				});
+				setTimeout(() => {
+					unsub();
+					resolve(false);
+				}, 4000);
+			});
+			if (!resolved) {
+				await gotoAuth();
+				return;
+			}
 		}
+		try {
+			await runInit();
+		} catch (e) {
+			console.error('[vesqor-init] layout onMount failed:', e);
+		} finally {
+			loaded = true;
+		}
+	});
+
+	const runInit = async () => {
 		if (!['user', 'admin'].includes($user?.role)) {
 			return;
 		}
@@ -453,11 +480,7 @@
 				// storage denied
 			}
 		});
-
-		await tick();
-
-		loaded = true;
-	});
+	};
 
 	// `$page.url` must be referenced here: `$:` only tracks variables used in
 	// the statement itself, and reads inside openSettingsFromUrl don't count —
