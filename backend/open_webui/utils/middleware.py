@@ -1930,16 +1930,19 @@ async def chat_completion_files_handler(
                 unique_ids.add(_id)
 
         sources_count = len(unique_ids)
-        await __event_emitter__(
-            {
-                'type': 'status',
-                'data': {
-                    'action': 'sources_retrieved',
-                    'count': sources_count,
-                    'done': True,
-                },
-            }
-        )
+        # VESQOR: don't emit the status when zero sources were found.
+        # The "No sources found" line is pure noise before every report.
+        if sources_count > 0:
+            await __event_emitter__(
+                {
+                    'type': 'status',
+                    'data': {
+                        'action': 'sources_retrieved',
+                        'count': sources_count,
+                        'done': True,
+                    },
+                }
+            )
 
     return body, {'sources': sources}
 
