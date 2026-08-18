@@ -35,9 +35,39 @@
 	import ChatPlus from '../icons/ChatPlus.svelte';
 	import ChatCheck from '../icons/ChatCheck.svelte';
 	import Knobs from '../icons/Knobs.svelte';
+	import Share from '../icons/Share.svelte';
 	import { isTemporaryChatId } from '$lib/utils/chatId';
 
 	const i18n = getContext('i18n');
+
+	const SHARE_URL = 'https://chat.vesqorai.com';
+	const SHARE_TEXT = 'VESQOR MEGA AI — business intelligence engine. Messy problem in, structured report out.';
+
+	const shareLinks = {
+		facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`,
+		x: `https://twitter.com/intent/tweet?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(SHARE_TEXT)}`,
+		linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}`,
+		telegram: `https://t.me/share/url?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(SHARE_TEXT)}`
+	};
+
+	let showSocialShare = false;
+
+	async function socialShare() {
+		if (typeof navigator !== 'undefined' && navigator.share) {
+			try {
+				await navigator.share({ title: 'VESQOR MEGA AI', text: SHARE_TEXT, url: SHARE_URL });
+				return;
+			} catch {
+				/* user cancelled */
+			}
+		}
+		showSocialShare = !showSocialShare;
+	}
+
+	function openShare(network: 'facebook' | 'x' | 'linkedin' | 'telegram') {
+		window.open(shareLinks[network], '_blank', 'noopener,noreferrer');
+		showSocialShare = false;
+	}
 
 	export let initNewChat: Function;
 	export let readOnly: boolean = false;
@@ -116,7 +146,7 @@
 					class="flex-1 overflow-hidden max-w-full mt-0.5 py-0.5 pl-1 {$showSidebar ? 'ml-1' : ''}"
 				>
 					{#if chat?.id}
-						<div class="flex max-w-full min-w-0 items-center gap-2 mr-2">
+						<div class="relative flex max-w-full min-w-0 items-center gap-2 mr-2">
 							<div
 								class="min-w-0 truncate py-1 text-left text-[15px] font-normal text-gray-700 dark:text-gray-300"
 							>
@@ -124,6 +154,43 @@
 							</div>
 
 							{#if shareEnabled && chat && (chat.id || $temporaryChatEnabled)}
+								<button
+									class="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+									aria-label={$i18n.t('Share on social networks')}
+									on:click={socialShare}
+								>
+									<Share className="size-4.5" strokeWidth="1.5" />
+								</button>
+								{#if showSocialShare}
+									<div
+										class="absolute right-0 top-full z-50 mt-1 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+									>
+										<button
+											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											on:click={() => openShare('facebook')}
+										>
+											Facebook
+										</button>
+										<button
+											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											on:click={() => openShare('x')}
+										>
+											X (Twitter)
+										</button>
+										<button
+											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											on:click={() => openShare('linkedin')}
+										>
+											LinkedIn
+										</button>
+										<button
+											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											on:click={() => openShare('telegram')}
+										>
+											Telegram
+										</button>
+									</div>
+								{/if}
 								<Menu
 									{chat}
 									{shareEnabled}
