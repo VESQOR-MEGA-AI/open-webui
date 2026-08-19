@@ -1148,6 +1148,12 @@
 						{$WEBUI_NAME}
 					</div>
 				</a>
+				<img
+					src="{WEBUI_BASE_URL}/static/beta-badge.png"
+					class="pointer-events-none h-3.5 self-center opacity-90 shrink-0"
+					alt=""
+					draggable="false"
+				/>
 				<Tooltip
 					content={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 					placement="bottom"
