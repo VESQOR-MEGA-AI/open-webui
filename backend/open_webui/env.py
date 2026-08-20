@@ -764,6 +764,10 @@ SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', 'True').lower() == 'true'
 SMTP_VERIFY_ENABLED = os.getenv('SMTP_VERIFY_ENABLED', 'True').lower() == 'true'
 VERIFY_EMAIL_URL = os.getenv('VERIFY_EMAIL_URL', '')  # public base, e.g. https://chat.vesqorai.com
 
+# ── VESQOR: billing + admin proxy to the brain (api.vesqorai.com) ─────
+VESQOR_SERVICE_TOKEN = os.environ.get('VESQOR_SERVICE_TOKEN', '')
+VESQOR_API_BASE_URL = os.environ.get('VESQOR_API_BASE_URL', 'https://api.vesqorai.com')
+
 WEBUI_AUTH_TRUSTED_EMAIL_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_EMAIL_HEADER', None)
 WEBUI_AUTH_TRUSTED_NAME_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_NAME_HEADER', None)
 WEBUI_AUTH_TRUSTED_GROUPS_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_GROUPS_HEADER', None)
