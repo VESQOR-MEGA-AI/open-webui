@@ -313,6 +313,12 @@
 											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{/if}
 									</div>
+									<img
+										src="{WEBUI_BASE_URL}/static/beta-badge.png"
+										class="mx-auto mt-2 h-4 self-center opacity-90"
+										alt="Beta version"
+										draggable="false"
+									/>
 
 									{#if $config?.onboarding ?? false}
 										<div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
