@@ -102,6 +102,13 @@
 					>
 						{item.effortTier}
 					</span>
+					{#if item.effortTier === 'LIGHT'}
+						<span
+							class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+						>
+							{$i18n.t('Default')}
+						</span>
+					{/if}
 					{#if item.effortDesc}
 						<span class="min-w-0 truncate text-xs font-normal text-gray-400 dark:text-gray-500">
 							{item.effortDesc}

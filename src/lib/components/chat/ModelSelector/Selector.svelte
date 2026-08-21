@@ -221,7 +221,9 @@
 	$: triggerLabel = selectedModel
 		? compareEnabled && selectedCount > 1
 			? `${selectedModel.label} +${selectedCount - 1}`
-			: selectedModel.label
+			: selectedModel.effortTier
+				? `${selectedModel.label.replace(/ · .*$/, '')} · ${selectedModel.effortTier}`
+				: selectedModel.label
 		: placeholder;
 
 	let searchValue = '';
@@ -878,7 +880,7 @@
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
 							<div
 								class="min-h-0 flex-1 overflow-y-auto"
-								style="max-height: 288px;"
+								style="max-height: 380px;"
 								role="listbox"
 								aria-label={$i18n.t('Available models')}
 								bind:this={listContainer}
@@ -917,6 +919,15 @@
 									/>
 								{/each}
 								<div style="height: {(filteredItems.length - visibleEnd) * ITEM_HEIGHT}px;" />
+								{#if filteredItems.some((item) => item.effortTier)}
+									<div
+										class="shrink-0 border-t border-gray-100 px-3 py-2 text-[0.7rem] leading-4 text-gray-400 dark:border-gray-800 dark:text-gray-500"
+									>
+										{$i18n.t(
+											'Higher effort means more thorough responses, but takes longer and uses your limits faster.'
+										)}
+									</div>
+								{/if}
 							</div>
 						{/if}
 
