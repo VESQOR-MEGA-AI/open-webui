@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { WEBUI_NAME } from '$lib/constants';
+	import { WEBUI_NAME } from '$lib/stores';
 	import { goto } from '$app/navigation';
 </script>
 
