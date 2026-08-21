@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from open_webui.env import VESQOR_API_BASE_URL, VESQOR_SERVICE_TOKEN
 from open_webui.utils.auth import get_verified_user
 from pydantic import BaseModel
@@ -67,6 +67,47 @@ async def _proxy(method: str, path: str, user, json_body: Optional[dict] = None)
     return body, response.status_code
 
 
+async def _proxy_raw(method: str, path: str, user, json_body: Optional[dict] = None, timeout: float = _TIMEOUT):
+    """Proxy returning the raw (possibly binary) response, like the brain export endpoint."""
+    if not VESQOR_SERVICE_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VESQOR integration not configured",
+        )
+
+    url = f"{VESQOR_API_BASE_URL.rstrip('/')}{path}"
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.request(
+                method,
+                url,
+                headers=_service_headers(user),
+                json=json_body,
+            )
+    except httpx.RequestError as e:
+        log.exception(f"VESQOR brain request failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="VESQOR service is currently unreachable",
+        )
+
+    if response.status_code in (401, 403):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized for VESQOR",
+        )
+
+    if response.status_code >= 500:
+        log.error(f"VESQOR brain returned {response.status_code}: {response.text}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="VESQOR service error",
+        )
+
+    return response
+
+
 def _require_admin(user):
     if user.role != "admin":
         raise HTTPException(
@@ -81,6 +122,14 @@ class CheckoutForm(BaseModel):
 
 class CreditTopupForm(BaseModel):
     credits: int
+
+
+class ExportForm(BaseModel):
+    """Export a VESQOR report: either a persisted reportId or an ad-hoc title+body."""
+    format: str = "md"
+    reportId: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
 
 
 class ProviderForm(BaseModel):
@@ -126,6 +175,51 @@ async def get_credits(user=Depends(get_verified_user)):
 async def create_credit_topup(form_data: CreditTopupForm, user=Depends(get_verified_user)):
     body, _ = await _proxy("POST", "/api/credits/topup", user, form_data.model_dump())
     return body
+
+
+############################
+# Report export
+############################
+
+_EXPORT_CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "html": "text/html",
+    "md": "text/markdown",
+    "json": "application/json",
+}
+
+
+@router.post("/export")
+async def export_report(form_data: ExportForm, user=Depends(get_verified_user)):
+    """Proxy the brain export engine (RPT-3): POST /api/v1/export on api.vesqorai.com.
+
+    Accepts {reportId} OR {title, body}; format: pdf|docx|html|md|json.
+    Returns the generated file to the client.
+    """
+    fmt = (form_data.format or "md").lower()
+    if fmt not in _EXPORT_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported export format: {fmt}",
+        )
+
+    if not form_data.reportId and not (form_data.title and form_data.body):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either reportId or title+body must be provided",
+        )
+
+    response = await _proxy_raw("POST", "/api/v1/export", user, form_data.model_dump(), timeout=120.0)
+    content = response.content
+    content_type = response.headers.get("content-type", _EXPORT_CONTENT_TYPES[fmt]).split(";")[0].strip()
+
+    return Response(
+        content=content,
+        status_code=response.status_code,
+        media_type=content_type,
+        headers={"Content-Disposition": response.headers.get("content-disposition", "")},
+    )
 
 
 ############################

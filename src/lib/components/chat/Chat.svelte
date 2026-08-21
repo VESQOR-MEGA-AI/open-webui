@@ -2385,6 +2385,16 @@
 	const chatCompletionEventHandler = async (data, message, chatId) => {
 		const { id, done, choices, content, output, sources, selected_model_id, error, usage } = data;
 
+		// VESQOR reports: the brain returns the machine-readable envelope
+		// (vq_meta) in the final non-streaming completion payload, nested
+		// under response_data. Persist it on the message so ReportView can
+		// render title / confidence / source without re-parsing.
+		if (data?.response_data?.vq_meta) {
+			message.vq_meta = data.response_data.vq_meta;
+		} else if (data?.vq_meta) {
+			message.vq_meta = data.vq_meta;
+		}
+
 		// Store raw OR-aligned output items from backend
 		if (output) {
 			message.output = output;

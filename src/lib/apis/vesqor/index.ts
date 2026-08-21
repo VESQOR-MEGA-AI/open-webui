@@ -112,3 +112,34 @@ export const updateVesqorToken = async (token: string, id: string, body: object)
 export const deleteVesqorToken = async (token: string, id: string) => {
 	return _mutate(token, 'DELETE', `/admin/tokens/${id}`);
 };
+
+export interface VesqorExportParams {
+	format: 'pdf' | 'docx' | 'html' | 'md' | 'json';
+	reportId?: string;
+	title?: string;
+	body?: string;
+}
+
+/**
+ * Export a VESQOR report through the Open WebUI backend proxy
+ * (POST /api/v1/vesqor/export → brain POST /api/v1/export).
+ * Returns the raw response so the caller can save the file blob.
+ */
+export const exportVesqorReport = async (token: string, params: VesqorExportParams): Promise<Response> => {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/vesqor/export`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(params)
+	});
+
+	if (!res.ok) {
+		const err = await res.json().catch(() => null);
+		throw err?.detail ?? 'Export failed';
+	}
+
+	return res;
+};
