@@ -94,26 +94,39 @@
 				</Tooltip>
 			</div>
 
-			<div class="flex min-w-0 items-center">
-				<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
-					<div class="line-clamp-1">
-						{item.label}
-					</div>
-				</Tooltip>
+			<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+				{#if item.effortTier}
+					<span
+						class="shrink-0 text-sm font-semibold text-gray-800 dark:text-gray-100"
+						title={`${item.label} (${item.value})`}
+					>
+						{item.effortTier}
+					</span>
+					{#if item.effortDesc}
+						<span class="min-w-0 truncate text-xs font-normal text-gray-400 dark:text-gray-500">
+							{item.effortDesc}
+						</span>
+					{/if}
+				{:else}
+					<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
+						<div class="line-clamp-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+							{item.label}
+						</div>
+					</Tooltip>
+					{#if item.model?.id === 'lizz'}
+						<div
+							class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+						>
+							{$i18n.t('Default')}
+						</div>
+					{/if}
+					{#if item.model?.info?.meta?.description}
+						<span class="min-w-0 truncate text-xs font-normal text-gray-400 dark:text-gray-500">
+							{item.model.info.meta.description}
+						</span>
+					{/if}
+				{/if}
 			</div>
-
-			{#if item.effortTier && item.effortDesc}
-				<div
-					class="min-w-0 truncate pl-2 text-sm font-normal text-gray-400 dark:text-gray-500"
-					title={item.effortDesc}
-				>
-					{item.effortDesc}
-				</div>
-			{:else if item.effortTier}
-				<div class="shrink-0 pl-2 text-sm font-semibold text-gray-400 dark:text-gray-500">
-					{item.effortTier}
-				</div>
-			{/if}
 
 			<div class="flex shrink-0 items-center gap-1.5">
 				{#if item.model.owned_by === 'ollama'}
