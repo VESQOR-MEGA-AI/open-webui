@@ -148,7 +148,7 @@
 					{#if chat?.id}
 						<div class="relative flex max-w-full min-w-0 items-center gap-2 mr-2">
 							<div
-								class="min-w-0 truncate py-1 text-left text-[15px] font-normal text-gray-700 dark:text-gray-300"
+								class="min-w-0 truncate py-1 text-left text-base font-normal text-gray-700 dark:text-gray-300"
 							>
 								{title || chat?.chat?.title || $i18n.t('New Chat')}
 							</div>
@@ -166,25 +166,25 @@
 										class="absolute right-0 top-full z-50 mt-1 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
 									>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-base text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('facebook')}
 										>
 											Facebook
 										</button>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-base text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('x')}
 										>
 											X (Twitter)
 										</button>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-base text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('linkedin')}
 										>
 											LinkedIn
 										</button>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-base text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('telegram')}
 										>
 											Telegram
@@ -220,7 +220,7 @@
 					{:else}
 						<div class="pointer-events-none invisible flex max-w-full min-w-0 items-center gap-2">
 							<div
-								class="min-w-0 truncate py-1 text-left text-[15px] font-normal text-gray-700 dark:text-gray-300"
+								class="min-w-0 truncate py-1 text-left text-base font-normal text-gray-700 dark:text-gray-300"
 							>
 								{$i18n.t('New Chat')}
 							</div>

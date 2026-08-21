@@ -114,7 +114,7 @@
 	<slot />
 
 	<div slot="content">
-		<DropdownMenu className="{className} font-sans text-xs">
+		<DropdownMenu className="{className} font-sans text-sm">
 			{#if $user}
 				<div>
 					<button

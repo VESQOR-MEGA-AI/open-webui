@@ -309,7 +309,7 @@
 							<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
 								{#if showControlsTab}
 									<button
-										class="px-3 py-1.5 text-[15px] rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'controls'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -320,7 +320,7 @@
 								{/if}
 								{#if showFilesTab}
 									<button
-										class="px-3 py-1.5 text-[15px] rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'files'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -331,7 +331,7 @@
 								{/if}
 								{#if showOverviewTab}
 									<button
-										class="px-3 py-1.5 text-[15px] rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'overview'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -453,7 +453,7 @@
 								<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
 									{#if showControlsTab}
 										<button
-											class="px-3 py-1.5 text-[15px] rounded-lg transition whitespace-nowrap {activeTab ===
+											class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 											'controls'
 												? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 												: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -464,7 +464,7 @@
 									{/if}
 									{#if showFilesTab}
 										<button
-											class="px-3 py-1.5 text-[15px] rounded-lg transition whitespace-nowrap {activeTab ===
+											class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 											'files'
 												? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 												: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -475,7 +475,7 @@
 									{/if}
 									{#if showOverviewTab}
 										<button
-											class="px-3 py-1.5 text-[15px] rounded-lg transition whitespace-nowrap {activeTab ===
+											class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 											'overview'
 												? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 												: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"

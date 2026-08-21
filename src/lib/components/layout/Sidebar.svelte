@@ -986,7 +986,7 @@
 							<div
 								class=" self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 							>
-								<EditPencilIcon className="size-4" strokeWidth="1.5" />
+								<EditPencilIcon className="size-5" strokeWidth="1.5" />
 							</div>
 						</a>
 					</Tooltip>
@@ -1008,7 +1008,7 @@
 							<div
 								class=" self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 							>
-								<SearchIcon className="size-4" strokeWidth="1.5" />
+								<SearchIcon className="size-5" strokeWidth="1.5" />
 							</div>
 						</button>
 					</Tooltip>
@@ -1040,15 +1040,15 @@
 											: 'group-hover:bg-gray-50 dark:group-hover:bg-gray-900'}"
 									>
 										{#if itemId === 'notes'}
-											<NotesIcon className="size-4" strokeWidth="1.5" />
+											<NotesIcon className="size-5" strokeWidth="1.5" />
 										{:else if itemId === 'workspace'}
-											<WorkspaceIcon className="size-4" strokeWidth="1.5" />
+											<WorkspaceIcon className="size-5" strokeWidth="1.5" />
 										{:else if itemId === 'automations'}
-											<ClockIcon className="size-4" strokeWidth="1.5" />
+											<ClockIcon className="size-5" strokeWidth="1.5" />
 										{:else if itemId === 'calendar'}
-											<CalendarIcon className="size-4" strokeWidth="1.5" />
+											<CalendarIcon className="size-5" strokeWidth="1.5" />
 										{:else if itemId === 'playground'}
-											<CodeIcon className="size-4" strokeWidth="1.5" />
+											<CodeIcon className="size-5" strokeWidth="1.5" />
 										{/if}
 									</div>
 								</a>
@@ -1113,7 +1113,7 @@
 			? `${$mobile ? 'bg-gray-50 dark:bg-gray-950' : 'bg-gray-50/70 dark:bg-gray-950/70'} z-50`
 			: ' bg-transparent z-0 '} {$isApp
 			? `ml-[4.5rem] md:ml-0 `
-			: ' transition-all duration-300 '} shrink-0 text-gray-700 dark:text-gray-300 text-[13px] leading-5 fixed top-0 left-0 overflow-x-hidden
+			: ' transition-all duration-300 '} shrink-0 text-gray-700 dark:text-gray-300 text-sm leading-6 fixed top-0 left-0 overflow-x-hidden
         "
 		transition:slide={{ duration: 250, axis: 'x' }}
 		data-state={$showSidebar}
@@ -1168,7 +1168,7 @@
 						aria-label={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 					>
 						<div class=" self-center">
-							<Sidebar className="size-4" />
+							<Sidebar className="size-5" />
 						</div>
 					</button>
 				</Tooltip>
@@ -1205,7 +1205,7 @@
 							</div>
 
 							<div class="flex flex-1 self-center translate-y-[0.5px]">
-								<div class=" self-center text-[13px] leading-5">{$i18n.t('New Chat')}</div>
+								<div class=" self-center text-sm leading-6">{$i18n.t('New Chat')}</div>
 							</div>
 
 							<HotkeyHint name="newChat" className=" group-hover:visible invisible" />
@@ -1223,11 +1223,11 @@
 							aria-label={$i18n.t('Search')}
 						>
 							<div class="self-center flex size-4 shrink-0 items-center justify-center">
-								<SearchIcon strokeWidth="1.5" className="size-4" />
+								<SearchIcon strokeWidth="1.5" className="size-5" />
 							</div>
 
 							<div class="flex flex-1 self-center translate-y-[0.5px]">
-								<div class=" self-center text-[13px] leading-5">{$i18n.t('Search')}</div>
+								<div class=" self-center text-sm leading-6">{$i18n.t('Search')}</div>
 							</div>
 							<HotkeyHint name="search" className=" group-hover:visible invisible" />
 						</button>
@@ -1256,20 +1256,20 @@
 									>
 										<div class="self-center flex size-4 shrink-0 items-center justify-center">
 											{#if itemId === 'notes'}
-												<NotesIcon className="size-4" strokeWidth="1.5" />
+												<NotesIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'workspace'}
-												<WorkspaceIcon className="size-4" strokeWidth="1.5" />
+												<WorkspaceIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'automations'}
-												<ClockIcon className="size-4" strokeWidth="1.5" />
+												<ClockIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'calendar'}
-												<CalendarIcon className="size-4" strokeWidth="1.5" />
+												<CalendarIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'playground'}
-												<CodeIcon className="size-4" strokeWidth="1.5" />
+												<CodeIcon className="size-5" strokeWidth="1.5" />
 											{/if}
 										</div>
 
 										<div class="flex self-center translate-y-[0.5px]">
-											<div class=" self-center text-[13px] leading-5">{$i18n.t(meta.label)}</div>
+											<div class=" self-center text-sm leading-6">{$i18n.t(meta.label)}</div>
 										</div>
 									</a>
 								</div>
@@ -1485,7 +1485,7 @@
 							<div slot="content">
 								<DropdownMenu className="min-w-[170px]">
 									<button
-										class="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[13px] select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+										class="flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 										on:click={markAllChatsReadHandler}
 									>
 										<CheckIcon className="size-3.5" />
