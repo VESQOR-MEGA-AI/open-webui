@@ -4,9 +4,10 @@
 
 	import Markdown from './Markdown.svelte';
 	import StructuredOutputRenderer from './StructuredOutputRenderer.svelte';
+	import ReportView from './ReportView.svelte';
 	import {
 		artifactCode,
-		chatId,
+		chatId as chatIdStore,
 		mobile,
 		settings,
 		showArtifacts,
@@ -15,6 +16,7 @@
 	} from '$lib/stores';
 	import FloatingButtons from '../ContentRenderer/FloatingButtons.svelte';
 	import { createMessagesList, replaceOutsideCode } from '$lib/utils';
+	import { isReportMessage, parseVqMeta } from '$lib/utils/vesqor-report';
 
 	/**
 	 * Extracts all top-level <details>...</details> blocks from content,
@@ -75,6 +77,9 @@
 	export let history;
 	export let messageId;
 
+	export let message = {};
+	export let regenerateResponse = () => {};
+
 	export let selectedModels = [];
 
 	export let done = true;
@@ -85,6 +90,7 @@
 	export let preview = false;
 	export let compactPreview = false;
 	export let floatingButtons = true;
+	export let readOnly = false;
 
 	export let editCodeBlock = true;
 	export let topPadding = false;
@@ -152,7 +158,7 @@
 				hasClosingCodeFence(raw) &&
 				!autoOpenedArtifactIds.has(artifactId) &&
 				!$mobile &&
-				$chatId
+				$chatIdStore
 			) {
 				autoOpenedArtifactIds.add(artifactId);
 				await tick();
@@ -279,7 +285,21 @@
 </script>
 
 <div bind:this={contentContainerElement}>
-	{#if output?.length}
+	{#if isReportMessage(message, content) && (done || parseVqMeta(message))}
+		<ReportView
+			messageId={messageId ?? id}
+			chatId={$chatIdStore}
+			{content}
+			{message}
+			{model}
+			{compactPreview}
+			{done}
+			{editCodeBlock}
+			{topPadding}
+			{readOnly}
+			{regenerateResponse}
+		/>
+	{:else if output?.length}
 		<StructuredOutputRenderer
 			{id}
 			{output}

@@ -114,8 +114,30 @@
 			total_duration?: number;
 			load_duration?: number;
 			usage?: unknown;
+			vq_meta?: {
+				report?: string;
+				title?: string;
+				reportTitle?: string;
+				confidenceScore?: number;
+				notes?: string;
+				source?: string;
+				reportClass?: string;
+				reportType?: string;
+				systemPromptApplied?: string;
+			};
 		};
 		annotation?: { type: string; rating: number };
+		vq_meta?: {
+			report?: string;
+			title?: string;
+			reportTitle?: string;
+			confidenceScore?: number;
+			notes?: string;
+			source?: string;
+			reportClass?: string;
+			reportType?: string;
+			systemPromptApplied?: string;
+		};
 	}
 
 	export let chatId = '';
@@ -827,6 +849,9 @@
 									content={message.content}
 									output={message.output}
 									sources={message.sources}
+									{message}
+									{regenerateResponse}
+									{readOnly}
 									floatingButtons={message?.done &&
 										!readOnly &&
 										($settings?.showFloatingActionButtons ?? true)}
