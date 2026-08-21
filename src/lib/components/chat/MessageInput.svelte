@@ -1381,7 +1381,7 @@
 			<div
 				class="flex flex-col px-3 {($settings?.widescreenMode ?? null)
 					? 'max-w-full'
-					: 'max-w-[58rem]'} w-full"
+					: 'max-w-[68rem]'} w-full"
 			>
 				<div class="relative">
 					{#if autoScroll === false && history?.currentId}
@@ -1419,7 +1419,7 @@
 			<div
 				class="{($settings?.widescreenMode ?? null)
 					? 'max-w-full'
-					: 'max-w-[58rem]'} px-2.5 mx-auto inset-x-0"
+					: 'max-w-[68rem]'} px-3 mx-auto inset-x-0"
 			>
 				<div class="">
 					<input
@@ -1713,7 +1713,7 @@
 
 							<div class="px-2">
 								<div
-									class="scrollbar-hidden rtl:text-right ltr:text-left bg-transparent dark:text-gray-100 outline-hidden w-full pb-0.5 px-1 resize-none h-fit max-h-96 overflow-auto {files.length ===
+									class="scrollbar-hidden rtl:text-right ltr:text-left bg-transparent dark:text-gray-100 outline-hidden w-full px-2 pt-2.5 pb-1 resize-none h-fit min-h-[3rem] max-h-96 overflow-auto {files.length ===
 									0
 										? atSelectedModel !== undefined
 											? 'pt-1'
@@ -2013,7 +2013,7 @@
 													class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-[1.875rem] flex justify-center items-center outline-hidden focus:outline-hidden shrink-0"
 													aria-label={$i18n.t('Integrations')}
 												>
-													<Component className="size-4.5" strokeWidth="1.5" />
+													<Component className="size-5" strokeWidth="1.5" />
 												</button>
 											</IntegrationsMenu>
 										{/if}
@@ -2031,7 +2031,7 @@
 															showValvesModal = true;
 														}}
 													>
-														<Knobs className="size-4" strokeWidth="1.5" />
+														<Knobs className="size-5" strokeWidth="1.5" />
 													</button>
 												</Tooltip>
 											</div>
@@ -2052,7 +2052,7 @@
 															showTools = !showTools;
 														}}
 													>
-														<Wrench className="size-4" strokeWidth="1.75" />
+														<Wrench className="size-5" strokeWidth="1.75" />
 
 														<span class="text-sm">
 															{(selectedToolIds ?? []).length}
@@ -2075,7 +2075,7 @@
 															showSkills = !showSkills;
 														}}
 													>
-														<Cube className="size-4" strokeWidth="1.75" />
+														<Cube className="size-5" strokeWidth="1.75" />
 
 														<span class="text-sm">
 															{(selectedSkillIds ?? []).length}
@@ -2112,7 +2112,7 @@
 																: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '} capitalize"
 														>
 															{#if filter?.icon}
-																<div class="size-4 items-center flex justify-center">
+																<div class="size-5 items-center flex justify-center">
 																	<img
 																		src={filter.icon}
 																		class="size-3.5 {filter.icon.includes('data:image/svg')
@@ -2123,7 +2123,7 @@
 																	/>
 																</div>
 															{:else}
-																<Sparkles className="size-4" strokeWidth="1.75" />
+																<Sparkles className="size-5" strokeWidth="1.75" />
 															{/if}
 															<!-- svelte-ignore a11y-click-events-have-key-events -->
 															<!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -2137,7 +2137,7 @@
 																	);
 																}}
 															>
-																<XMark className="size-4" strokeWidth="1.75" />
+																<XMark className="size-5" strokeWidth="1.75" />
 															</div>
 														</button>
 													</Tooltip>
@@ -2154,9 +2154,9 @@
 															? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-600/10 border border-sky-200/40 dark:border-sky-500/20'
 															: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
 													>
-														<GlobeAlt className="size-4" strokeWidth="1.75" />
+														<GlobeAlt className="size-5" strokeWidth="1.75" />
 														<div class="hidden group-hover:block">
-															<XMark className="size-4" strokeWidth="1.75" />
+															<XMark className="size-5" strokeWidth="1.75" />
 														</div>
 													</button>
 												</Tooltip>
@@ -2172,9 +2172,9 @@
 															? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
 															: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
 													>
-														<Photo className="size-4" strokeWidth="1.75" />
+														<Photo className="size-5" strokeWidth="1.75" />
 														<div class="hidden group-hover:block">
-															<XMark className="size-4" strokeWidth="1.75" />
+															<XMark className="size-5" strokeWidth="1.75" />
 														</div>
 													</button>
 												</Tooltip>
@@ -2200,7 +2200,7 @@
 														<Terminal className="size-3.5" strokeWidth="2" />
 
 														<div class="hidden group-hover:block">
-															<XMark className="size-4" strokeWidth="1.75" />
+															<XMark className="size-5" strokeWidth="1.75" />
 														</div>
 													</button>
 												</Tooltip>
@@ -2242,7 +2242,7 @@
 											showSetDefault={!history?.currentId}
 											placement="auto"
 											align="end"
-											triggerClassName="items-center gap-1.5 rounded-lg pl-2 pr-1.5 py-1 text-[13px] font-normal text-gray-600 transition-colors duration-100 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+											triggerClassName="items-center gap-1.5 rounded-lg pl-2 pr-1.5 py-1 text-sm font-normal text-gray-600 transition-colors duration-100 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
 										/>
 									</div>
 
@@ -2257,7 +2257,7 @@
 													dispatch('chatVariables');
 												}}
 											>
-												<Knobs className="size-4" strokeWidth="1.5" />
+												<Knobs className="size-5" strokeWidth="1.5" />
 											</button>
 										</Tooltip>
 									{/if}
@@ -2294,7 +2294,7 @@
 												<Tooltip content={$i18n.t('Dictate')}>
 													<button
 														id="voice-input-button"
-														class=" text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 self-center mr-0.5"
+														class=" text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-2 self-center mr-0.5"
 														type="button"
 														on:click={async () => {
 															try {

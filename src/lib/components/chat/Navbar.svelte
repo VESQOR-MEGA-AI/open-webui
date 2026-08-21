@@ -134,8 +134,8 @@
 								}}
 								aria-label={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 							>
-								<div class="self-center p-1.5">
-									<Sidebar className="size-4" />
+								<div class="self-center p-2">
+									<Sidebar className="size-5" />
 								</div>
 							</button>
 						</Tooltip>
@@ -159,32 +159,32 @@
 									aria-label={$i18n.t('Share on social networks')}
 									on:click={socialShare}
 								>
-									<Share className="size-4.5" strokeWidth="1.5" />
+									<Share className="size-5" strokeWidth="1.5" />
 								</button>
 								{#if showSocialShare}
 									<div
 										class="absolute right-0 top-full z-50 mt-1 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
 									>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('facebook')}
 										>
 											Facebook
 										</button>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('x')}
 										>
 											X (Twitter)
 										</button>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('linkedin')}
 										>
 											LinkedIn
 										</button>
 										<button
-											class="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+											class="flex items-center gap-2 rounded-md px-3 py-2 text-left text-[15px] text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
 											on:click={() => openShare('telegram')}
 										>
 											Telegram
@@ -212,7 +212,7 @@
 										id="chat-context-menu-button"
 										aria-label={$i18n.t('Chat actions')}
 									>
-										<EllipsisHorizontal className="size-4.5" strokeWidth="1.5" />
+										<EllipsisHorizontal className="size-5" strokeWidth="1.5" />
 									</button>
 								</Menu>
 							{/if}
@@ -259,9 +259,9 @@
 									aria-label={$i18n.t(`Temporary Chat`)}
 								>
 									{#if $temporaryChatEnabled}
-										<ChatBubbleDottedChecked className="size-4.5" strokeWidth="1.5" />
+										<ChatBubbleDottedChecked className="size-5" strokeWidth="1.5" />
 									{:else}
-										<ChatBubbleDotted className="size-4.5" strokeWidth="1.5" />
+										<ChatBubbleDotted className="size-5" strokeWidth="1.5" />
 									{/if}
 								</button>
 							</Tooltip>
@@ -275,7 +275,7 @@
 									}}
 									aria-label={$i18n.t(`Save Chat`)}
 								>
-									<ChatCheck className="size-4.5" strokeWidth="1.5" />
+									<ChatCheck className="size-5" strokeWidth="1.5" />
 								</button>
 							</Tooltip>
 						{/if}
@@ -292,7 +292,7 @@
 								}}
 								aria-label="New Chat"
 							>
-								<ChatPlus className="size-4.5" strokeWidth="1.5" />
+								<ChatPlus className="size-5" strokeWidth="1.5" />
 							</button>
 						</Tooltip>
 					{/if}
@@ -306,7 +306,7 @@
 								}}
 								aria-label="Controls"
 							>
-								<Knobs className="size-5" strokeWidth="1" />
+								<Knobs className="size-6" strokeWidth="1" />
 							</button>
 						</Tooltip>
 					{/if}

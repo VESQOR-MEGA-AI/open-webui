@@ -771,13 +771,13 @@
 			>
 				<slot>
 					{#if searchEnabled}
-						<div class="my-0.5 flex ml-2 mr-0.5 h-[1.6875rem] shrink-0 items-center gap-2">
+						<div class="my-0.5 flex ml-2 mr-0.5 h-10 shrink-0 items-center gap-2">
 							<Search className=" size-3.5 shrink-0" strokeWidth="2" />
 
 							<input
 								id="model-search-input"
 								bind:value={searchValue}
-								class="w-full bg-transparent text-[13px] font-normal outline-hidden placeholder:text-gray-400 dark:placeholder:text-gray-500"
+								class="w-full h-10 bg-transparent text-sm font-normal outline-hidden placeholder:text-gray-400 dark:placeholder:text-gray-500"
 								placeholder={searchPlaceholder}
 								autocomplete="off"
 								aria-label={$i18n.t('Search In Models')}
@@ -831,8 +831,8 @@
 											placeholder={$i18n.t('All')}
 											align="end"
 											items={modelFilterItems}
-											triggerClass="relative flex h-[1.375rem] max-w-32 items-center gap-0.5 rounded-xl bg-transparent px-1.5 text-[11px] font-normal text-gray-400 transition-colors duration-100 hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800/40 dark:hover:text-gray-300"
-											itemClass="flex h-[1.6875rem] w-full cursor-pointer items-center gap-2 rounded-xl bg-transparent px-2 text-[13px] capitalize hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100"
+											triggerClass="relative flex h-[1.375rem] max-w-32 items-center gap-0.5 rounded-xl bg-transparent px-1.5 text-xs font-normal text-gray-400 transition-colors duration-100 hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800/40 dark:hover:text-gray-300"
+											itemClass="flex h-10 w-full cursor-pointer items-center gap-2 rounded-xl bg-transparent px-2 text-sm capitalize hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100"
 											contentClass="min-w-36 model-selector-child-menu"
 											onChange={setModelFilter}
 										/>
@@ -853,12 +853,12 @@
 									>
 										{$i18n.t('No models available')}
 									</div>
-									<div class="w-full text-[11px] leading-3.5 text-gray-500 dark:text-gray-400">
+									<div class="w-full text-xs leading-3.5 text-gray-500 dark:text-gray-400">
 										{$i18n.t('Connect to an AI provider to start chatting')}
 									</div>
 									<button
 										type="button"
-										class="mt-3 rounded-lg px-0 py-1 text-[11px] font-normal leading-none text-gray-600 underline-offset-2 transition-colors duration-100 hover:text-gray-800 hover:underline focus:outline-hidden focus:underline dark:text-gray-300 dark:hover:text-gray-100"
+										class="mt-3 rounded-lg px-0 py-1 text-xs font-normal leading-none text-gray-600 underline-offset-2 transition-colors duration-100 hover:text-gray-800 hover:underline focus:outline-hidden focus:underline dark:text-gray-300 dark:hover:text-gray-100"
 										on:click={() => {
 											show = false;
 											showSettings.set('admin:connections');
@@ -869,7 +869,7 @@
 								</div>
 							{:else}
 								<div class="">
-									<div class="block px-2 py-1 text-[13px] text-gray-700 dark:text-gray-100">
+									<div class="block px-2 py-1 text-sm text-gray-700 dark:text-gray-100">
 										{$i18n.t('No results found')}
 									</div>
 								</div>
@@ -895,7 +895,7 @@
 										filteredItems.slice(visibleStart, index).every((prev) => !prev.effortTier)}
 									{#if isFirstEffort}
 										<div
-											class="mt-1 flex h-6 select-none items-center px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+											class="mt-1 flex h-8 select-none items-center px-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
 										>
 											{$i18n.t('Effort')}
 										</div>
@@ -928,7 +928,7 @@
 								placement="top-start"
 							>
 								<button
-									class="flex h-[1.6875rem] w-full cursor-pointer select-none items-center rounded-xl px-2 text-[13px] font-normal text-gray-700 outline-hidden transition-colors duration-75 hover:bg-gray-50/40 dark:text-gray-100 dark:hover:bg-gray-800/40"
+									class="flex h-10 w-full cursor-pointer select-none items-center rounded-xl px-2 text-sm font-normal text-gray-700 outline-hidden transition-colors duration-75 hover:bg-gray-50/40 dark:text-gray-100 dark:hover:bg-gray-800/40"
 									on:click={() => {
 										pullModelHandler();
 									}}
@@ -944,7 +944,7 @@
 
 						{#each selectionOnly ? [] : Object.keys($MODEL_DOWNLOAD_POOL) as model}
 							<div
-								class="flex min-h-[1.6875rem] w-full cursor-pointer select-none justify-between rounded-xl px-2 text-[13px] font-normal text-gray-700 outline-hidden transition-colors duration-75 dark:text-gray-100"
+								class="flex min-h-10 w-full cursor-pointer select-none justify-between rounded-xl px-2 text-sm font-normal text-gray-700 outline-hidden transition-colors duration-75 dark:text-gray-100"
 							>
 								<div class="flex">
 									<div class="mr-2.5 translate-y-0.5">
@@ -982,7 +982,7 @@
 											}}
 										>
 											<svg
-												class="w-4 h-4 text-gray-800 dark:text-white"
+												class="w-5 h-5 text-gray-800 dark:text-white"
 												aria-hidden="true"
 												xmlns="http://www.w3.org/2000/svg"
 												width="24"

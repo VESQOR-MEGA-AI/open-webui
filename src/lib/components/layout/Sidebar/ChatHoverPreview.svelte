@@ -100,7 +100,7 @@
 			{sideOffset}
 		>
 			<div class="border-b border-gray-50/60 px-3 py-2 dark:border-gray-800/25">
-				<div class="truncate text-[13px] font-medium leading-5 text-gray-900 dark:text-gray-100">
+				<div class="truncate text-sm font-medium leading-5 text-gray-900 dark:text-gray-100">
 					{title || $i18n.t('Chat')}
 				</div>
 			</div>
