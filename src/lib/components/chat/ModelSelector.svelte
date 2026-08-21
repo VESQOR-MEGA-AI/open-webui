@@ -78,8 +78,12 @@
 						placeholder={$i18n.t('Select a model')}
 						items={visibleModels.map((model) => ({
 							value: model.id,
-							label: model.name,
-							model: model
+							label: model.info?.meta?.effortTier
+								? `Lizz 9.2 · ${model.info.meta.effortTier}`
+								: model.name,
+							model: model,
+							effortTier: model.info?.meta?.effortTier,
+							effortDesc: model.info?.meta?.effortDesc
 						}))}
 					{pinModelHandler}
 					{className}

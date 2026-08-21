@@ -102,6 +102,19 @@
 				</Tooltip>
 			</div>
 
+			{#if item.effortTier && item.effortDesc}
+				<div
+					class="min-w-0 truncate pl-2 text-[11px] font-normal text-gray-400 dark:text-gray-500"
+					title={item.effortDesc}
+				>
+					{item.effortDesc}
+				</div>
+			{:else if item.effortTier}
+				<div class="shrink-0 pl-2 text-[11px] font-semibold text-gray-400 dark:text-gray-500">
+					{item.effortTier}
+				</div>
+			{/if}
+
 			<div class="flex shrink-0 items-center gap-1.5">
 				{#if item.model.owned_by === 'ollama'}
 					{#if (item.model.ollama?.details?.parameter_size ?? '') !== ''}

@@ -890,6 +890,16 @@
 								<div style="height: {visibleStart * ITEM_HEIGHT}px;" />
 								{#each filteredItems.slice(visibleStart, visibleEnd) as item, i (item.value)}
 									{@const index = visibleStart + i}
+									{@const isFirstEffort =
+										item.effortTier &&
+										filteredItems.slice(visibleStart, index).every((prev) => !prev.effortTier)}
+									{#if isFirstEffort}
+										<div
+											class="mt-1 flex h-6 select-none items-center px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+										>
+											{$i18n.t('Effort')}
+										</div>
+									{/if}
 									<ModelItem
 										{selectedModelIdx}
 										{item}
