@@ -653,6 +653,13 @@
 								</div>
 							</div>
 						{/if}
+						<div class="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[0.7rem] text-gray-400 dark:text-gray-500">
+							<a href="/refund" class="hover:text-gray-600 dark:hover:text-gray-300 transition">Refund Policy</a>
+							<span aria-hidden>·</span>
+							<a href="https://vesqorai.com/legal/terms" target="_blank" rel="noopener noreferrer" class="hover:text-gray-600 dark:hover:text-gray-300 transition">Terms of Service</a>
+							<span aria-hidden>·</span>
+							<a href="https://vesqorai.com/legal/privacy" target="_blank" rel="noopener noreferrer" class="hover:text-gray-600 dark:hover:text-gray-300 transition">Privacy Policy</a>
+						</div>
 					</div>
 				{/if}
 			</div>
