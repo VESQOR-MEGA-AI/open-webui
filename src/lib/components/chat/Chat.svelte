@@ -43,6 +43,7 @@
 		selectedFolder,
 		showEmbeds,
 		selectedTerminalId,
+		selectedPersona,
 		showFileNavPath,
 		showFileNavDir,
 		chatRequestQueues,
@@ -3145,6 +3146,9 @@
 				stream: stream,
 				model: model.id,
 				...(messages.length > 0 ? { messages } : {}),
+				// PERSONA-1 (2026-08-22): the persona selector forces the report
+				// register via vq_audience; null = auto-detect (brain classifies).
+				...($selectedPersona ? { vq_audience: $selectedPersona } : {}),
 				params: {
 					...$settings?.params,
 					...params,

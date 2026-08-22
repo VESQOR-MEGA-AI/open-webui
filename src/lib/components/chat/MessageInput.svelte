@@ -94,6 +94,7 @@
 	import Terminal from '../icons/Terminal.svelte';
 	import IntegrationsMenu from './MessageInput/IntegrationsMenu.svelte';
 	import TerminalMenu from './MessageInput/TerminalMenu.svelte';
+	import PersonaMenu from './MessageInput/PersonaMenu.svelte';
 	import Component from '../icons/Component.svelte';
 	import PlusAlt from '../icons/PlusAlt.svelte';
 	import Dropdown from '../common/Dropdown.svelte';
@@ -2230,6 +2231,7 @@
 												{#if terminalCapableModels.length > 0 && (($terminalServers ?? []).some((t) => t.id) || (hasDirectToolServerAccess && (($terminalServers ?? []).some((t) => !t.id) || ($settings?.terminalServers ?? []).some((s) => s.url))))}
 													<TerminalMenu bind:show={showTerminalMenu} />
 												{/if}
+												<PersonaMenu />
 											{/if}
 										</div>
 									</div>
