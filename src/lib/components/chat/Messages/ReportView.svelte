@@ -297,7 +297,8 @@ ${bodyXml}
 				@media print { body { padding: 0; } }
 			`;
 
-			printWindow.document.write(`<!DOCTYPE html><html><head><title>${title || 'VESQOR MEGA AI Report'}</title>\x3Cstyle>${style}\x3C/style></head><body>${clonedElement.outerHTML}</body></html>`);
+			const styleTag = '<' + 'style>';
+			printWindow.document.write(`<!DOCTYPE html><html><head><title>${title || 'VESQOR MEGA AI Report'}</title>${styleTag}${style}</style></head><body>${clonedElement.outerHTML}</body></html>`);
 			printWindow.document.close();
 			await new Promise((r) => setTimeout(r, 300));
 			printWindow.focus();
