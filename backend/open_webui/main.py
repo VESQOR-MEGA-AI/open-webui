@@ -842,7 +842,7 @@ if ENABLE_SCIM:
 @app.get('/api/v1/models')  # Experimental: Compatibility with OpenAI API
 async def get_models(request: Request, refresh: bool = False, user=Depends(get_verified_user)):
     # VESQOR: models change only via admin actions, so a short TTL cache makes
-    # page loads instant. Each uncached call costs ~10 Neon round-trips (~3.8s).
+    # page loads instant. Each uncached call costs ~10 Postgres round-trips (~3.8s).
     _now = time.time()
     _cache = getattr(request.app.state, 'MODELS_API_CACHE', None)
     if _cache and not refresh and _now - _cache['ts'] < 60:
@@ -2337,7 +2337,7 @@ async def get_app_bootstrap(request: Request):
     ONE round trip to the DB returns everything the dashboard needs on first
     paint: user, auth, config, models, chats (last 7 days, max 100), functions,
     tools, knowledge, prompts, memories, groups, notes. Replaces ~18 sequential
-    requests (each ~1.4s Neon RTT → ~26s total).
+    requests (each ~1.4s Postgres RTT → ~26s total).
     """
     user, _ = await _resolve_config_user(request)
     if user is None:
