@@ -82,6 +82,7 @@
 	import ClockIcon from './Sidebar/icons/Clock.svelte';
 	import CodeIcon from './Sidebar/icons/Code.svelte';
 	import EditPencilIcon from './Sidebar/icons/EditPencil.svelte';
+	import LibraryIcon from './Sidebar/icons/Folder.svelte';
 	import NotesIcon from './Sidebar/icons/Notes.svelte';
 	import SearchIcon from './Sidebar/icons/Search.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
@@ -196,7 +197,8 @@
 		workspace: '/workspace',
 		calendar: '/calendar',
 		automations: '/automations',
-		playground: '/playground'
+		playground: '/playground',
+		library: '/library'
 	};
 
 	const getActiveMenuItemId = (pathname) => {
@@ -1014,6 +1016,34 @@
 					</Tooltip>
 				</div>
 
+				<div>
+					<Tooltip content={$i18n.t('Library')} placement="right">
+						<a
+							class=" cursor-pointer flex size-8 items-center justify-center transition group"
+							href="/library"
+							on:click={async (e) => {
+								e.stopImmediatePropagation();
+								e.preventDefault();
+								goto('/library');
+								itemClickHandler();
+							}}
+							draggable="false"
+							aria-label={$i18n.t('Library')}
+						>
+							<div
+								class=" self-center flex size-[30px] items-center justify-center rounded-lg transition {activeMenuItemId ===
+								'library'
+									? ($settings?.highContrastMode ?? false)
+										? 'bg-black/[0.035] dark:bg-white/[0.06]'
+										: 'bg-black/[0.035] dark:bg-white/[0.045]'
+									: 'group-hover:bg-gray-50 dark:group-hover:bg-gray-900'}"
+							>
+								<LibraryIcon className="size-5" strokeWidth="1.5" />
+							</div>
+						</a>
+					</Tooltip>
+				</div>
+
 				{#each pinnedItems as itemId (itemId)}
 					{@const meta = getMenuItemMeta(itemId)}
 					{#if meta && isMenuItemVisible(itemId)}
@@ -1231,6 +1261,30 @@
 							</div>
 							<HotkeyHint name="search" className=" group-hover:visible invisible" />
 						</button>
+					</div>
+
+					<div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
+						<a
+							id="sidebar-library-button"
+							class="grow flex items-center space-x-2 rounded-xl px-2 py-1.5 transition {activeMenuItemId ===
+							'library'
+								? ($settings?.highContrastMode ?? false)
+									? 'bg-black/[0.035] dark:bg-white/[0.06]'
+									: 'bg-black/[0.035] dark:bg-white/[0.045]'
+								: 'hover:bg-gray-50 dark:hover:bg-gray-900'}"
+							href="/library"
+							on:click={itemClickHandler}
+							draggable="false"
+							aria-label={$i18n.t('Library')}
+						>
+							<div class="self-center flex size-4 shrink-0 items-center justify-center">
+								<LibraryIcon className="size-5" strokeWidth="1.5" />
+							</div>
+
+							<div class="flex self-center translate-y-[0.5px]">
+								<div class=" self-center text-sm leading-6">{$i18n.t('Library')}</div>
+							</div>
+						</a>
 					</div>
 
 					<div id="pinned-menu-items-list">

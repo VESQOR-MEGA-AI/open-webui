@@ -1,9 +1,14 @@
+import asyncio
 import logging
+import re
+import uuid
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from open_webui.config import LIBRARY_DIR
 from open_webui.env import VESQOR_API_BASE_URL, VESQOR_SERVICE_TOKEN
+from open_webui.models.library import Library, LibraryItemForm
 from open_webui.utils.auth import get_verified_user
 from pydantic import BaseModel
 
@@ -130,6 +135,9 @@ class ExportForm(BaseModel):
     reportId: Optional[str] = None
     title: Optional[str] = None
     body: Optional[str] = None
+    chat_id: Optional[str] = None
+    chat_title: Optional[str] = None
+    message_id: Optional[str] = None
 
 
 class ProviderForm(BaseModel):
@@ -210,9 +218,34 @@ async def export_report(form_data: ExportForm, user=Depends(get_verified_user)):
             detail="Either reportId or title+body must be provided",
         )
 
-    response = await _proxy_raw("POST", "/api/v1/export", user, form_data.model_dump(), timeout=120.0)
+    brain_payload = form_data.model_dump(exclude={"chat_id", "chat_title", "message_id"})
+    response = await _proxy_raw("POST", "/api/v1/export", user, brain_payload, timeout=120.0)
     content = response.content
     content_type = response.headers.get("content-type", _EXPORT_CONTENT_TYPES[fmt]).split(";")[0].strip()
+
+    if response.status_code < 300 and content:
+        try:
+            safe_title = re.sub(r"[^A-Za-z0-9._-]+", "_", (form_data.title or form_data.reportId or "report")).strip("_") or "report"
+            stored_filename = f"{safe_title}.{fmt}"
+            stored_path = LIBRARY_DIR / f"{uuid.uuid4()}_{stored_filename}"
+            await asyncio.to_thread(stored_path.write_bytes, content)
+
+            await Library.insert_new_item(
+                user.id,
+                LibraryItemForm(
+                    chat_id=form_data.chat_id,
+                    chat_title=form_data.chat_title,
+                    message_id=form_data.message_id,
+                    filename=stored_filename,
+                    content_type=content_type,
+                    size=len(content),
+                    format=fmt,
+                    source="report_export",
+                    path=str(stored_path),
+                ),
+            )
+        except Exception as e:
+            log.warning(f"Failed to save exported report to library: {e}")
 
     return Response(
         content=content,

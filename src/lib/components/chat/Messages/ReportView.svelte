@@ -99,7 +99,10 @@
 			const res = await exportVesqorReport(localStorage.token, {
 				format,
 				...(meta?.title ? { title: meta.title } : {}),
-				body: getMarkdown()
+				body: getMarkdown(),
+				chat_id: chatId,
+				chat_title: title,
+				message_id: messageId
 			});
 			if (!res || !res.ok) return false;
 
@@ -126,7 +129,10 @@
 		try {
 			// Preferred: brain export engine (RPT-3) via backend proxy.
 			const serverResult = await exportViaServer('pdf');
-			if (serverResult) return;
+			if (serverResult) {
+				toast.success($i18n.t('Saved to Library'));
+				return;
+			}
 
 			// Fallback: client-side HTML → canvas → PDF.
 			const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([

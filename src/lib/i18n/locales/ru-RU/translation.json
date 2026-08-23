@@ -3022,5 +3022,15 @@
 	"Your usage stats have been successfully synced.": "Ваша статистика использования успешно синхронизирована.",
 	"YouTube": "YouTube",
 	"Youtube Language": "Язык YouTube",
-	"Youtube Proxy URL": "URL прокси для YouTube"
+	"Youtube Proxy URL": "URL прокси для YouTube",
+	"Reports": "Отчёты",
+	"Library": "Библиотека",
+	"My uploads": "Мои загрузки",
+	"Saved to Library": "Сохранено в библиотеку",
+	"Search Library": "Поиск в библиотеке",
+	"Open in chat": "Открыть в чате",
+	"Delete item?": "Удалить элемент?",
+	"Failed to download file": "Не удалось скачать файл",
+	"No items in your Library yet": "В библиотеке пока пусто",
+	"Exported reports and uploaded documents will appear here.": "Экспортированные отчёты и загруженные документы появятся здесь."
 }
