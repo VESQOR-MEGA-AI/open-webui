@@ -2950,6 +2950,9 @@ async def get_manifest_json():
             'short_name': app.state.WEBUI_NAME,
             'description': f'{app.state.WEBUI_NAME} is an open, extensible, user-friendly interface for AI that adapts to your workflow.',
             'start_url': '/',
+            'id': '/',
+            'scope': '/',
+            'theme_color': '#171017',
             'display': 'standalone',
             'background_color': '#343541',
             'icons': [
