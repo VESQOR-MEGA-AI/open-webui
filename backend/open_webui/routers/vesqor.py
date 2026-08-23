@@ -219,6 +219,22 @@ async def export_report(form_data: ExportForm, user=Depends(get_verified_user)):
         )
 
     brain_payload = form_data.model_dump(exclude={"chat_id", "chat_title", "message_id"})
+    # Brain's /api/v1/export expects an inline body as a ProcessResponse object
+    # ({report: string, ...}), not a raw markdown string. Normalize here so the
+    # frontend keeps sending body as plain markdown.
+    if not brain_payload.get("reportId") and isinstance(brain_payload.get("body"), str) and brain_payload["body"].strip():
+        raw_body = brain_payload.pop("body")
+        title = brain_payload.get("title")
+        brain_payload["body"] = {
+            "userIntent": title,
+            "systemPromptApplied": "vesqor-inline-export",
+            "outputFormat": "report",
+            "reportTitle": title,
+            "report": raw_body,
+            "mermaid": "",
+            "confidenceScore": 0,
+            "notes": "",
+        }
     response = await _proxy_raw("POST", "/api/v1/export", user, brain_payload, timeout=120.0)
     content = response.content
     content_type = response.headers.get("content-type", _EXPORT_CONTENT_TYPES[fmt]).split(";")[0].strip()
