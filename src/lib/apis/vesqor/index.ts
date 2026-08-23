@@ -118,6 +118,9 @@ export interface VesqorExportParams {
 	reportId?: string;
 	title?: string;
 	body?: string;
+	chat_id?: string;
+	chat_title?: string;
+	message_id?: string;
 }
 
 /**

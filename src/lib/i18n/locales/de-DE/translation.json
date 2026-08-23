@@ -2994,5 +2994,15 @@
 	"Your usage stats have been successfully synced.": "Ihre Nutzungsstatistiken wurden erfolgreich synchronisiert.",
 	"YouTube": "YouTube",
 	"Youtube Language": "YouTube-Sprache",
-	"Youtube Proxy URL": "YouTube-Proxy-URL"
+	"Youtube Proxy URL": "YouTube-Proxy-URL",
+	"Reports": "Berichte",
+	"Library": "Bibliothek",
+	"My uploads": "Meine Uploads",
+	"Saved to Library": "In Bibliothek gespeichert",
+	"Search Library": "Bibliothek durchsuchen",
+	"Open in chat": "Im Chat öffnen",
+	"Delete item?": "Element löschen?",
+	"Failed to download file": "Datei-Download fehlgeschlagen",
+	"No items in your Library yet": "Noch keine Elemente in der Bibliothek",
+	"Exported reports and uploaded documents will appear here.": "Exportierte Berichte und hochgeladene Dokumente erscheinen hier."
 }
