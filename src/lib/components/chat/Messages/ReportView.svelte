@@ -1,18 +1,20 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
 
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
-	import { user } from '$lib/stores';
+	import { settings, user } from '$lib/stores';
 	import Markdown from './Markdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import Dropdown from '$lib/components/common/Dropdown.svelte';
+	import DropdownMenu from '$lib/components/common/DropdownMenu.svelte';
 
 	import ArrowDownTray from '$lib/components/icons/ArrowDownTray.svelte';
-	import Document from '$lib/components/icons/Document.svelte';
+	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import Printer from '$lib/components/icons/Printer.svelte';
 	import ArrowPath from '$lib/components/icons/ArrowPath.svelte';
 	import Clipboard from '$lib/components/icons/Clipboard.svelte';
@@ -26,7 +28,23 @@
 	} from '$lib/utils';
 	import { getOutputText } from './structuredOutput';
 	import { exportVesqorReport } from '$lib/apis/vesqor';
+	import { getUserSettings, updateUserSettings } from '$lib/apis/users';
 	import { parseVqMeta, deriveReportTitle, reportBody, type ReportMeta } from '$lib/utils/vesqor-report';
+
+	type ExportFormat = 'pdf' | 'docx' | 'md' | 'html' | 'json';
+
+	const EXPORT_FORMATS: { id: ExportFormat; label: string }[] = [
+		{ id: 'pdf', label: 'PDF' },
+		{ id: 'docx', label: 'DOCX' },
+		{ id: 'md', label: 'Markdown' },
+		{ id: 'html', label: 'HTML' },
+		{ id: 'json', label: 'JSON' }
+	];
+	const FORMAT_MIME: Record<Exclude<ExportFormat, 'pdf' | 'docx'>, string> = {
+		md: 'text/markdown',
+		html: 'text/html',
+		json: 'application/json'
+	};
 
 	export let messageId: string;
 	export let chatId: string;
@@ -53,6 +71,20 @@
 	let isExporting = false;
 	let copied = false;
 	let shareCopied = false;
+	let preferredFormat: ExportFormat = 'pdf';
+	let showFormatMenu = false;
+
+	onMount(async () => {
+		try {
+			const userSettings = await getUserSettings(localStorage.token);
+			const savedFormat = userSettings?.vesqor?.export_format;
+			if (EXPORT_FORMATS.some((f) => f.id === savedFormat)) {
+				preferredFormat = savedFormat;
+			}
+		} catch (error) {
+			console.error('Failed to load export format preference', error);
+		}
+	});
 
 	const getMarkdown = (): string => {
 		const raw = body.trim() || content.trim() || '';
@@ -92,9 +124,7 @@
 		}
 	};
 
-	const exportViaServer = async (
-		format: 'pdf' | 'docx' | 'html' | 'md' | 'json'
-	): Promise<boolean> => {
+	const exportViaServer = async (format: ExportFormat): Promise<boolean> => {
 		try {
 			const res = await exportVesqorReport(localStorage.token, {
 				format,
@@ -123,116 +153,95 @@
 		}
 	};
 
-	const downloadPdf = async () => {
+	const pdfClientFallback = async () => {
 		if (!reportElement) return;
-		isExporting = true;
-		try {
-			// Preferred: brain export engine (RPT-3) via backend proxy.
-			const serverResult = await exportViaServer('pdf');
-			if (serverResult) {
-				toast.success($i18n.t('Saved to Library'));
-				return;
+		// Fallback: client-side HTML → canvas → PDF.
+		const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+			import('jspdf'),
+			import('html2canvas-pro')
+		]);
+
+		const isDarkMode = document.documentElement.classList.contains('dark');
+		const virtualWidth = 800;
+
+		const clonedElement = reportElement.cloneNode(true) as HTMLElement;
+		clonedElement.classList.add('text-black');
+		clonedElement.classList.add('dark:text-white');
+		clonedElement.style.width = `${virtualWidth}px`;
+		clonedElement.style.position = 'absolute';
+		clonedElement.style.left = '-9999px';
+		clonedElement.style.top = '0';
+		clonedElement.style.height = 'auto';
+		clonedElement.style.maxHeight = 'none';
+		clonedElement.style.overflow = 'visible';
+		document.body.appendChild(clonedElement);
+
+		await new Promise((r) => requestAnimationFrame(r));
+
+		const canvas = await html2canvas(clonedElement, {
+			backgroundColor: isDarkMode ? '#000' : '#fff',
+			useCORS: true,
+			scale: 2,
+			width: virtualWidth
+		});
+
+		document.body.removeChild(clonedElement);
+
+		const pdf = new jsPDF('p', 'mm', 'a4');
+		const pageWidthMM = 210;
+		const pageHeightMM = 297;
+		const pxPerPDFMM = canvas.width / pageWidthMM;
+		const pagePixelHeight = Math.floor(pxPerPDFMM * pageHeightMM);
+
+		let offsetY = 0;
+		let page = 0;
+		while (offsetY < canvas.height) {
+			const sliceHeight = Math.min(pagePixelHeight, canvas.height - offsetY);
+			const pageCanvas = document.createElement('canvas');
+			pageCanvas.width = canvas.width;
+			pageCanvas.height = sliceHeight;
+			const ctx = pageCanvas.getContext('2d');
+			if (!ctx) break;
+			ctx.fillStyle = isDarkMode ? '#000' : '#fff';
+			ctx.fillRect(0, 0, canvas.width, sliceHeight);
+			ctx.drawImage(canvas, 0, offsetY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+			const imgData = pageCanvas.toDataURL('image/jpeg', 0.92);
+			const imgHeightMM = (sliceHeight * pageWidthMM) / canvas.width;
+			if (page > 0) pdf.addPage();
+			if (isDarkMode) {
+				pdf.setFillColor(0, 0, 0);
+				pdf.rect(0, 0, pageWidthMM, pageHeightMM, 'F');
 			}
-
-			// Fallback: client-side HTML → canvas → PDF.
-			const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-				import('jspdf'),
-				import('html2canvas-pro')
-			]);
-
-			const isDarkMode = document.documentElement.classList.contains('dark');
-			const virtualWidth = 800;
-
-			const clonedElement = reportElement.cloneNode(true) as HTMLElement;
-			clonedElement.classList.add('text-black');
-			clonedElement.classList.add('dark:text-white');
-			clonedElement.style.width = `${virtualWidth}px`;
-			clonedElement.style.position = 'absolute';
-			clonedElement.style.left = '-9999px';
-			clonedElement.style.top = '0';
-			clonedElement.style.height = 'auto';
-			clonedElement.style.maxHeight = 'none';
-			clonedElement.style.overflow = 'visible';
-			document.body.appendChild(clonedElement);
-
-			await new Promise((r) => requestAnimationFrame(r));
-
-			const canvas = await html2canvas(clonedElement, {
-				backgroundColor: isDarkMode ? '#000' : '#fff',
-				useCORS: true,
-				scale: 2,
-				width: virtualWidth
-			});
-
-			document.body.removeChild(clonedElement);
-
-			const pdf = new jsPDF('p', 'mm', 'a4');
-			const pageWidthMM = 210;
-			const pageHeightMM = 297;
-			const pxPerPDFMM = canvas.width / pageWidthMM;
-			const pagePixelHeight = Math.floor(pxPerPDFMM * pageHeightMM);
-
-			let offsetY = 0;
-			let page = 0;
-			while (offsetY < canvas.height) {
-				const sliceHeight = Math.min(pagePixelHeight, canvas.height - offsetY);
-				const pageCanvas = document.createElement('canvas');
-				pageCanvas.width = canvas.width;
-				pageCanvas.height = sliceHeight;
-				const ctx = pageCanvas.getContext('2d');
-				if (!ctx) break;
-				ctx.fillStyle = isDarkMode ? '#000' : '#fff';
-				ctx.fillRect(0, 0, canvas.width, sliceHeight);
-				ctx.drawImage(canvas, 0, offsetY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
-
-				const imgData = pageCanvas.toDataURL('image/jpeg', 0.92);
-				const imgHeightMM = (sliceHeight * pageWidthMM) / canvas.width;
-				if (page > 0) pdf.addPage();
-				if (isDarkMode) {
-					pdf.setFillColor(0, 0, 0);
-					pdf.rect(0, 0, pageWidthMM, pageHeightMM, 'F');
-				}
-				pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMM, imgHeightMM);
-				offsetY += sliceHeight;
-				page++;
-			}
-
-			const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
-			pdf.save(`${safeTitle}.pdf`);
-		} catch (error) {
-			console.error('Error generating PDF', error);
-			toast.error($i18n.t('Failed to generate PDF'));
-		} finally {
-			isExporting = false;
+			pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMM, imgHeightMM);
+			offsetY += sliceHeight;
+			page++;
 		}
+
+		const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+		pdf.save(`${safeTitle}.pdf`);
 	};
 
-	const downloadDocx = async () => {
-		isExporting = true;
-		try {
-			// Preferred: brain export engine (RPT-3) via backend proxy.
-			const serverResult = await exportViaServer('docx');
-			if (serverResult) return;
+	const docxClientFallback = async () => {
+		const JSZip = (await import('jszip')).default;
+		const markdown = getMarkdown();
+		const paragraphs = markdown
+			.split(/\n{2,}/)
+			.map((block) => block.replace(/\n/g, ' ').trim())
+			.filter(Boolean);
 
-			const JSZip = (await import('jszip')).default;
-			const markdown = getMarkdown();
-			const paragraphs = markdown
-				.split(/\n{2,}/)
-				.map((block) => block.replace(/\n/g, ' ').trim())
-				.filter(Boolean);
+		const xmlEsc = (s: string) =>
+			s
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;');
 
-			const xmlEsc = (s: string) =>
-				s
-					.replace(/&/g, '&amp;')
-					.replace(/</g, '&lt;')
-					.replace(/>/g, '&gt;')
-					.replace(/"/g, '&quot;');
+		const bodyXml = paragraphs
+			.map((p) => `  <w:p><w:r><w:t xml:space="preserve">${xmlEsc(p)}</w:t></w:r></w:p>`)
+			.join('\n');
 
-			const bodyXml = paragraphs
-				.map((p) => `  <w:p><w:r><w:t xml:space="preserve">${xmlEsc(p)}</w:t></w:r></w:p>`)
-				.join('\n');
-
-			const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:p><w:pPr><w:rPr><w:b/></w:rPr></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${xmlEsc(title || 'VESQOR MEGA AI Report')}</w:t></w:r></w:p>
@@ -240,35 +249,83 @@ ${bodyXml}
   </w:body>
 </w:document>`;
 
-			const zip = new JSZip();
-			zip.file(
-				'[Content_Types].xml',
-				`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		const zip = new JSZip();
+		zip.file(
+			'[Content_Types].xml',
+			`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>`
-			);
-			zip.file(
-				'_rels/.rels',
-				`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+		);
+		zip.file(
+			'_rels/.rels',
+			`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`
-			);
-			zip.file('word/document.xml', documentXml);
+		);
+		zip.file('word/document.xml', documentXml);
 
-			const blob = await zip.generateAsync({ type: 'blob' });
-			const fileSaver = await import('file-saver');
-			const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
-			fileSaver.saveAs(blob, `${safeTitle}.docx`);
+		const blob = await zip.generateAsync({ type: 'blob' });
+		const fileSaver = await import('file-saver');
+		const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+		fileSaver.saveAs(blob, `${safeTitle}.docx`);
+	};
+
+	const blobClientFallback = async (fmt: Exclude<ExportFormat, 'pdf' | 'docx'>) => {
+		const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+		const fileSaver = await import('file-saver');
+
+		let content: string;
+		if (fmt === 'json') {
+			content = JSON.stringify({ title, meta, body: getMarkdown() }, null, 2);
+		} else if (fmt === 'html') {
+			const inner = reportElement ? reportElement.outerHTML : `<pre>${getMarkdown()}</pre>`;
+			content = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title || 'VESQOR MEGA AI Report'}</title></head><body>${inner}</body></html>`;
+		} else {
+			content = getMarkdown();
+		}
+
+		const blob = new Blob([content], { type: FORMAT_MIME[fmt] });
+		fileSaver.saveAs(blob, `${safeTitle}.${fmt}`);
+	};
+
+	const downloadReport = async (fmt: ExportFormat) => {
+		isExporting = true;
+		try {
+			// Preferred: brain export engine (RPT-3) via backend proxy.
+			const serverResult = await exportViaServer(fmt);
+			if (serverResult) {
+				toast.success($i18n.t('Saved to Library'));
+				return;
+			}
+
+			if (fmt === 'pdf') {
+				await pdfClientFallback();
+			} else if (fmt === 'docx') {
+				await docxClientFallback();
+			} else {
+				await blobClientFallback(fmt);
+			}
 		} catch (error) {
-			console.error('Error generating DOCX', error);
-			toast.error($i18n.t('Failed to generate DOCX'));
+			console.error(`Error generating ${fmt.toUpperCase()}`, error);
+			toast.error($i18n.t('Failed to generate {{format}}', { format: fmt.toUpperCase() }));
 		} finally {
 			isExporting = false;
 		}
+	};
+
+	const selectExportFormat = async (fmt: ExportFormat) => {
+		preferredFormat = fmt;
+		showFormatMenu = false;
+		try {
+			await updateUserSettings(localStorage.token, { ui: $settings, vesqor: { export_format: fmt } });
+		} catch (error) {
+			console.error('Failed to save export format preference', error);
+		}
+		await downloadReport(fmt);
 	};
 
 	const printReport = async () => {
@@ -389,33 +446,39 @@ ${bodyXml}
 		<div
 			class="px-4 sm:px-6 py-2.5 border-t border-gray-200 dark:border-gray-700 flex items-center gap-1 flex-wrap bg-gray-50/60 dark:bg-gray-800/40"
 		>
-			<Tooltip content={$i18n.t('Download PDF')} placement="top">
-				<button
-					type="button"
-					class="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400"
-					aria-label={$i18n.t('Download PDF')}
-					disabled={isExporting}
-					on:click={downloadPdf}
-				>
-					{#if isExporting}
-						<Spinner className="size-4" />
-					{:else}
-						<ArrowDownTray className="size-4" />
-					{/if}
-				</button>
-			</Tooltip>
+			<Dropdown bind:show={showFormatMenu} align="start" sideOffset={6}>
+				<Tooltip content={$i18n.t('Download format')} placement="top">
+					<button
+						type="button"
+						class="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400 flex items-center gap-0.5"
+						aria-label={$i18n.t('Download format')}
+						disabled={isExporting}
+					>
+						{#if isExporting}
+							<Spinner className="size-4" />
+						{:else}
+							<ArrowDownTray className="size-4" />
+						{/if}
+						<ChevronDown className="size-2.5" strokeWidth="2.5" />
+					</button>
+				</Tooltip>
 
-			<Tooltip content={$i18n.t('Download DOCX')} placement="top">
-				<button
-					type="button"
-					class="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400"
-					aria-label={$i18n.t('Download DOCX')}
-					disabled={isExporting}
-					on:click={downloadDocx}
-				>
-					<Document className="size-4" />
-				</button>
-			</Tooltip>
+				<div slot="content">
+					<DropdownMenu className="min-w-[150px]">
+						{#each EXPORT_FORMATS as format (format.id)}
+							<button
+								type="button"
+								on:click={() => selectExportFormat(format.id)}
+							>
+								<span class="flex-1 text-left">{$i18n.t(format.label)}</span>
+								{#if preferredFormat === format.id}
+									<Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+								{/if}
+							</button>
+						{/each}
+					</DropdownMenu>
+				</div>
+			</Dropdown>
 
 			<Tooltip content={$i18n.t('Print')} placement="top">
 				<button
