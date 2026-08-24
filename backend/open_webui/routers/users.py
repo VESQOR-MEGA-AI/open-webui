@@ -931,6 +931,31 @@ async def update_user_by_id(
         if form_data.profile_image_url is not None:
             update_data['profile_image_url'] = form_data.profile_image_url
 
+        # ── VESQOR: admin approval of a pending user ──────────────────
+        # Changing the role away from 'pending' is an explicit admin
+        # approval: the user becomes sign-in eligible immediately without
+        # clicking the verification email. Mark verified locally AND in the
+        # shared authdb (propagating the admin-chosen role) so the sign-in
+        # gate and the authdb projection both let the user through.
+        was_pending = user.role == 'pending'
+        new_role = update_data.get('role')
+        if new_role is not None and was_pending and new_role != 'pending':
+            # Local auth row: verified=true (removes the 403 sign-in gate).
+            await Auths.mark_verified_by_id(user_id, db=db)
+            # Shared authdb: email_verified=true + admin-chosen role, so the
+            # next authdb projection doesn't flip the user back to pending.
+            try:
+                from open_webui.utils.vesqor_authdb import vesqor_authdb_mark_verified
+                if not vesqor_authdb_mark_verified(user.email, role=new_role):
+                    log.warning(
+                        'Admin approved pending user %s (%s) but authdb update '
+                        'returned no row (user may not exist in shared authdb)',
+                        user.email,
+                        user_id,
+                    )
+            except Exception as e:
+                log.error('authdb mark_verified for %s failed: %s', user.email, e)
+
         if update_data:
             updated_user = await Users.update_user_by_id(
                 user_id,

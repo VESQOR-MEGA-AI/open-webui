@@ -99,14 +99,19 @@ def vesqor_authdb_create_user(email: str, password: str, name: str) -> dict:
         raise
 
 
-def vesqor_authdb_mark_verified(email: str) -> bool:
-    """Mark a user verified in authdb. Returns True on success."""
+def vesqor_authdb_mark_verified(email: str, role: str = "user") -> bool:
+    """Mark a user verified in authdb. Returns True on success.
+
+    ``role`` defaults to 'user' (email-token flow) but can be overridden
+    (e.g. an admin approving a pending user) so the shared DB keeps the
+    admin-chosen role instead of forcing 'user'.
+    """
     try:
         with _connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE users SET email_verified = TRUE, role = 'user', updated_at = %s WHERE email = %s",
-                    (int(time.time()), email.lower()),
+                    "UPDATE users SET email_verified = TRUE, role = %s, updated_at = %s WHERE email = %s",
+                    (role, int(time.time()), email.lower()),
                 )
                 conn.commit()
                 return cur.rowcount > 0
