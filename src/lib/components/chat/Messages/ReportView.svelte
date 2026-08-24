@@ -447,21 +447,36 @@ ${bodyXml}
 			class="px-4 sm:px-6 py-2.5 border-t border-gray-200 dark:border-gray-700 flex items-center gap-1 flex-wrap bg-gray-50/60 dark:bg-gray-800/40"
 		>
 			<Dropdown bind:show={showFormatMenu} align="start" sideOffset={6}>
-				<Tooltip content={$i18n.t('Download format')} placement="top">
-					<button
-						type="button"
-						class="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400 flex items-center gap-0.5"
-						aria-label={$i18n.t('Download format')}
-						disabled={isExporting}
-					>
-						{#if isExporting}
-							<Spinner className="size-4" />
-						{:else}
-							<ArrowDownTray className="size-4" />
-						{/if}
-						<ChevronDown className="size-2.5" strokeWidth="2.5" />
-					</button>
-				</Tooltip>
+				<div class="flex items-center rounded-lg">
+					<Tooltip content={$i18n.t('Download {{format}}', { format: preferredFormat.toUpperCase() })} placement="top">
+						<button
+							type="button"
+							class="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-l-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400"
+							aria-label={$i18n.t('Download {{format}}', { format: preferredFormat.toUpperCase() })}
+							disabled={isExporting}
+							on:click={(e) => {
+								e.stopPropagation();
+								downloadReport(preferredFormat);
+							}}
+						>
+							{#if isExporting}
+								<Spinner className="size-4" />
+							{:else}
+								<ArrowDownTray className="size-4" />
+							{/if}
+						</button>
+					</Tooltip>
+					<Tooltip content={$i18n.t('Download format')} placement="top">
+						<button
+							type="button"
+							class="p-2 pr-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-r-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400"
+							aria-label={$i18n.t('Download format')}
+							disabled={isExporting}
+						>
+							<ChevronDown className="size-2.5" strokeWidth="2.5" />
+						</button>
+					</Tooltip>
+				</div>
 
 				<div slot="content">
 					<DropdownMenu className="min-w-[150px]">
