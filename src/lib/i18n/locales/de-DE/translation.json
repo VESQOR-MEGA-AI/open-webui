@@ -3008,5 +3008,7 @@
 	"Delete item?": "Element löschen?",
 	"Failed to download file": "Datei-Download fehlgeschlagen",
 	"No items in your Library yet": "Noch keine Elemente in der Bibliothek",
-	"Exported reports and uploaded documents will appear here.": "Exportierte Berichte und hochgeladene Dokumente erscheinen hier."
+	"Exported reports and uploaded documents will appear here.": "Exportierte Berichte und hochgeladene Dokumente erscheinen hier.",
+	"Company Name": "Firmenname",
+	"Enter Your Company Name (Optional)": "Geben Sie Ihren Firmennamen ein (optional)"
 }

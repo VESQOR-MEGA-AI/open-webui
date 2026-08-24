@@ -881,6 +881,7 @@ async def signup_handler(
     db: AsyncSession,
     source: str = 'api',
     authdb_id: str | None = None,
+    company_name: str | None = None,
 ) -> UserModel:
     """
     Core user-creation logic shared by the signup endpoint and
@@ -905,6 +906,13 @@ async def signup_handler(
     )
     if not user:
         raise HTTPException(500, detail=ERROR_MESSAGES.CREATE_USER_ERROR)
+
+    # VESQOR: optional company name collected at signup — stored in the
+    # user.info JSON column (no schema migration needed).
+    if company_name:
+        info = dict(user.info or {})
+        info['company_name'] = company_name
+        await Users.update_user_by_id(user.id, {'info': info}, db=db)
 
     # Atomically check if this is the only user *after* the insert.
     # Only the single user present at this point should become admin.
@@ -979,6 +987,7 @@ async def signup(
             form_data.profile_image_url,
             db=db,
             authdb_id=authdb_user["id"],
+            company_name=form_data.company_name,
         )
 
         # ── VESQOR: email verification ─────────────────────────────────

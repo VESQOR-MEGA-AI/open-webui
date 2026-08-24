@@ -3034,5 +3034,7 @@
 	"Delete item?": "Видалити елемент?",
 	"Failed to download file": "Не вдалося завантажити файл",
 	"No items in your Library yet": "У бібліотеці ще порожньо",
-	"Exported reports and uploaded documents will appear here.": "Експортовані звіти та завантажені документи з'являться тут."
+	"Exported reports and uploaded documents will appear here.": "Експортовані звіти та завантажені документи з'являться тут.",
+	"Company Name": "Назва компанії",
+	"Enter Your Company Name (Optional)": "Введіть назву компанії (необов'язково)"
 }

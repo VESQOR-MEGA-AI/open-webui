@@ -3008,5 +3008,7 @@
 	"Your usage stats have been successfully synced.": "Vos statistiques d'utilisation ont été synchronisées avec succès.",
 	"YouTube": "YouTube",
 	"Youtube Language": "Langue de YouTube",
-	"Youtube Proxy URL": "URL du proxy YouTube"
+	"Youtube Proxy URL": "URL du proxy YouTube",
+	"Company Name": "Nom de l'entreprise",
+	"Enter Your Company Name (Optional)": "Saisissez le nom de votre entreprise (facultatif)"
 }

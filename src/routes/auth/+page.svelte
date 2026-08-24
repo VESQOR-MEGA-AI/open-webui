@@ -40,6 +40,9 @@
 	let password = '';
 	let confirmPassword = '';
 
+	// VESQOR: optional company name collected at signup (stored in user.info)
+	let companyName = '';
+
 	let ldapUsername = '';
 
 	let submitting = false;
@@ -91,7 +94,7 @@
 		}
 
 		try {
-			const res = await userSignUp(name, email, password, generateInitialsImage(name));
+			const res = await userSignUp(name, email, password, generateInitialsImage(name), companyName);
 			// VESQOR: signup no longer returns a session — it returns 201 with
 			// verification_required. Show the "check your inbox" screen.
 			if (res && res.verification_required) {
@@ -347,6 +350,24 @@
 													autocomplete="name"
 													placeholder={$i18n.t('Enter Your Full Name')}
 													required
+												/>
+											</div>
+										{/if}
+
+										{#if mode === 'signup'}
+											<div class="mb-2">
+												<label for="company-name" class="text-sm font-normal text-left mb-1 block"
+													>{$i18n.t('Company Name')}
+													<span class="text-gray-400 dark:text-gray-500">({$i18n.t('Optional')})</span></label
+												>
+												<input
+													bind:value={companyName}
+													type="text"
+													id="company-name"
+													class="my-0.5 w-full text-sm outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+													autocomplete="organization"
+													name="company-name"
+													placeholder={$i18n.t('Enter Your Company Name (Optional)')}
 												/>
 											</div>
 										{/if}

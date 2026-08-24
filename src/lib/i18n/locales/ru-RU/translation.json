@@ -3036,5 +3036,7 @@
 	"Delete item?": "Удалить элемент?",
 	"Failed to download file": "Не удалось скачать файл",
 	"No items in your Library yet": "В библиотеке пока пусто",
-	"Exported reports and uploaded documents will appear here.": "Экспортированные отчёты и загруженные документы появятся здесь."
+	"Exported reports and uploaded documents will appear here.": "Экспортированные отчёты и загруженные документы появятся здесь.",
+	"Company Name": "Название компании",
+	"Enter Your Company Name (Optional)": "Введите название компании (необязательно)"
 }

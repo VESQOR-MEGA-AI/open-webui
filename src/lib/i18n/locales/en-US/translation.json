@@ -3008,5 +3008,7 @@
 	"Delete item?": "",
 	"Failed to download file": "",
 	"No items in your Library yet": "",
-	"Exported reports and uploaded documents will appear here.": ""
+	"Exported reports and uploaded documents will appear here.": "",
+	"Company Name": "Company Name",
+	"Enter Your Company Name (Optional)": "Enter your company name (optional)"
 }

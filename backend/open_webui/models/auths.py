@@ -84,6 +84,16 @@ class SignupForm(BaseModel):
     email: str
     password: str
     profile_image_url: str | None = '/user.png'
+    # VESQOR: optional company name collected at signup (stored in user.info)
+    company_name: str | None = None
+
+    @field_validator('company_name')
+    @classmethod
+    def check_company_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
 
     @field_validator('profile_image_url')
     @classmethod
