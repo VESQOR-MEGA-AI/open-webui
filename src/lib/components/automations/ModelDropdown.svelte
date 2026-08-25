@@ -134,9 +134,6 @@
 
 			<div class="overflow-y-auto scrollbar-thin max-h-60">
 				{#if defaultModel}
-					<div class="px-2 text-[11px] text-gray-500 py-0.5">
-						{$i18n.t('DEFAULT')}
-					</div>
 					<button
 						class="h-[1.6875rem] px-2 rounded-xl w-full text-left text-[13px] {model_id === defaultModel.id
 							? 'text-gray-900 dark:text-gray-100'
@@ -145,24 +142,27 @@
 						on:click={() => select(defaultModel.id)}
 					>
 						<div class="flex items-center text-black dark:text-gray-100 line-clamp-1">
-							<img
-								src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(defaultModel.id)}`}
-								alt={defaultModel?.name ?? defaultModel.id}
-								class="rounded-full size-5 items-center mr-2 shrink-0"
-								loading="lazy"
-								on:error={(e) => {
-									e.currentTarget.src = '/favicon.png';
-								}}
-							/>
-							<div class="truncate">{defaultModel.name}</div>
+							<span class="font-semibold uppercase tracking-wide mr-1.5">{$i18n.t('DEFAULT')}</span>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke-width="1.5"
+								stroke="currentColor"
+								class="size-3.5 shrink-0 text-gray-400"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"
+								/>
+							</svg>
 						</div>
+						<div class="truncate pl-0.5 text-gray-500 dark:text-gray-400">{defaultModel.name}</div>
 					</button>
 				{/if}
 
 				{#if effortModels.length > 0}
-					<div class="mt-1 px-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide py-0.5">
-						{$i18n.t('Effort')}
-					</div>
 					<button
 						class="h-[1.6875rem] px-2 rounded-xl w-full text-left text-[13px] text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
 						type="button"
@@ -172,7 +172,7 @@
 						}}
 					>
 						<div class="flex items-center justify-between text-black dark:text-gray-100">
-							<span class="truncate">{$i18n.t('Effort')}</span>
+							<span class="font-semibold uppercase tracking-wide">{$i18n.t('Effort')}</span>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								fill="none"
