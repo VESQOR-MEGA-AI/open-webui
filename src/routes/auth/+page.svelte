@@ -558,43 +558,46 @@
 														{$i18n.t('Back to sign in')}
 													</button>
 												</div>
-											{:else if mode === 'signin'}
-												<div class="mt-4 flex justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-													<button
-														class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
-														type="button"
-														on:click={() => enterMode('forgot-password')}
-													>
-														{$i18n.t('Forgot password?')}
-													</button>
-													<button
-														class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
-														type="button"
-														on:click={() => enterMode('forgot-username')}
-													>
-														{$i18n.t('Forgot username?')}
-													</button>
-												</div>
-											{:else if $config?.features.enable_signup && !($config?.onboarding ?? false)}
-												<div class=" mt-4 text-sm text-center">
-													{mode === 'signin'
-														? $i18n.t("Don't have an account?")
-														: $i18n.t('Already have an account?')}
+											{:else}
+												{#if mode === 'signin'}
+													<div class="mt-4 flex justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+														<button
+															class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
+															type="button"
+															on:click={() => enterMode('forgot-password')}
+														>
+															{$i18n.t('Forgot password?')}
+														</button>
+														<button
+															class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
+															type="button"
+															on:click={() => enterMode('forgot-username')}
+														>
+															{$i18n.t('Forgot username?')}
+														</button>
+													</div>
+												{/if}
+												{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
+													<div class=" mt-4 text-sm text-center">
+														{mode === 'signin'
+															? $i18n.t("Don't have an account?")
+															: $i18n.t('Already have an account?')}
 
-													<button
-														class=" font-normal underline"
-														type="button"
-														on:click={() => {
-															if (mode === 'signin') {
-																enterMode('signup');
-															} else {
-																enterMode('signin');
-															}
-														}}
-													>
-														{mode === 'signin' ? $i18n.t('Sign up') : $i18n.t('Sign in')}
-													</button>
-												</div>
+														<button
+															class=" font-normal underline"
+															type="button"
+															on:click={() => {
+																if (mode === 'signin') {
+																	enterMode('signup');
+																} else {
+																	enterMode('signin');
+																}
+															}}
+														>
+															{mode === 'signin' ? $i18n.t('Sign up') : $i18n.t('Sign in')}
+														</button>
+													</div>
+												{/if}
 											{/if}
 										{/if}
 									{/if}
