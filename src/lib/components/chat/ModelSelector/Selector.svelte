@@ -30,6 +30,8 @@
 	import { getModels } from '$lib/apis';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
+	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
+	import ArrowLeft from '$lib/components/icons/ArrowLeft.svelte';
 	import Check from '$lib/components/icons/Check.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -72,7 +74,12 @@
 
 	export let pinModelHandler: (modelId: string) => void = () => {};
 
+	// VESQOR: two-level tier menu (chat only). Root = DEFAULT card + Effort folder;
+	// clicking Effort slides to the tier list. Raw models stay hidden.
+	export let vesqorTierMenu = false;
+
 	let show = false;
+	let view: 'root' | 'effort' = 'root';
 	let triggerElement: HTMLElement | null = null;
 	let contentElement: HTMLElement | null = null;
 	let panelElement: HTMLElement | null = null;
@@ -177,6 +184,7 @@
 		show = !show;
 		if (show) {
 			searchValue = '';
+			view = 'root';
 			listScrollTop = 0;
 			resetView();
 			updatePosition();
@@ -320,6 +328,19 @@
 						}
 					})
 	).filter((item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false));
+
+	// VESQOR: two-level menu derived state.
+	$: defaultItem = items.find((item) => !item.effortTier) ?? null;
+	$: effortItems = items.filter((item) => item.effortTier);
+	$: filteredEffort = searchValue
+		? effortItems.filter(
+				(item) =>
+					item.label.toLowerCase().includes(searchValue.toLowerCase()) ||
+					item.value.toLowerCase().includes(searchValue.toLowerCase()) ||
+					(item.effortTier ?? '').toLowerCase().includes(searchValue.toLowerCase())
+			)
+		: effortItems;
+	$: selectedEffortTier = selectedModel?.effortTier ?? null;
 
 	$: if (
 		selectedTag !== undefined ||
@@ -845,7 +866,100 @@
 					{/if}
 
 					<div class="group relative flex min-h-0 flex-1 flex-col">
-						{#if filteredItems.length === 0}
+						{#if vesqorTierMenu}
+							{#if view === 'root'}
+								<div class="overflow-y-auto scrollbar-thin" style="max-height: 380px;">
+									{#if defaultItem && (!searchValue || defaultItem.label.toLowerCase().includes(searchValue.toLowerCase()))}
+										<button
+											type="button"
+											class="mb-1.5 flex w-full flex-col items-start rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60 {primaryValue ===
+											defaultItem.value
+												? 'ring-1 ring-emerald-500/60'
+												: ''}"
+											on:click={() => selectItem(defaultItem, 0)}
+										>
+											<div class="flex w-full items-center justify-between">
+												<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+													{$i18n.t('DEFAULT')}
+												</span>
+												{#if primaryValue === defaultItem.value}
+													<Check className="size-4 text-emerald-500" />
+												{/if}
+											</div>
+											<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+												{defaultItem.label}
+											</span>
+										</button>
+									{/if}
+
+									{#if effortItems.length > 0 && (!searchValue || 'effort'.includes(searchValue.toLowerCase()))}
+										<button
+											type="button"
+											class="flex w-full items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60"
+											on:click={() => {
+												view = 'effort';
+												searchValue = '';
+											}}
+										>
+											<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+												{$i18n.t('Effort')}
+											</span>
+											<ChevronRight className="size-4 text-gray-400" />
+										</button>
+									{/if}
+
+									{#if !defaultItem && effortItems.length === 0}
+										<div class="block px-2 py-1 text-sm text-gray-700 dark:text-gray-100">
+											{$i18n.t('No results found')}
+										</div>
+									{/if}
+								</div>
+							{:else}
+								<div class="flex items-center gap-1.5 px-1 py-1">
+									<button
+										type="button"
+										class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gray-500 transition-colors duration-75 hover:bg-gray-50/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-gray-100"
+										on:click={() => {
+											view = 'root';
+											searchValue = '';
+										}}
+									>
+										<ArrowLeft className="size-3.5" />
+										{$i18n.t('Effort')}
+									</button>
+								</div>
+								<div class="overflow-y-auto scrollbar-thin" style="max-height: 380px;">
+									{#each filteredEffort as item}
+										<button
+											type="button"
+											class="mb-1.5 flex w-full flex-col items-start rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60 {selectedEffortTier ===
+											item.effortTier
+												? 'ring-1 ring-emerald-500/60'
+												: ''}"
+											on:click={() => selectItem(item, 0)}
+										>
+											<div class="flex w-full items-center justify-between">
+												<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+													{item.effortTier}
+												</span>
+												{#if selectedEffortTier === item.effortTier}
+													<Check className="size-4 text-emerald-500" />
+												{/if}
+											</div>
+											{#if item.effortDesc}
+												<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+													{item.effortDesc}
+												</span>
+											{/if}
+										</button>
+									{:else}
+										<div class="block px-2 py-1 text-sm text-gray-700 dark:text-gray-100">
+											{$i18n.t('No results found')}
+										</div>
+									{/each}
+								</div>
+							{/if}
+						{:else if filteredItems.length === 0}
 							{#if items.length === 0 && $user?.role === 'admin'}
 								<div
 									class="my-2 flex w-full flex-col items-start justify-center px-4 py-3 text-start"

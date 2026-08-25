@@ -67,6 +67,18 @@
 			.filter((id): id is string => typeof id === 'string' && id.length > 0)
 	);
 	$: visibleModels = $models.filter((model) => !baseModelIds.has(model.id));
+
+	// VESQOR: effort tiers ordered by task complexity — simple → hard.
+	const TIER_ORDER = ['LIGHT', 'CORE', 'PRIME', 'PRO', 'ULTRA', 'TITAN', 'APEX'];
+
+	$: sortedModels = [...visibleModels].sort((a, b) => {
+		const ta = a.info?.meta?.effortTier;
+		const tb = b.info?.meta?.effortTier;
+		if (!ta && !tb) return a.name.localeCompare(b.name);
+		if (!ta) return -1; // DEFAULT (Lizz) first
+		if (!tb) return 1;
+		return TIER_ORDER.indexOf(ta) - TIER_ORDER.indexOf(tb) || ta.localeCompare(tb);
+	});
 	</script>
 
 	<div class="flex min-w-0 max-w-full flex-col items-start">
@@ -76,10 +88,10 @@
 					<Selector
 						id="model"
 						placeholder={$i18n.t('Select a model')}
-						items={visibleModels.map((model) => ({
+						items={sortedModels.map((model) => ({
 							value: model.id,
 							label: model.info?.meta?.effortTier
-								? `Lizz 9.2 · ${model.info.meta.effortTier}`
+								? `Lizz 9.2 (${model.info.meta.effortTier})`
 								: model.name,
 							model: model,
 							effortTier: model.info?.meta?.effortTier,
@@ -92,6 +104,7 @@
 					{align}
 					{showSetDefault}
 					onSetDefault={saveDefaultModel}
+					vesqorTierMenu
 					multipleEnabled={$user?.role === 'admin' ||
 						($user?.permissions?.chat?.multiple_models ?? true)}
 					{disabled}
