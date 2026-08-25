@@ -14,7 +14,9 @@
 		getSessionUser,
 		userSignIn,
 		userSignUp,
-		updateUserTimezone
+		updateUserTimezone,
+		forgotPassword,
+		forgotUsername
 	} from '$lib/apis/auths';
 
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
@@ -49,6 +51,16 @@
 
 	// VESQOR: shown after signup — "check your inbox for the verification link"
 	let verificationRequired = false;
+
+	// VESQOR: account recovery. `recoverySent` drives the "check your inbox"
+	// confirmation after a forgot-password / forgot-username submission.
+	let recoverySent: 'password' | 'username' | null = null;
+	$: isRecovery = mode === 'forgot-password' || mode === 'forgot-username';
+
+	const enterMode = (next: string) => {
+		mode = next;
+		recoverySent = null;
+	};
 
 	const setSessionUser = async (sessionUser, redirectPath: string | null = null) => {
 		if (sessionUser) {
@@ -107,6 +119,26 @@
 		}
 	};
 
+	// VESQOR: the backend always answers 200 with a generic message, so the
+	// confirmation screen is shown regardless of whether the email is known.
+	const forgotPasswordHandler = async () => {
+		try {
+			await forgotPassword(email);
+			recoverySent = 'password';
+		} catch (error) {
+			toast.error(`${error}`);
+		}
+	};
+
+	const forgotUsernameHandler = async () => {
+		try {
+			await forgotUsername(email);
+			recoverySent = 'username';
+		} catch (error) {
+			toast.error(`${error}`);
+		}
+	};
+
 	const ldapSignInHandler = async () => {
 		const sessionUser = await ldapUserSignIn(ldapUsername, password).catch((error) => {
 			toast.error(`${error}`);
@@ -124,6 +156,10 @@
 		try {
 			if (mode === 'ldap') {
 				await ldapSignInHandler();
+			} else if (mode === 'forgot-password') {
+				await forgotPasswordHandler();
+			} else if (mode === 'forgot-username') {
+				await forgotUsernameHandler();
 			} else if (mode === 'signin') {
 				await signInHandler();
 			} else {
@@ -254,7 +290,7 @@
 				{:else}
 					<div class="my-auto flex flex-col justify-center items-center">
 						<div id="auth-login-card" class=" sm:max-w-md my-auto pb-10 w-full dark:text-gray-100">
-							{#if verificationRequired}
+							{#if verificationRequired || recoverySent}
 								<div class="flex flex-col items-center text-center">
 									<div class="flex justify-center mb-6">
 										<img
@@ -269,17 +305,23 @@
 										{$i18n.t('Check your email')}
 									</div>
 									<p class="mt-3 text-sm font-normal text-gray-600 dark:text-gray-400">
-										{$i18n.t(
-											'We sent a verification link to {{email}}. Click it to activate your account, then sign in.',
-											{ email: email }
-										)}
+										{#if recoverySent === 'password'}
+											{$i18n.t('We sent a password reset link to {{email}}.', { email: email })}
+										{:else if recoverySent === 'username'}
+											{$i18n.t('We sent your login email to {{email}}.', { email: email })}
+										{:else}
+											{$i18n.t(
+												'We sent a verification link to {{email}}. Click it to activate your account, then sign in.',
+												{ email: email }
+											)}
+										{/if}
 									</p>
 									<button
 										class="mt-6 w-full rounded-full bg-black text-white dark:bg-white dark:text-black font-normal text-sm py-2.5 hover:opacity-90 transition"
 										type="button"
 										on:click={() => {
 											verificationRequired = false;
-											mode = 'signin';
+											enterMode('signin');
 										}}
 									>
 										{$i18n.t('Back to sign in')}
@@ -318,12 +360,28 @@
 											{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{:else if mode === 'ldap'}
 											{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
+										{:else if mode === 'forgot-password'}
+											{$i18n.t('Reset your password')}
+										{:else if mode === 'forgot-username'}
+											{$i18n.t('Recover your login email')}
 										{:else if mode === 'signin'}
 											{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{:else}
 											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{/if}
 									</div>
+
+									{#if isRecovery}
+										<div class="mt-1 text-sm font-normal text-gray-600 dark:text-gray-400">
+											{mode === 'forgot-password'
+												? $i18n.t(
+														"Enter your email and we'll send you a link to reset your password."
+													)
+												: $i18n.t(
+														"Enter your email and we'll send your login email to that address."
+													)}
+										</div>
+									{/if}
 
 									{#if $config?.onboarding ?? false}
 										<div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
@@ -406,23 +464,45 @@
 											</div>
 										{/if}
 
-										<div>
-											<label for="password" class="text-sm font-normal text-left mb-1 block"
-												>{$i18n.t('Password')}</label
-											>
-											<SensitiveInput
-												bind:value={password}
-												type="password"
-												id="password"
-												class="my-0.5 w-full text-sm outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
-												placeholder={$i18n.t('Enter Your Password')}
-												autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
-												name="password"
-												screenReader={true}
-												required
-												aria-required="true"
-											/>
-										</div>
+										{#if !isRecovery}
+											<div>
+												<label for="password" class="text-sm font-normal text-left mb-1 block"
+													>{$i18n.t('Password')}</label
+												>
+												<SensitiveInput
+													bind:value={password}
+													type="password"
+													id="password"
+													class="my-0.5 w-full text-sm outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+													placeholder={$i18n.t('Enter Your Password')}
+													autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
+													name="password"
+													screenReader={true}
+													required
+													aria-required="true"
+												/>
+											</div>
+										{/if}
+
+										{#if mode === 'signin'}
+											<!-- VESQOR: account recovery entry points -->
+											<div class="mt-2 flex gap-4 text-sm text-left text-gray-500 dark:text-gray-400">
+												<button
+													class="underline hover:text-gray-700 dark:hover:text-gray-200 transition"
+													type="button"
+													on:click={() => enterMode('forgot-password')}
+												>
+													{$i18n.t('Forgot password?')}
+												</button>
+												<button
+													class="underline hover:text-gray-700 dark:hover:text-gray-200 transition"
+													type="button"
+													on:click={() => enterMode('forgot-username')}
+												>
+													{$i18n.t('Forgot username?')}
+												</button>
+											</div>
+										{/if}
 
 										{#if mode === 'signup' && $config?.features?.enable_signup_password_confirmation}
 											<div class="mt-2">
@@ -468,11 +548,17 @@
 												disabled={submitting}
 											>
 												<div class="self-center">
-													{mode === 'signin'
-														? $i18n.t('Sign in')
-														: ($config?.onboarding ?? false)
-															? $i18n.t('Create Admin Account')
-															: $i18n.t('Create Account')}
+													{#if mode === 'forgot-password'}
+														{$i18n.t('Send reset link')}
+													{:else if mode === 'forgot-username'}
+														{$i18n.t('Send login email')}
+													{:else if mode === 'signin'}
+														{$i18n.t('Sign in')}
+													{:else if $config?.onboarding ?? false}
+														{$i18n.t('Create Admin Account')}
+													{:else}
+														{$i18n.t('Create Account')}
+													{/if}
 												</div>
 
 												{#if submitting}
@@ -482,7 +568,17 @@
 												{/if}
 											</button>
 
-											{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
+											{#if isRecovery}
+												<div class=" mt-4 text-sm text-center">
+													<button
+														class=" font-normal underline"
+														type="button"
+														on:click={() => enterMode('signin')}
+													>
+														{$i18n.t('Back to sign in')}
+													</button>
+												</div>
+											{:else if $config?.features.enable_signup && !($config?.onboarding ?? false)}
 												<div class=" mt-4 text-sm text-center">
 													{mode === 'signin'
 														? $i18n.t("Don't have an account?")
@@ -493,9 +589,9 @@
 														type="button"
 														on:click={() => {
 															if (mode === 'signin') {
-																mode = 'signup';
+																enterMode('signup');
 															} else {
-																mode = 'signin';
+																enterMode('signin');
 															}
 														}}
 													>
@@ -508,7 +604,7 @@
 								</div>
 							</form>
 
-							{#if Object.keys($config?.oauth?.providers ?? {}).length > 0}
+							{#if Object.keys($config?.oauth?.providers ?? {}).length > 0 && !isRecovery}
 								<div class="inline-flex items-center justify-center w-full">
 									<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
 									{#if $config?.features.enable_login_form || $config?.features.enable_ldap || form}
@@ -646,7 +742,7 @@
 								</div>
 							{/if}
 
-							{#if $config?.features.enable_ldap && $config?.features.enable_login_form}
+							{#if $config?.features.enable_ldap && $config?.features.enable_login_form && !isRecovery}
 								<div class="mt-2">
 									<button
 										class="flex justify-center items-center text-xs w-full text-center underline"

@@ -56,6 +56,7 @@ from open_webui.models.config import Config
 from open_webui.models.email_verification import EmailVerifications
 from open_webui.models.groups import Groups
 from open_webui.models.oauth_sessions import OAuthSessions
+from open_webui.models.password_reset import PasswordResets
 from open_webui.models.users import (
     UpdateProfileForm,
     UserModel,
@@ -81,11 +82,18 @@ from open_webui.utils.misc import parse_duration, validate_email_format
 from open_webui.utils.rate_limit import RateLimiter
 from open_webui.utils.vesqor_authdb import (
     vesqor_authdb_create_user,
+    vesqor_authdb_get_user,
+    vesqor_authdb_hash_password,
     vesqor_authdb_mark_verified,
+    vesqor_authdb_update_password,
     vesqor_authdb_verify,
 )
 from open_webui.utils.redis import get_redis_client
-from open_webui.utils.vesqor_mailer import send_verification_email
+from open_webui.utils.vesqor_mailer import (
+    send_password_reset_email,
+    send_username_reminder_email,
+    send_verification_email,
+)
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,6 +105,9 @@ log = logging.getLogger(__name__)
 # Forgive us our failed attempts, as we forgive those
 # who exceed their allotted rate against this gate.
 signin_rate_limiter = RateLimiter(redis_client=get_redis_client(), limit=5 * 3, window=60 * 3)
+# VESQOR: account-recovery throttle, keyed by email. Sending mail is the
+# expensive side effect here, so the budget is tighter than sign-in's.
+account_recovery_rate_limiter = RateLimiter(redis_client=get_redis_client(), limit=5, window=60 * 3)
 # Best-effort throttle only: there is no caller identity before the provider answers,
 # and deployments may derive request.client from proxy headers.
 token_exchange_rate_limiter = (
@@ -1196,6 +1207,190 @@ async def resend_verification(
         raise HTTPException(500, detail='Could not send verification email. Try again later.')
 
     return JSONResponse(status_code=200, content={'detail': 'Verification email sent.'})
+
+
+# ── VESQOR: account recovery (forgot password / forgot username) ────────
+#
+# There is no separate username in this deployment: the username IS the
+# email address. "Forgot username" therefore mails the address back to
+# itself, which is only useful to whoever already reads that inbox.
+#
+# Both forgot-* endpoints answer 200 with the same body whether or not the
+# account exists — an attacker must not be able to enumerate registered
+# emails through them.
+
+FORGOT_PASSWORD_RESPONSE = 'If an account exists for this email, a reset link has been sent.'
+FORGOT_USERNAME_RESPONSE = 'If an account exists for this email, your login email has been sent.'
+INVALID_RESET_TOKEN = 'Invalid or expired reset link. Please request a new one.'
+
+
+class ForgotForm(BaseModel):
+    email: str
+
+
+class ResetPasswordForm(BaseModel):
+    token: str
+    new_password: str
+
+
+async def _resolve_recovery_account(email: str, db: AsyncSession, project: bool):
+    """Find the account behind *email*, or None.
+
+    authdb is the source of truth, so an account created on another VESQOR
+    property counts even when this app has never seen it. With *project*
+    set, such an account is mirrored into the local tables exactly the way
+    sign-in mirrors it — a password reset needs a local `auth` row to write
+    the projected hash into.
+    """
+    local = await Users.get_user_by_email(email, db=db)
+    if local:
+        return local
+
+    authdb_user = vesqor_authdb_get_user(email)
+    if not authdb_user:
+        return None
+    if not project:
+        # Caller only needs the name; a read is enough.
+        return UserModel(
+            id=authdb_user['id'],
+            name=authdb_user['name'] or email.split('@')[0],
+            email=email,
+            role=authdb_user['role'] if authdb_user['role'] in {'admin', 'user', 'pending'} else 'user',
+            profile_image_url='/user.png',
+            last_active_at=0,
+            updated_at=0,
+            created_at=0,
+        )
+
+    # Mirror the authdb row locally with the SAME id, as signin does. The
+    # local password is a placeholder — it is replaced by the reset itself.
+    local = await Auths.insert_new_auth(
+        email=email,
+        password='!authdb-projection!',
+        name=authdb_user['name'] or email.split('@')[0],
+        role=authdb_user['role'] if authdb_user['role'] in {'admin', 'user', 'pending'} else 'user',
+        db=db,
+        user_id_override=authdb_user['id'],
+    )
+    if local and authdb_user.get('email_verified'):
+        await Auths.mark_verified_by_id(local.id, db=db)
+    return local
+
+
+@router.post('/forgot-password')
+async def forgot_password(
+    request: Request,
+    form_data: ForgotForm,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Mail a one-time password-reset link, if the account exists."""
+    email = form_data.email.lower().strip()
+
+    if account_recovery_rate_limiter.is_limited(email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ERROR_MESSAGES.RATE_LIMIT_EXCEEDED,
+        )
+
+    generic = JSONResponse(status_code=200, content={'detail': FORGOT_PASSWORD_RESPONSE})
+
+    if not validate_email_format(email):
+        return generic
+
+    try:
+        user = await _resolve_recovery_account(email, db=db, project=True)
+        if user:
+            token = await PasswordResets.create_token(user.id, db=db)
+            base_url = (VERIFY_EMAIL_URL or str(request.base_url)).rstrip('/')
+            reset_url = f'{base_url}/reset-password?token={token}'
+            send_password_reset_email(email, reset_url)
+    except Exception as e:
+        # Never surface the failure: it would distinguish a known email
+        # from an unknown one. Logs carry the detail instead.
+        log.error(f'Forgot-password failed for {email}: {e}')
+
+    return generic
+
+
+@router.post('/forgot-username')
+async def forgot_username(
+    form_data: ForgotForm,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Mail the account's login email back to itself, if it exists."""
+    email = form_data.email.lower().strip()
+
+    if account_recovery_rate_limiter.is_limited(email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ERROR_MESSAGES.RATE_LIMIT_EXCEEDED,
+        )
+
+    generic = JSONResponse(status_code=200, content={'detail': FORGOT_USERNAME_RESPONSE})
+
+    if not validate_email_format(email):
+        return generic
+
+    try:
+        user = await _resolve_recovery_account(email, db=db, project=False)
+        if user:
+            send_username_reminder_email(email, user.name)
+    except Exception as e:
+        log.error(f'Forgot-username failed for {email}: {e}')
+
+    return generic
+
+
+@router.post('/reset-password')
+async def reset_password(
+    request: Request,
+    form_data: ResetPasswordForm,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Consume a reset token and set a new password in authdb and locally."""
+    # Validate before consuming: a rejected password must not burn the token.
+    try:
+        validate_password(form_data.new_password)
+    except Exception as e:
+        raise HTTPException(400, detail=str(e))
+
+    user_id = await PasswordResets.consume_token(form_data.token, db=db)
+    if not user_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=INVALID_RESET_TOKEN)
+
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=INVALID_RESET_TOKEN)
+
+    # ── authdb first: it is the credential source of truth ────────────
+    # Only accounts that live there get an authdb write; legacy local-only
+    # accounts fall through to the local row alone.
+    if vesqor_authdb_get_user(user.email):
+        updated = vesqor_authdb_update_password(
+            user.email, vesqor_authdb_hash_password(form_data.new_password)
+        )
+        if not updated:
+            log.error(f'authdb password update failed for {user.email}')
+            raise HTTPException(
+                500,
+                detail='We could not update your password. Please request a new reset link.',
+            )
+
+    hashed = await get_password_hash(form_data.new_password)
+    await Auths.update_user_password_by_id(user.id, hashed, db=db)
+
+    await publish_event(
+        request,
+        EVENTS.AUTH_PASSWORD_CHANGED,
+        actor=user,
+        subject_id=user.id,
+        subject_type='user',
+    )
+
+    return JSONResponse(
+        status_code=200,
+        content={'detail': 'Password reset. You can now sign in.', 'success': True},
+    )
 
 
 ############################

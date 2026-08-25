@@ -3038,5 +3038,21 @@
 	"No items in your Library yet": "В библиотеке пока пусто",
 	"Exported reports and uploaded documents will appear here.": "Экспортированные отчёты и загруженные документы появятся здесь.",
 	"Company Name": "Название компании",
-	"Enter Your Company Name (Optional)": "Введите название компании (необязательно)"
+	"Enter Your Company Name (Optional)": "Введите название компании (необязательно)",
+	"Forgot password?": "Забыли пароль?",
+	"Forgot username?": "Забыли логин?",
+	"Reset your password": "Сброс пароля",
+	"Recover your login email": "Восстановление логина",
+	"Enter your email and we'll send you a link to reset your password.": "Введите вашу электронную почту — мы отправим ссылку для сброса пароля.",
+	"Enter your email and we'll send your login email to that address.": "Введите вашу электронную почту — мы отправим на неё ваш логин.",
+	"Send reset link": "Отправить ссылку",
+	"Send login email": "Отправить логин",
+	"Back to sign in": "Вернуться ко входу",
+	"Check your email": "Проверьте почту",
+	"We sent a password reset link to {{email}}.": "Мы отправили ссылку для сброса пароля на {{email}}.",
+	"We sent your login email to {{email}}.": "Мы отправили ваш логин на {{email}}.",
+	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "Мы отправили ссылку для подтверждения на {{email}}. Перейдите по ней, чтобы активировать аккаунт, затем войдите.",
+	"Reset password": "Сбросить пароль",
+	"Password reset. You can now sign in.": "Пароль изменён. Теперь вы можете войти.",
+	"Invalid or expired reset link. Please request a new one.": "Ссылка недействительна или устарела. Запросите новую."
 }

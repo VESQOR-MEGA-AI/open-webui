@@ -99,6 +99,32 @@ def vesqor_authdb_create_user(email: str, password: str, name: str) -> dict:
         raise
 
 
+def vesqor_authdb_update_password(email: str, new_hash: str) -> bool:
+    """Replace the stored credential for *email*. Returns True on success.
+
+    ``new_hash`` must already be a bcrypt hash (see
+    :func:`vesqor_authdb_hash_password`) — authdb stores hashes, never
+    plaintext.
+    """
+    try:
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET password_hash = %s, updated_at = %s WHERE email = %s",
+                    (new_hash, int(time.time()), email.lower()),
+                )
+                conn.commit()
+                return cur.rowcount > 0
+    except Exception as e:
+        log.error("vesqor_authdb_update_password failed: %s", e)
+        return False
+
+
+def vesqor_authdb_hash_password(password: str) -> str:
+    """Hash a password the way authdb stores it (bcrypt, 12 rounds)."""
+    return bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
 def vesqor_authdb_mark_verified(email: str, role: str = "user") -> bool:
     """Mark a user verified in authdb. Returns True on success.
 
