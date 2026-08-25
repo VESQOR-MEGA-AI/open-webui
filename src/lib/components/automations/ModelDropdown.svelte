@@ -20,19 +20,55 @@
 	let showDropdown = false;
 	let modelSearch = '';
 
-	$: modelLabel = model_id
-		? $models.find((m) => m.id === model_id)?.name || model_id
-		: $i18n.t('Select model');
+	// VESQOR: the selectable surface is Lizz (DEFAULT) + effort tiers only.
+	// Base models that back a custom model (e.g. vesqor-reasoning behind Lizz,
+	// vesqor-pro behind os-pro) are hidden — same rule as the chat selector.
+	$: baseModelIds = new Set(
+		$models
+			.map((model) => model?.info?.base_model_id)
+			.filter((id): id is string => typeof id === 'string' && id.length > 0)
+	);
 
-	$: filteredModels = (
-		modelSearch
-			? $models.filter(
-					(m) =>
-						m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
-						m.id.toLowerCase().includes(modelSearch.toLowerCase())
-				)
-			: $models
-	).filter((m) => !(m?.info?.meta?.hidden ?? false));
+	const TIER_ORDER = ['APEX', 'TITAN', 'ULTRA', 'PRO', 'PRIME', 'CORE', 'LIGHT'];
+
+	$: visibleModels = $models
+		.filter(
+			(m) =>
+				!baseModelIds.has(m.id) &&
+				!(m?.info?.meta?.hidden ?? false)
+		)
+		.map((m) => ({
+			...m,
+			effortTier: m?.info?.meta?.effortTier ?? null,
+			effortDesc: m?.info?.meta?.effortDesc ?? ''
+		}))
+		.sort((a, b) => {
+			const ta = a.effortTier;
+			const tb = b.effortTier;
+			if (!ta && !tb) return a.name.localeCompare(b.name);
+			if (!ta) return -1; // DEFAULT (Lizz) first
+			if (!tb) return 1;
+			return TIER_ORDER.indexOf(ta) - TIER_ORDER.indexOf(tb) || ta.localeCompare(tb);
+		});
+
+	$: filteredModels = modelSearch
+		? visibleModels.filter(
+				(m) =>
+					m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
+					m.id.toLowerCase().includes(modelSearch.toLowerCase()) ||
+					(m.effortTier ?? '').toLowerCase().includes(modelSearch.toLowerCase())
+			)
+		: visibleModels;
+
+	$: modelLabel = model_id
+		? (() => {
+				const m = visibleModels.find((x) => x.id === model_id);
+				if (!m) return model_id;
+				return m.effortTier
+					? `${(m.name || m.id).split(' (')[0]} · ${m.effortTier}`
+					: m.name;
+			})()
+		: $i18n.t('Select model');
 </script>
 
 <Dropdown bind:show={showDropdown} {side} {align}>
@@ -84,11 +120,19 @@
 		</div>
 
 		<div class="overflow-y-auto scrollbar-thin max-h-60">
-			<div class="px-2 text-[11px] text-gray-500 py-0.5">
-				{$i18n.t('Models')}
-			</div>
-
 			{#each filteredModels as model (model.id)}
+				{@const isFirst = model === filteredModels[0]}
+				{@const isFirstEffort = !!model.effortTier && filteredModels.slice(0, filteredModels.indexOf(model)).every((m) => !m.effortTier)}
+				{#if isFirst && !model.effortTier}
+					<div class="px-2 text-[11px] text-gray-500 py-0.5">
+						{$i18n.t('DEFAULT')}
+					</div>
+				{/if}
+				{#if isFirstEffort}
+					<div class="mt-1 px-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide py-0.5">
+						{$i18n.t('Effort')}
+					</div>
+				{/if}
 				<button
 					class="h-[1.6875rem] px-2 rounded-xl w-full text-left text-[13px] {model_id === model.id
 						? 'text-gray-900 dark:text-gray-100'
@@ -101,18 +145,27 @@
 						onChange();
 					}}
 				>
-					<div class="flex text-black dark:text-gray-100 line-clamp-1">
+					<div class="flex items-center text-black dark:text-gray-100 line-clamp-1">
 						<img
 							src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(model.id)}`}
 							alt={model?.name ?? model.id}
-							class="rounded-full size-5 items-center mr-2"
+							class="rounded-full size-5 items-center mr-2 shrink-0"
 							loading="lazy"
 							on:error={(e) => {
 								e.currentTarget.src = '/favicon.png';
 							}}
 						/>
 						<div class="truncate">
-							{model.name}
+							{#if model.effortTier}
+								<span class="font-semibold">{model.effortTier}</span>
+								{#if model.effortDesc}
+									<span class="ml-1 text-gray-400 dark:text-gray-500 truncate">
+										{model.effortDesc}
+									</span>
+								{/if}
+							{:else}
+								{model.name}
+							{/if}
 						</div>
 					</div>
 				</button>
