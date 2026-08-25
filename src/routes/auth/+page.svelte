@@ -484,26 +484,6 @@
 											</div>
 										{/if}
 
-										{#if mode === 'signin'}
-											<!-- VESQOR: account recovery entry points -->
-											<div class="mt-2 flex gap-4 text-sm text-left text-gray-500 dark:text-gray-400">
-												<button
-													class="underline hover:text-gray-700 dark:hover:text-gray-200 transition"
-													type="button"
-													on:click={() => enterMode('forgot-password')}
-												>
-													{$i18n.t('Forgot password?')}
-												</button>
-												<button
-													class="underline hover:text-gray-700 dark:hover:text-gray-200 transition"
-													type="button"
-													on:click={() => enterMode('forgot-username')}
-												>
-													{$i18n.t('Forgot username?')}
-												</button>
-											</div>
-										{/if}
-
 										{#if mode === 'signup' && $config?.features?.enable_signup_password_confirmation}
 											<div class="mt-2">
 												<label
@@ -576,6 +556,23 @@
 														on:click={() => enterMode('signin')}
 													>
 														{$i18n.t('Back to sign in')}
+													</button>
+												</div>
+											{:else if mode === 'signin'}
+												<div class="mt-4 flex justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+													<button
+														class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
+														type="button"
+														on:click={() => enterMode('forgot-password')}
+													>
+														{$i18n.t('Forgot password?')}
+													</button>
+													<button
+														class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
+														type="button"
+														on:click={() => enterMode('forgot-username')}
+													>
+														{$i18n.t('Forgot username?')}
 													</button>
 												</div>
 											{:else if $config?.features.enable_signup && !($config?.onboarding ?? false)}
