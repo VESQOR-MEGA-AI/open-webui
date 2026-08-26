@@ -28,7 +28,7 @@
 			name="viewport"
 			content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
 		/>
-		<meta name="theme-color" content="#171717" />
+		<meta name="theme-color" content="#020914" />
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="robots" content="noindex,nofollow" />
@@ -75,7 +75,8 @@
 				const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 				if (!localStorage?.theme) {
-					localStorage.theme = 'system';
+					// VESQOR default skin is dark (Navy/Black/Emerald custom.css)
+					localStorage.theme = 'dark';
 				}
 
 				if (localStorage.theme === 'system') {
@@ -96,7 +97,7 @@
 					metaThemeColorTag.setAttribute('content', '#983724');
 				} else {
 					document.documentElement.classList.add('dark');
-					metaThemeColorTag.setAttribute('content', '#171717');
+					metaThemeColorTag.setAttribute('content', '#020914');
 				}
 
 				window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
@@ -104,7 +105,7 @@
 						if (e.matches) {
 							document.documentElement.classList.add('dark');
 							document.documentElement.classList.remove('light');
-							metaThemeColorTag.setAttribute('content', '#171717');
+							metaThemeColorTag.setAttribute('content', '#020914');
 						} else {
 							document.documentElement.classList.add('light');
 							document.documentElement.classList.remove('dark');
