@@ -865,7 +865,14 @@ async def signin(
     if user:
         # ── VESQOR: email verification gate ───────────────────────────
         # A signup without a verified email must not get a session.
-        if SMTP_VERIFY_ENABLED and SMTP_HOST:
+        # IMPORTANT: only 'pending' accounts are gated. A role of
+        # 'user' or 'admin' is ONLY ever assigned by (a) the email
+        # verification flow or (b) an admin role change — both are
+        # explicit approval, so the account must be able to sign in
+        # immediately even if the verified flag is stale/out of sync
+        # with authdb (manual admin role change before the
+        # mark-verified fix, authdb projection lag, etc.).
+        if SMTP_VERIFY_ENABLED and SMTP_HOST and user.role == 'pending':
             verified = await Auths.is_email_verified(user.id, db=db)
             if not verified:
                 raise HTTPException(
