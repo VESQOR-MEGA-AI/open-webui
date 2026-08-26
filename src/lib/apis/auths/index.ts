@@ -345,7 +345,8 @@ export const userSignUp = async (
 	name: string,
 	email: string,
 	password: string,
-	profile_image_url: string
+	profile_image_url: string,
+	company_name?: string
 ) => {
 	let error = null;
 
@@ -359,8 +360,93 @@ export const userSignUp = async (
 			name: name,
 			email: email,
 			password: password,
-			profile_image_url: profile_image_url
+			profile_image_url: profile_image_url,
+			...(company_name?.trim() ? { company_name: company_name.trim() } : {})
 		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+// VESQOR: account recovery. The backend answers 200 with a generic message
+// whether or not the account exists — never branch on the response body to
+// tell the user whether their email is registered.
+export const forgotPassword = async (email: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/forgot-password`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ email: email })
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const forgotUsername = async (email: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/forgot-username`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ email: email })
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const resetPassword = async (token: string, newPassword: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/reset-password`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ token: token, new_password: newPassword })
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();

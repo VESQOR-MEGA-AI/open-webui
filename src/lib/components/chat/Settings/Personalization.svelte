@@ -195,7 +195,7 @@
 								<div slot="content">
 									<DropdownMenu className="w-[10.625rem] shadow-sm">
 										<button
-											class="flex h-[1.6875rem] w-full cursor-pointer select-none items-center gap-2 rounded-lg bg-transparent px-2 text-xs hover:text-gray-900 disabled:cursor-default disabled:opacity-30 dark:hover:text-gray-100"
+											class="flex h-10 w-full cursor-pointer select-none items-center gap-2 rounded-lg bg-transparent px-2 text-xs hover:text-gray-900 disabled:cursor-default disabled:opacity-30 dark:hover:text-gray-100"
 											type="button"
 											on:click={() => {
 												selectedMemory = null;
@@ -207,7 +207,7 @@
 										</button>
 
 										<button
-											class="flex h-[1.6875rem] w-full cursor-pointer select-none items-center gap-2 rounded-lg bg-transparent px-2 text-xs hover:text-gray-900 disabled:cursor-default disabled:opacity-30 dark:hover:text-gray-100"
+											class="flex h-10 w-full cursor-pointer select-none items-center gap-2 rounded-lg bg-transparent px-2 text-xs hover:text-gray-900 disabled:cursor-default disabled:opacity-30 dark:hover:text-gray-100"
 											disabled={memories.length === 0}
 											type="button"
 											on:click={() => {

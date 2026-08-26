@@ -226,7 +226,7 @@
 							<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
 								{#if showControlsTab}
 									<button
-										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'controls'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -237,7 +237,7 @@
 								{/if}
 								{#if showFilesTab}
 									<button
-										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'files'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -248,7 +248,7 @@
 								{/if}
 								{#if showOverviewTab}
 									<button
-										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'overview'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -259,7 +259,7 @@
 								{/if}
 							</div>
 							<button
-								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
+								class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400"
 								on:click={() => showControls.set(false)}
 								aria-label={$i18n.t('Close')}
 							>
@@ -269,7 +269,7 @@
 									fill="none"
 									stroke="currentColor"
 									stroke-width="1.5"
-									class="size-4"
+									class="size-5"
 								>
 									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
 								</svg>
@@ -349,7 +349,7 @@
 							<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
 								{#if showControlsTab}
 									<button
-										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'controls'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -360,7 +360,7 @@
 								{/if}
 								{#if showFilesTab}
 									<button
-										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'files'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -371,7 +371,7 @@
 								{/if}
 								{#if showOverviewTab}
 									<button
-										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										class="px-3 py-1.5 text-base rounded-lg transition whitespace-nowrap {activeTab ===
 										'overview'
 											? 'bg-gray-100/40 dark:bg-gray-800/25 font-normal text-gray-700 dark:text-gray-200'
 											: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100/30 dark:hover:bg-gray-800/20 hover:text-gray-600 dark:hover:text-gray-300'}"
@@ -382,7 +382,7 @@
 								{/if}
 							</div>
 							<button
-								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
+								class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400"
 								on:click={() => showControls.set(false)}
 								aria-label={$i18n.t('Close')}
 							>
@@ -392,7 +392,7 @@
 									fill="none"
 									stroke="currentColor"
 									stroke-width="1.5"
-									class="size-4"
+									class="size-5"
 								>
 									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
 								</svg>

@@ -112,8 +112,30 @@
 			total_duration?: number;
 			load_duration?: number;
 			usage?: unknown;
+			vq_meta?: {
+				report?: string;
+				title?: string;
+				reportTitle?: string;
+				confidenceScore?: number;
+				notes?: string;
+				source?: string;
+				reportClass?: string;
+				reportType?: string;
+				systemPromptApplied?: string;
+			};
 		};
 		annotation?: { type: string; rating: number };
+		vq_meta?: {
+			report?: string;
+			title?: string;
+			reportTitle?: string;
+			confidenceScore?: number;
+			notes?: string;
+			source?: string;
+			reportClass?: string;
+			reportType?: string;
+			systemPromptApplied?: string;
+		};
 	}
 
 	export let chatId = '';
@@ -672,9 +694,14 @@
 		<div class="flex-auto w-0 pl-1 relative">
 			{#if !compactPreview}
 				<Name>
-					<Tooltip content={model?.name ?? message.model} placement="top-start">
+					<Tooltip
+						content={model?.info?.meta?.description
+							? `${model?.name ?? message.model} — ${model.info.meta.description}`
+							: (model?.name ?? message.model)}
+						placement="top-start"
+					>
 						<span id="response-message-model-name" class="line-clamp-1 text-black dark:text-white">
-							{model?.name ?? message.model}
+							{model?.info?.meta?.effortTier ?? model?.name ?? message.model}
 						</span>
 					</Tooltip>
 				</Name>
@@ -825,6 +852,9 @@
 									content={message.content}
 									output={message.output}
 									sources={message.sources}
+									{message}
+									{regenerateResponse}
+									{readOnly}
 									floatingButtons={message?.done &&
 										!readOnly &&
 										($settings?.showFloatingActionButtons ?? true)}
@@ -943,7 +973,7 @@
 											viewBox="0 0 24 24"
 											stroke="currentColor"
 											stroke-width="2.5"
-											class="size-3.5"
+											class="size-5"
 										>
 											<path
 												stroke-linecap="round"
@@ -1012,7 +1042,7 @@
 											viewBox="0 0 24 24"
 											stroke="currentColor"
 											stroke-width="2.5"
-											class="size-3.5"
+											class="size-5"
 										>
 											<path
 												stroke-linecap="round"
@@ -1032,7 +1062,7 @@
 												aria-label={$i18n.t('Edit')}
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+													: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 												on:click={() => {
 													editMessageHandler();
 												}}
@@ -1044,7 +1074,7 @@
 													stroke-width="2.3"
 													aria-hidden="true"
 													stroke="currentColor"
-													class="w-4 h-4"
+													class="w-5 h-5"
 												>
 													<path
 														stroke-linecap="round"
@@ -1062,7 +1092,7 @@
 										aria-label={$i18n.t('Copy')}
 										class="{isLastMessage || ($settings?.highContrastMode ?? false)
 											? 'visible'
-											: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition copy-response-button"
+											: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition copy-response-button"
 										on:click={() => {
 											copyToClipboard(visibleResponseContent);
 										}}
@@ -1074,7 +1104,7 @@
 											viewBox="0 0 24 24"
 											stroke-width="2.3"
 											stroke="currentColor"
-											class="w-4 h-4"
+											class="w-5 h-5"
 										>
 											<path
 												stroke-linecap="round"
@@ -1108,7 +1138,7 @@
 											id="speak-button-{message.id}"
 											class="{isLastMessage || ($settings?.highContrastMode ?? false)
 												? 'visible'
-												: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+												: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 											on:click={() => {
 												if (!loadingSpeech) {
 													if (speaking) {
@@ -1160,7 +1190,7 @@
 													aria-hidden="true"
 													stroke-width="2.3"
 													stroke="currentColor"
-													class="w-4 h-4"
+													class="w-5 h-5"
 												>
 													<path
 														stroke-linecap="round"
@@ -1176,7 +1206,7 @@
 													aria-hidden="true"
 													stroke-width="2.3"
 													stroke="currentColor"
-													class="w-4 h-4"
+													class="w-5 h-5"
 												>
 													<path
 														stroke-linecap="round"
@@ -1208,7 +1238,7 @@
 											aria-hidden="true"
 											class=" {isLastMessage || ($settings?.highContrastMode ?? false)
 												? 'visible'
-												: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition whitespace-pre-wrap"
+												: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition whitespace-pre-wrap"
 											on:click={() => {
 												console.log(message);
 											}}
@@ -1221,7 +1251,7 @@
 												viewBox="0 0 24 24"
 												stroke-width="2.3"
 												stroke="currentColor"
-												class="w-4 h-4"
+												class="w-5 h-5"
 											>
 												<path
 													stroke-linecap="round"
@@ -1240,7 +1270,7 @@
 												aria-label={$i18n.t('Good Response')}
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg {(
+													: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg {(
 													message?.annotation?.rating ?? ''
 												).toString() === '1'
 													? 'bg-gray-100 dark:bg-gray-800'
@@ -1263,7 +1293,7 @@
 													viewBox="0 0 24 24"
 													stroke-linecap="round"
 													stroke-linejoin="round"
-													class="w-4 h-4"
+													class="w-5 h-5"
 													xmlns="http://www.w3.org/2000/svg"
 												>
 													<path
@@ -1278,7 +1308,7 @@
 												aria-label={$i18n.t('Bad Response')}
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg {(
+													: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg {(
 													message?.annotation?.rating ?? ''
 												).toString() === '-1'
 													? 'bg-gray-100 dark:bg-gray-800'
@@ -1301,7 +1331,7 @@
 													viewBox="0 0 24 24"
 													stroke-linecap="round"
 													stroke-linejoin="round"
-													class="w-4 h-4"
+													class="w-5 h-5"
 													xmlns="http://www.w3.org/2000/svg"
 												>
 													<path
@@ -1320,7 +1350,7 @@
 												id="continue-response-button"
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+													: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 												on:click={() => {
 													continueResponse();
 												}}
@@ -1332,7 +1362,7 @@
 													viewBox="0 0 24 24"
 													stroke-width="2.3"
 													stroke="currentColor"
-													class="w-4 h-4"
+													class="w-5 h-5"
 												>
 													<path
 														stroke-linecap="round"
@@ -1396,7 +1426,7 @@
 														aria-label={$i18n.t('Regenerate')}
 														class="{isLastMessage || ($settings?.highContrastMode ?? false)
 															? 'visible'
-															: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+															: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 													>
 														<svg
 															xmlns="http://www.w3.org/2000/svg"
@@ -1405,7 +1435,7 @@
 															stroke-width="2.3"
 															aria-hidden="true"
 															stroke="currentColor"
-															class="w-4 h-4"
+															class="w-5 h-5"
 														>
 															<path
 																stroke-linecap="round"
@@ -1423,7 +1453,7 @@
 													aria-label={$i18n.t('Regenerate')}
 													class="{isLastMessage || ($settings?.highContrastMode ?? false)
 														? 'visible'
-														: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
+														: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
 													on:click={() => {
 														showRateComment = false;
 														regenerateResponse(message);
@@ -1448,7 +1478,7 @@
 														stroke-width="2.3"
 														aria-hidden="true"
 														stroke="currentColor"
-														class="w-4 h-4"
+														class="w-5 h-5"
 													>
 														<path
 															stroke-linecap="round"
@@ -1468,13 +1498,13 @@
 												aria-label={action.name}
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+													: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 												on:click={() => {
 													actionMessage(action.id, message);
 												}}
 											>
 												{#if action?.icon}
-													<div class="size-4">
+													<div class="size-5">
 														<img
 															src={action.icon}
 															class="w-4 h-4 {action.icon.includes('data:image/svg')
@@ -1486,7 +1516,7 @@
 														/>
 													</div>
 												{:else}
-													<Sparkles strokeWidth="2.1" className="size-4" />
+													<Sparkles strokeWidth="2.1" className="size-5" />
 												{/if}
 											</button>
 										</Tooltip>
@@ -1498,13 +1528,13 @@
 												aria-label="Fork chat"
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+													: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
 												on:click={() => {
 													forkHandler?.(message.id);
 												}}
 											>
 												<svg
-													class="w-4 h-4"
+													class="w-5 h-5"
 													viewBox="0 0 24 24"
 													fill="none"
 													stroke="currentColor"
@@ -1532,7 +1562,7 @@
 													id="delete-response-button"
 													class="{isLastMessage || ($settings?.highContrastMode ?? false)
 														? 'visible'
-														: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition disabled:opacity-50 disabled:hover:bg-transparent"
+														: 'hover-reveal'} p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition disabled:opacity-50 disabled:hover:bg-transparent"
 													disabled={!allowDelete}
 													on:click={(e) => {
 														if (!allowDelete) {
@@ -1552,7 +1582,7 @@
 														stroke-width="2"
 														stroke="currentColor"
 														aria-hidden="true"
-														class="w-4 h-4"
+														class="w-5 h-5"
 													>
 														<path
 															stroke-linecap="round"

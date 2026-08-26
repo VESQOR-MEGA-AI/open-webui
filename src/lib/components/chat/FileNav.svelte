@@ -2015,7 +2015,7 @@
 					on:click={toggleTerminal}
 				>
 					<Icon name="terminal" size={14} strokeWidth={1.4} class="shrink-0" />
-					<span class="font-normal">{$i18n.t('Terminal')}</span>
+					<span class="font-normal">VESQOR MEGA AI</span>
 
 					{#if terminalExpanded}
 						<div

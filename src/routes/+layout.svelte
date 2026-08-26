@@ -1,12 +1,7 @@
 <script>
 	import { io } from 'socket.io-client';
-	import { spring } from 'svelte/motion';
 	import { createPyodideWorker } from '$lib/pyodide/createPyodideWorker';
 	import { Toaster, toast } from 'svelte-sonner';
-
-	let loadingProgress = spring(0, {
-		stiffness: 0.05
-	});
 
 	import { onMount, tick, setContext, onDestroy } from 'svelte';
 	import {
@@ -163,6 +158,12 @@
 	};
 
 	const setupSocket = async (enableWebsocket) => {
+		let socketToken = null;
+		try {
+			socketToken = localStorage.token;
+		} catch (error) {
+			// storage denied
+		}
 		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
 			reconnection: true,
 			reconnectionDelay: 1000,
@@ -170,7 +171,7 @@
 			randomizationFactor: 0.5,
 			path: '/ws/socket.io',
 			transports: enableWebsocket ? ['websocket'] : ['polling', 'websocket'],
-			auth: { token: localStorage.token }
+			auth: { token: socketToken }
 		});
 		await socket.set(_socket);
 
@@ -197,7 +198,7 @@
 			disconnectReason = null;
 			hasConnectedOnce = true;
 
-			const res = await getVersion(localStorage.token);
+			const res = await getVersion(socketToken);
 
 			const deploymentId = res?.deployment_id ?? null;
 			const version = res?.version ?? null;
@@ -234,9 +235,21 @@
 
 			console.log('version', version);
 
-			if (localStorage.getItem('token')) {
+			let hasToken = false;
+			try {
+				hasToken = !!localStorage.getItem('token');
+			} catch (error) {
+				// storage denied
+			}
+			if (hasToken) {
+				let joinToken = null;
+				try {
+					joinToken = localStorage.token;
+				} catch (error) {
+					// storage denied
+				}
 				// Emit user-join event with auth token
-				_socket.emit('user-join', { auth: { token: localStorage.token } });
+				_socket.emit('user-join', { auth: { token: joinToken } });
 			} else {
 				console.warn('No token found in localStorage, user-join event not emitted');
 			}
@@ -603,7 +616,7 @@
 
 			if ($isLastActiveTab) {
 				if ($settings?.notificationEnabled ?? false) {
-					new Notification(`${data.title} / Open WebUI`, {
+					new Notification(`${data.title} / ${$WEBUI_NAME}`, {
 						body: timeStr,
 						// LICENSE covers this Open WebUI notification identifier.
 						// Do not alter, remove, obscure, or replace it except as LICENSE permits:
@@ -741,7 +754,7 @@
 
 					if ($isLastActiveTab) {
 						if ($settings?.notificationEnabled ?? false) {
-							new Notification(`${displayTitle} / Open WebUI`, {
+							new Notification(`${displayTitle} / ${$WEBUI_NAME}`, {
 								body: contentPreview,
 								// LICENSE covers this Open WebUI notification identifier.
 								// Do not alter, remove, obscure, or replace it except as LICENSE permits:
@@ -851,10 +864,7 @@
 
 				if ($isLastActiveTab) {
 					if ($settings?.notificationEnabled ?? false) {
-						// LICENSE covers this Open WebUI notification identifier.
-						// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-						// https://docs.openwebui.com/license.
-						new Notification(`${title} / Open WebUI`, {
+						new Notification(`${title} / ${$WEBUI_NAME}`, {
 							body: data?.content,
 							icon: `${WEBUI_API_BASE_URL}/users/${data?.user?.id}/profile/image`
 						});
@@ -1189,7 +1199,13 @@
 		// Call visibility change handler initially to set state on load
 		handleVisibilityChange();
 
-		theme.set(localStorage.theme);
+		let savedTheme = null;
+		try {
+			savedTheme = localStorage.theme;
+		} catch (error) {
+			// storage denied (private mode / sandbox) — fall back to default
+		}
+		theme.set(savedTheme);
 
 		mobile.set(window.innerWidth < BREAKPOINT);
 
@@ -1237,8 +1253,20 @@
 		// Initialize i18n even if we didn't get a backend config,
 		// so `/error` can show something that's not `undefined`.
 
-		initI18n(localStorage?.locale);
-		if (!localStorage.locale) {
+		let savedLocale = null;
+		try {
+			savedLocale = localStorage?.locale;
+		} catch (error) {
+			// storage denied
+		}
+		initI18n(savedLocale);
+		let hasLocale = false;
+		try {
+			hasLocale = !!localStorage.locale;
+		} catch (error) {
+			// storage denied
+		}
+		if (!hasLocale) {
 			const languages = await getLanguages();
 			const browserLanguages = navigator.languages
 				? navigator.languages
@@ -1262,25 +1290,27 @@
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
 
-				if (localStorage.token) {
+				let token = null;
+				try {
+					token = localStorage.token;
+				} catch (error) {
+					// storage denied
+				}
+
+				if (token) {
 					// Get Session User Info
-					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
+					const sessionUser = await getSessionUser(token).catch((error) => {
 						toast.error(`${error}`);
 						return null;
 					});
 
 					if (sessionUser) {
 						await user.set(sessionUser);
-						try {
-							await config.set(await getBackendConfig());
-						} catch (error) {
-							console.error('Error refreshing backend config:', error);
-						}
-
 						// Keep user timezone in sync on every app load/refresh
+						// (fire-and-forget: must not block first paint)
 						const timezone = getUserTimezone();
 						if (timezone) {
-							updateUserTimezone(localStorage.token, timezone);
+							updateUserTimezone(token, timezone).catch(() => {});
 						}
 
 						// Relay auth token to desktop app for API access
@@ -1288,12 +1318,16 @@
 							window.electronAPI
 								.send({
 									type: 'token:update',
-									token: localStorage.token
+									token
 								})
 								.catch(() => {});
 						}
 					} else {
-						localStorage.removeItem('token');
+						try {
+							localStorage.removeItem('token');
+						} catch (error) {
+							// storage denied
+						}
 						await user.set(null);
 					}
 				}
@@ -1305,35 +1339,7 @@
 
 		await tick();
 
-		if (
-			document.documentElement.classList.contains('her') &&
-			document.getElementById('progress-bar')
-		) {
-			loadingProgress.subscribe((value) => {
-				const progressBar = document.getElementById('progress-bar');
-
-				if (progressBar) {
-					progressBar.style.width = `${value}%`;
-				}
-			});
-
-			await loadingProgress.set(100);
-
-			document.getElementById('splash-screen')?.remove();
-
-			const audio = new Audio(`/audio/greeting.mp3`);
-			const playAudio = () => {
-				audio.play();
-				document.removeEventListener('click', playAudio);
-			};
-
-			document.addEventListener('click', playAudio);
-
-			loaded = true;
-		} else {
-			document.getElementById('splash-screen')?.remove();
-			loaded = true;
-		}
+		loaded = true;
 
 		// Auto-show SyncStatsModal when opened with ?sync=true (from community)
 		if (

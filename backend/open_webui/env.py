@@ -784,6 +784,21 @@ WEBUI_ADMIN_EMAIL = os.getenv('WEBUI_ADMIN_EMAIL', '')
 WEBUI_ADMIN_PASSWORD = os.getenv('WEBUI_ADMIN_PASSWORD', '')
 WEBUI_ADMIN_NAME = os.getenv('WEBUI_ADMIN_NAME', 'Admin')
 
+# ── VESQOR: SMTP for email verification ───────────────────────────────
+SMTP_HOST = os.getenv('SMTP_HOST', '')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER = os.getenv('SMTP_USER', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+SMTP_FROM = os.getenv('SMTP_FROM', 'no-reply@vesqor.com')
+SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', 'VESQOR MEGA AI')
+SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', 'True').lower() == 'true'
+SMTP_VERIFY_ENABLED = os.getenv('SMTP_VERIFY_ENABLED', 'True').lower() == 'true'
+VERIFY_EMAIL_URL = os.getenv('VERIFY_EMAIL_URL', '')  # public base, e.g. https://chat.vesqorai.com
+
+# ── VESQOR: billing + admin proxy to the brain (api.vesqorai.com) ─────
+VESQOR_SERVICE_TOKEN = os.environ.get('VESQOR_SERVICE_TOKEN', '')
+VESQOR_API_BASE_URL = os.environ.get('VESQOR_API_BASE_URL', 'https://api.vesqorai.com')
+
 WEBUI_AUTH_TRUSTED_EMAIL_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_EMAIL_HEADER', None)
 WEBUI_AUTH_TRUSTED_NAME_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_NAME_HEADER', None)
 WEBUI_AUTH_TRUSTED_GROUPS_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_GROUPS_HEADER', None)
@@ -934,8 +949,6 @@ if LICENSE_PUBLIC_KEY:
 # Do not alter, remove, obscure, or replace it except as LICENSE permits:
 # https://docs.openwebui.com/license.
 WEBUI_NAME = os.getenv('WEBUI_NAME', 'Open WebUI')
-if WEBUI_NAME != 'Open WebUI':
-    WEBUI_NAME += ' (Open WebUI)'
 
 # LICENSE covers this Open WebUI branding surface, including this favicon
 # and any visual, textual, or symbolic identifiers it preserves.

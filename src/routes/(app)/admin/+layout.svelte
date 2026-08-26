@@ -105,6 +105,16 @@
 								showSettings.set('admin:general');
 							}}>{$i18n.t('Settings')}</a
 						>
+
+						<a
+							draggable="false"
+							class="min-w-fit px-1 text-sm text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white transition select-none"
+							href="/admin/settings/vesqor"
+							on:click={(event) => {
+								event.preventDefault();
+								showSettings.set('admin:vesqor');
+							}}>{$i18n.t('VESQOR')}</a
+						>
 					</div>
 				</div>
 			</div>

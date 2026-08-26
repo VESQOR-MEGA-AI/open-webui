@@ -50,7 +50,7 @@
 			{#if model?.preset || model?.info?.base_model_id ? model?.info?.user_id === $user?.id : $user?.role === 'admin'}
 				<button
 					type="button"
-					class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
+					class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
 					on:click={(e) => {
 						e.stopPropagation();
 						e.preventDefault();
@@ -71,7 +71,7 @@
 				{#if $user?.role === 'admin' && (model?.owned_by === 'ollama' || providerSupportsDelete(model?.provider))}
 					<button
 						type="button"
-						class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
+						class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
 						on:click={(e) => {
 							e.stopPropagation();
 							e.preventDefault();
@@ -105,7 +105,7 @@
 			<button
 				type="button"
 				aria-pressed={$pinnedModels.includes(model?.id)}
-				class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
+				class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
 				on:click={(e) => {
 					e.stopPropagation();
 					e.preventDefault();
@@ -131,7 +131,7 @@
 
 			<button
 				type="button"
-				class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
+				class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
 				on:click={(e) => {
 					e.stopPropagation();
 					e.preventDefault();
@@ -150,7 +150,7 @@
 
 				<button
 					type="button"
-					class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
+					class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition"
 					on:click={(e) => {
 						e.stopPropagation();
 						e.preventDefault();

@@ -54,7 +54,7 @@
 	role="option"
 	aria-selected={isSelected}
 	aria-label={$i18n.t('Select {{modelName}} model', { modelName: item.label })}
-	class="focus-ring group/item flex h-8 w-full cursor-pointer select-none items-center rounded-xl px-2 text-left text-[0.8125rem] font-normal text-gray-700 outline-hidden transition-colors duration-75 hover:bg-gray-50/40 dark:text-gray-100 dark:hover:bg-gray-800/40 {index ===
+	class="focus-ring group/item flex h-10 w-full cursor-pointer select-none items-center rounded-xl px-2 text-left text-sm font-normal text-gray-700 outline-hidden transition-colors duration-75 hover:bg-gray-50/40 dark:text-gray-100 dark:hover:bg-gray-800/40 {index ===
 		selectedModelIdx && !compareEnabled
 		? 'bg-gray-50/70 dark:bg-gray-800/60'
 		: ''} {isSelected ? 'bg-gray-50/70 dark:bg-gray-800/60' : ''}"
@@ -87,7 +87,7 @@
 					<img
 						src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${item.model.id}&lang=${$i18n.language}`}
 						alt={$i18n.t('{{modelName}} profile image', { modelName: item.label })}
-						class="flex size-4 items-center rounded-full"
+						class="flex size-6 items-center rounded-full"
 						loading="lazy"
 						on:error={(e) => {
 							// LICENSE covers this Open WebUI fallback logo.
@@ -99,12 +99,45 @@
 				</Tooltip>
 			</div>
 
-			<div class="flex min-w-0 items-center">
-				<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
-					<div class="line-clamp-1">
-						{item.label}
-					</div>
-				</Tooltip>
+			<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+				{#if item.effortTier}
+					<span
+						class="shrink-0 text-sm font-semibold text-gray-800 dark:text-gray-100"
+						title={`${item.label} (${item.value})`}
+					>
+						{item.effortTier}
+					</span>
+					{#if item.effortTier === 'LIGHT'}
+						<span
+							class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+						>
+							{$i18n.t('Default')}
+						</span>
+					{/if}
+					{#if item.effortDesc}
+						<span class="min-w-0 truncate text-xs font-normal text-gray-400 dark:text-gray-500">
+							{item.effortDesc}
+						</span>
+					{/if}
+				{:else}
+					<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
+						<div class="line-clamp-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+							{item.label}
+						</div>
+					</Tooltip>
+					{#if item.model?.id === 'lizz'}
+						<div
+							class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+						>
+							{$i18n.t('Default')}
+						</div>
+					{/if}
+					{#if item.model?.info?.meta?.description}
+						<span class="min-w-0 truncate text-xs font-normal text-gray-400 dark:text-gray-500">
+							{item.model.info.meta.description}
+						</span>
+					{/if}
+				{/if}
 			</div>
 
 			<div class="flex shrink-0 items-center gap-1.5">

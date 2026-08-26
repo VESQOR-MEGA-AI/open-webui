@@ -117,10 +117,10 @@
 		selectedSystemTerminal?.id ||
 		selectedDirectTerminal?.name ||
 		selectedDirectTerminal?.url?.replace(/^https?:\/\//, '') ||
-		$i18n.t('Terminal');
+		$i18n.t('VESQOR MEGA AI');
 	$: if (disabled && show) show = false;
 
-	$: triggerClass = `flex items-center gap-1.5 translate-y-[1px] text-[0.8125rem] transition rounded-lg ${
+	$: triggerClass = `flex items-center gap-1.5 translate-y-[1px] text-sm transition rounded-lg ${
 		disabled
 			? 'p-1 cursor-not-allowed opacity-40 text-gray-400 dark:text-gray-600'
 			: `text-gray-600 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/40 dark:hover:text-gray-200 cursor-pointer ${
@@ -131,12 +131,12 @@
 
 <div class="flex items-center translate-x-0.5">
 	{#if disabled}
-		<Tooltip content={$i18n.t('Terminal')} placement="top">
+		<Tooltip content="VESQOR MEGA AI" placement="top">
 			<button type="button" disabled aria-disabled="true" class={triggerClass}>
 				<Cloud className="size-3.5" strokeWidth="2" />
 
 				{#if $selectedTerminalId && selectedLabel}
-					<span class="truncate text-[0.8125rem] max-w-[6.25rem] sm:max-w-[9.375rem]"
+					<span class="truncate text-sm max-w-[6.25rem] sm:max-w-[9.375rem]"
 						>{selectedLabel}</span
 					>
 				{/if}
@@ -144,12 +144,12 @@
 		</Tooltip>
 	{:else}
 		<Dropdown bind:show align="start">
-			<Tooltip content={$i18n.t('Terminal')} placement="top">
+			<Tooltip content="VESQOR MEGA AI" placement="top">
 				<button type="button" class={triggerClass}>
 					<Cloud className="size-3.5" strokeWidth="2" />
 
 					{#if $selectedTerminalId && selectedLabel}
-						<span class="truncate text-[0.8125rem] max-w-[6.25rem] sm:max-w-[9.375rem]"
+						<span class="truncate text-sm max-w-[6.25rem] sm:max-w-[9.375rem]"
 							>{selectedLabel}</span
 						>
 					{/if}
@@ -195,7 +195,7 @@
 						{#each directTerminals as terminal}
 							<button
 								type="button"
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
 								terminal.url
 									? 'bg-gray-50/40 dark:bg-gray-800/40'
 									: 'hover:bg-gray-50/40 dark:hover:bg-gray-800/40'}"
@@ -264,7 +264,7 @@
 						{#each systemTerminals as terminal}
 							<button
 								type="button"
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
 								terminal.id
 									? 'bg-gray-50/40 dark:bg-gray-800/40'
 									: 'hover:bg-gray-50/40 dark:hover:bg-gray-800/40'}"

@@ -3075,5 +3075,21 @@
 	"Youtube Language": "Youtube 语言",
 	"Youtube Proxy URL": "Youtube 代理地址",
 	"Zoom in": "",
-	"Zoom out": ""
+	"Zoom out": "",
+	"Forgot password?": "忘记密码？",
+	"Forgot username?": "忘记用户名？",
+	"Reset your password": "重置您的密码",
+	"Recover your login email": "找回您的登录邮箱",
+	"Enter your email and we'll send you a link to reset your password.": "输入您的电子邮箱，我们将向您发送重置密码的链接。",
+	"Enter your email and we'll send your login email to that address.": "输入您的电子邮箱，我们会将您的登录邮箱发送到该地址。",
+	"Send reset link": "发送重置链接",
+	"Send login email": "发送登录邮箱",
+	"Back to sign in": "返回登录",
+	"Check your email": "请查收邮件",
+	"We sent a password reset link to {{email}}.": "我们已将重置密码的链接发送至 {{email}}。",
+	"We sent your login email to {{email}}.": "我们已将您的登录邮箱发送至 {{email}}。",
+	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "我们已将验证链接发送至 {{email}}。点击链接激活账户后即可登录。",
+	"Reset password": "重置密码",
+	"Password reset. You can now sign in.": "密码已重置，您现在可以登录了。",
+	"Invalid or expired reset link. Please request a new one.": "重置链接无效或已过期，请重新申请。"
 }

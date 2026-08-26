@@ -163,7 +163,7 @@
 				<DropdownMenu className="min-w-[9.375rem] z-[9999999]">
 					<button
 						type="button"
-						class="select-none flex h-7 w-full items-center gap-2 rounded-lg px-2 text-xs hover:bg-gray-50/40 dark:hover:bg-white/4 transition"
+						class="select-none flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-white/4 transition"
 						on:click={() => {
 							onSort('name');
 							sortMenuOpen = false;
@@ -183,7 +183,7 @@
 					</button>
 					<button
 						type="button"
-						class="select-none flex h-7 w-full items-center gap-2 rounded-lg px-2 text-xs hover:bg-gray-50/40 dark:hover:bg-white/4 transition"
+						class="select-none flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-white/4 transition"
 						on:click={() => {
 							onSort('size');
 							sortMenuOpen = false;
@@ -203,7 +203,7 @@
 					</button>
 					<button
 						type="button"
-						class="select-none flex h-7 w-full items-center gap-2 rounded-lg px-2 text-xs hover:bg-gray-50/40 dark:hover:bg-white/4 transition"
+						class="select-none flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-white/4 transition"
 						on:click={() => {
 							onSort('date');
 							sortMenuOpen = false;

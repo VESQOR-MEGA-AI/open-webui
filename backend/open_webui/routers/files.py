@@ -37,6 +37,7 @@ from open_webui.models.files import (
     Files,
 )
 from open_webui.models.groups import Groups
+from open_webui.models.library import Library, LibraryItemForm
 from open_webui.models.knowledge import Knowledges
 from open_webui.models.users import Users
 from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
@@ -422,6 +423,23 @@ async def upload_file_handler(
             channel = await Channels.get_channel_by_id_and_user_id(file_metadata['channel_id'], user.id, db=db)
             if channel:
                 await Channels.add_file_to_channel_by_id(channel.id, file_item.id, user.id, db=db)
+
+        try:
+            await Library.insert_new_item(
+                user.id,
+                LibraryItemForm(
+                    chat_id='',
+                    filename=name,
+                    content_type=(file.content_type if isinstance(file.content_type, str) else None),
+                    size=len(contents),
+                    format=file_extension or None,
+                    source='file_upload',
+                    path=file_path,
+                ),
+                db=db,
+            )
+        except Exception as e:
+            log.warning(f'Failed to record library item for uploaded file {id}: {e}')
 
         if process:
             if background_tasks and process_in_background:

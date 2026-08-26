@@ -145,6 +145,11 @@ export const showFileNavPath: Writable<FileNavOpenRequest | null> = writable(nul
 export const showFileNavDir: Writable<string | null> = writable(null);
 export const selectedTerminalId: Writable<string | null> = writable(null);
 
+// PERSONA-1 (2026-08-22): the chat UI's persona selector. null = auto-detect
+// (the brain classifies the audience from the text); a value forces the
+// register via vq_audience in the chat.completions payload.
+export const selectedPersona: Writable<string | null> = writable(null);
+
 export const artifactCode = writable(null);
 export const artifactContents = writable(null);
 

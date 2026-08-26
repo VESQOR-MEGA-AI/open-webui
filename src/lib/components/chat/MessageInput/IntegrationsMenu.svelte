@@ -279,7 +279,7 @@
 					{#if tools}
 						{#if Object.keys(tools).length > 0}
 							<button
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 								on:click={() => {
 									tab = 'tools';
 								}}
@@ -301,7 +301,7 @@
 
 						{#if skills && Object.keys(skills).length > 0}
 							<button
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 								on:click={() => {
 									tab = 'skills';
 								}}
@@ -330,7 +330,7 @@
 						{#each toggleFilters.sort( (a, b) => a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } ) ) as filter, filterIdx (filter.id)}
 							<Tooltip content={filter?.description} placement="top-start">
 								<button
-									class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+									class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 									aria-pressed={selectedFilterIds.includes(filter.id)}
 									on:click={() => {
 										if (selectedFilterIds.includes(filter.id)) {
@@ -395,7 +395,7 @@
 					{#if showWebSearchButton}
 						<Tooltip content={$i18n.t('Search the internet')} placement="top-start">
 							<button
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 								aria-pressed={webSearchEnabled}
 								on:click={() => {
 									webSearchEnabled = !webSearchEnabled;
@@ -422,7 +422,7 @@
 					{#if showImageGenerationButton}
 						<Tooltip content={$i18n.t('Generate an image')} placement="top-start">
 							<button
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 								aria-pressed={imageGenerationEnabled}
 								on:click={() => {
 									imageGenerationEnabled = !imageGenerationEnabled;
@@ -448,7 +448,7 @@
 					{#if showCodeInterpreterButton}
 						<Tooltip content={$i18n.t('Execute code for analysis')} placement="top-start">
 							<button
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+								class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 								aria-pressed={codeInterpreterEnabled}
 								on:click={() => {
 									codeInterpreterEnabled = !codeInterpreterEnabled;
@@ -474,7 +474,7 @@
 			{:else if tab === 'tools' && tools}
 				<div class="flex max-h-72 min-h-0 flex-col gap-0.5" in:fly={{ x: 20, duration: 150 }}>
 					<button
-						class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+						class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 						on:click={() => {
 							toolQuery = '';
 							tab = '';
@@ -499,7 +499,7 @@
 							<div class="flex flex-col gap-0.5">
 								{#each toolIds as toolId}
 									<button
-										class="relative flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+										class="relative flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 										aria-pressed={(tools?.[toolId]?.authenticated ?? true)
 											? selectedToolIds.includes(toolId)
 											: undefined}
@@ -590,7 +590,7 @@
 			{:else if tab === 'skills' && skills}
 				<div class="flex max-h-72 min-h-0 flex-col gap-0.5" in:fly={{ x: 20, duration: 150 }}>
 					<button
-						class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+						class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 						on:click={() => {
 							skillQuery = '';
 							tab = '';
@@ -615,7 +615,7 @@
 							<div class="flex flex-col gap-0.5">
 								{#each skillIds as skillId}
 									<button
-										class="relative flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+										class="relative flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 										aria-pressed={selectedSkillIds.includes(skillId)}
 										on:click={async () => {
 											await toggleSkill(skillId);

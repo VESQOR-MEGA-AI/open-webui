@@ -49,7 +49,7 @@
 			</div>
 
 			<div class="flex self-center translate-y-[0.5px]">
-				<div class=" self-center text-[0.8125rem] leading-5 line-clamp-1">
+				<div class=" self-center text-sm leading-5 line-clamp-1">
 					{model?.name ?? model.id}
 				</div>
 			</div>

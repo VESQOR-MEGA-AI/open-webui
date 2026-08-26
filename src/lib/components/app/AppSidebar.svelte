@@ -71,7 +71,7 @@
 
 	<!-- <div class="flex justify-center relative group text-gray-400">
 		<button class=" cursor-pointer p-2" on:click={() => {}}>
-			<Plus className="size-4" strokeWidth="2" />
+			<Plus className="size-5" strokeWidth="2" />
 		</button>
 	</div> -->
 </nav>

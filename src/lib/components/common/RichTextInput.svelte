@@ -1380,5 +1380,7 @@
 <div
 	bind:this={element}
 	dir="auto"
-	class="relative w-full min-w-full {className} {!editable ? 'cursor-not-allowed' : ''}"
+	class="relative w-full min-w-full min-h-[3rem] flex flex-col justify-center {className} {!editable
+		? 'cursor-not-allowed'
+		: ''}"
 />

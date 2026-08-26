@@ -82,6 +82,7 @@
 	import ClockIcon from './Sidebar/icons/Clock.svelte';
 	import CodeIcon from './Sidebar/icons/Code.svelte';
 	import EditPencilIcon from './Sidebar/icons/EditPencil.svelte';
+	import LibraryIcon from './Sidebar/icons/Folder.svelte';
 	import NotesIcon from './Sidebar/icons/Notes.svelte';
 	import SearchIcon from './Sidebar/icons/Search.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
@@ -203,7 +204,8 @@
 		workspace: '/workspace',
 		calendar: '/calendar',
 		automations: '/automations',
-		playground: '/playground'
+		playground: '/playground',
+		library: '/library'
 	};
 
 	const getActiveMenuItemId = (pathname) => {
@@ -976,7 +978,7 @@
 								<div
 									class="self-center flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 								>
-									<EditPencilIcon className="size-4" strokeWidth="1.5" />
+									<EditPencilIcon className="size-5" strokeWidth="1.5" />
 								</div>
 							</a>
 						</Tooltip>
@@ -998,9 +1000,37 @@
 								<div
 									class="self-center flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 								>
-									<SearchIcon className="size-4" strokeWidth="1.5" />
+									<SearchIcon className="size-5" strokeWidth="1.5" />
 								</div>
 							</button>
+						</Tooltip>
+					</div>
+
+					<div>
+						<Tooltip content={$i18n.t('Library')} placement="right">
+							<a
+								class=" cursor-pointer flex size-8 items-center justify-center transition group"
+								href="/library"
+								on:click={async (e) => {
+									e.stopImmediatePropagation();
+									e.preventDefault();
+									goto('/library');
+									itemClickHandler();
+								}}
+								draggable="false"
+								aria-label={$i18n.t('Library')}
+							>
+								<div
+									class="self-center flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition {activeMenuItemId ===
+									'library'
+										? ($settings?.highContrastMode ?? false)
+											? 'bg-black/[0.035] dark:bg-white/[0.06]'
+											: 'bg-black/[0.035] dark:bg-white/[0.045]'
+										: 'group-hover:bg-gray-50 dark:group-hover:bg-gray-900'}"
+								>
+									<LibraryIcon className="size-5" strokeWidth="1.5" />
+								</div>
+							</a>
 						</Tooltip>
 					</div>
 
@@ -1030,15 +1060,15 @@
 												: 'group-hover:bg-gray-50 dark:group-hover:bg-gray-900'}"
 										>
 											{#if itemId === 'notes'}
-												<NotesIcon className="size-4" strokeWidth="1.5" />
+												<NotesIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'workspace'}
-												<WorkspaceIcon className="size-4" strokeWidth="1.5" />
+												<WorkspaceIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'automations'}
-												<ClockIcon className="size-4" strokeWidth="1.5" />
+												<ClockIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'calendar'}
-												<CalendarIcon className="size-4" strokeWidth="1.5" />
+												<CalendarIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'playground'}
-												<CodeIcon className="size-4" strokeWidth="1.5" />
+												<CodeIcon className="size-5" strokeWidth="1.5" />
 											{/if}
 										</div>
 									</a>
@@ -1109,7 +1139,7 @@
 				? `ml-[4.5rem] md:ml-0 `
 				: $mobile
 					? ''
-					: ''} shrink-0 text-gray-700 dark:text-gray-300 text-[0.8125rem] leading-5 fixed top-0 left-0 overflow-x-hidden
+					: ''} shrink-0 text-gray-700 dark:text-gray-300 text-sm leading-6 fixed top-0 left-0 overflow-x-hidden
         "
 			style={$mobile
 				? panelStyle
@@ -1150,6 +1180,12 @@
 							{$WEBUI_NAME}
 						</div>
 					</a>
+
+					<span
+						class="pointer-events-none self-center text-xs font-medium text-gray-400 dark:text-gray-500 shrink-0"
+					>
+						(beta)
+					</span>
 					<Tooltip
 						content={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 						placement="bottom"
@@ -1164,7 +1200,7 @@
 							aria-label={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 						>
 							<div class=" self-center">
-								<Sidebar className="size-4" />
+								<Sidebar className="size-5" />
 							</div>
 						</button>
 					</Tooltip>
@@ -1201,7 +1237,7 @@
 								</div>
 
 								<div class="flex flex-1 self-center translate-y-[0.5px]">
-									<div class=" self-center text-[0.8125rem] leading-5">{$i18n.t('New Chat')}</div>
+									<div class=" self-center text-sm leading-6">{$i18n.t('New Chat')}</div>
 								</div>
 
 								<HotkeyHint name="newChat" className=" hover-reveal " />
@@ -1219,14 +1255,38 @@
 								aria-label={$i18n.t('Search')}
 							>
 								<div class="self-center flex size-4 shrink-0 items-center justify-center">
-									<SearchIcon strokeWidth="1.5" className="size-4" />
+									<SearchIcon strokeWidth="1.5" className="size-5" />
 								</div>
 
 								<div class="flex flex-1 self-center translate-y-[0.5px]">
-									<div class=" self-center text-[0.8125rem] leading-5">{$i18n.t('Search')}</div>
+									<div class=" self-center text-sm leading-6">{$i18n.t('Search')}</div>
 								</div>
 								<HotkeyHint name="search" className=" hover-reveal " />
 							</button>
+						</div>
+
+						<div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
+							<a
+								id="sidebar-library-button"
+								class="grow flex items-center space-x-2 rounded-xl px-2 py-1.5 transition {activeMenuItemId ===
+								'library'
+									? ($settings?.highContrastMode ?? false)
+										? 'bg-black/[0.035] dark:bg-white/[0.06]'
+										: 'bg-black/[0.035] dark:bg-white/[0.045]'
+									: 'hover:bg-gray-50 dark:hover:bg-gray-900'}"
+								href="/library"
+								on:click={itemClickHandler}
+								draggable="false"
+								aria-label={$i18n.t('Library')}
+							>
+								<div class="self-center flex size-4 shrink-0 items-center justify-center">
+									<LibraryIcon className="size-5" strokeWidth="1.5" />
+								</div>
+
+								<div class="flex self-center translate-y-[0.5px]">
+									<div class=" self-center text-sm leading-6">{$i18n.t('Library')}</div>
+								</div>
+							</a>
 						</div>
 
 						<div id="pinned-menu-items-list">
@@ -1252,20 +1312,20 @@
 										>
 											<div class="self-center flex size-4 shrink-0 items-center justify-center">
 												{#if itemId === 'notes'}
-													<NotesIcon className="size-4" strokeWidth="1.5" />
+													<NotesIcon className="size-5" strokeWidth="1.5" />
 												{:else if itemId === 'workspace'}
-													<WorkspaceIcon className="size-4" strokeWidth="1.5" />
+													<WorkspaceIcon className="size-5" strokeWidth="1.5" />
 												{:else if itemId === 'automations'}
-													<ClockIcon className="size-4" strokeWidth="1.5" />
+													<ClockIcon className="size-5" strokeWidth="1.5" />
 												{:else if itemId === 'calendar'}
-													<CalendarIcon className="size-4" strokeWidth="1.5" />
+													<CalendarIcon className="size-5" strokeWidth="1.5" />
 												{:else if itemId === 'playground'}
-													<CodeIcon className="size-4" strokeWidth="1.5" />
+													<CodeIcon className="size-5" strokeWidth="1.5" />
 												{/if}
 											</div>
 
 											<div class="flex self-center translate-y-[0.5px]">
-												<div class=" self-center text-[0.8125rem] leading-5">
+												<div class=" self-center text-sm leading-6">
 													{$i18n.t(meta.label)}
 												</div>
 											</div>
@@ -1483,7 +1543,7 @@
 								<div slot="content">
 									<DropdownMenu className="min-w-[10.625rem]">
 										<button
-											class="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+											class="flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 											on:click={markAllChatsReadHandler}
 										>
 											<CheckIcon className="size-3.5" />

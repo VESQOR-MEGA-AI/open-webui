@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
-	import { marked } from 'marked';
-	import DOMPurify from 'dompurify';
 
 	import { onMount, getContext, tick, createEventDispatcher } from 'svelte';
-	import { blur, fade } from 'svelte/transition';
+	import { fade } from 'svelte/transition';
 
 	const dispatch = createEventDispatcher();
 
@@ -18,8 +16,7 @@
 		selectedFolder
 	} from '$lib/stores';
 	import { refreshChatList, refreshFolderChatLists } from '$lib/stores/chatList';
-	import { sanitizeResponseContent, extractCurlyBraceWords } from '$lib/utils';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { extractCurlyBraceWords } from '$lib/utils';
 
 	import Suggestions from './Suggestions.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -124,106 +121,19 @@
 				/>
 			{:else}
 				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
-					<div class="flex shrink-0 justify-center">
-						<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
-							{#each models as model, modelIdx}
-								<Tooltip
-									content={(models[modelIdx]?.info?.meta?.tags ?? [])
-										.map((tag) => tag.name.toUpperCase())
-										.join(', ')}
-									placement="top"
-								>
-									<button
-										aria-hidden={models.length <= 1}
-										aria-label={$i18n.t('Get information on {{name}} in the UI', {
-											name: models[modelIdx]?.name
-										})}
-										on:click={() => {
-											selectedModelIdx = modelIdx;
-										}}
-									>
-										<img
-											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-											class=" size-9 @sm:size-10 rounded-2xl"
-											aria-hidden="true"
-											draggable="false"
-											on:error={(e) => {
-												// LICENSE covers this Open WebUI fallback logo.
-												// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-												// https://docs.openwebui.com/license.
-												e.currentTarget.src = '/favicon.png';
-											}}
-										/>
-									</button>
-								</Tooltip>
-							{/each}
-						</div>
-					</div>
-
 					<div
 						class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
 						in:fade={{ duration: 100 }}
 					>
-						{#if models[selectedModelIdx]?.name}
-							<Tooltip
-								content={models[selectedModelIdx]?.name}
-								placement="top"
-								className=" flex items-center "
-							>
-								<span class="line-clamp-1">
-									{models[selectedModelIdx]?.name}
-								</span>
-							</Tooltip>
-						{:else}
-							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
-						{/if}
+						<span class="line-clamp-1 font-semibold">VESQOR MEGA AI</span>
 					</div>
 				</div>
 
 				<div class="flex mt-1 mb-2">
 					<div in:fade={{ duration: 100, delay: 50 }}>
-						{#if models[selectedModelIdx]?.info?.meta?.description ?? null}
-							<Tooltip
-								className=" w-fit"
-								content={DOMPurify.sanitize(
-									marked.parse(
-										sanitizeResponseContent(
-											models[selectedModelIdx]?.info?.meta?.description ?? ''
-										).replaceAll('\n', '<br>')
-									)
-								)}
-								placement="top"
-							>
-								<div
-									class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
-								>
-									{@html DOMPurify.sanitize(
-										marked.parse(
-											sanitizeResponseContent(
-												models[selectedModelIdx]?.info?.meta?.description ?? ''
-											).replaceAll('\n', '<br>')
-										)
-									)}
-								</div>
-							</Tooltip>
-
-							{#if models[selectedModelIdx]?.info?.meta?.user}
-								<div class="mt-0.5 text-sm font-normal text-gray-400 dark:text-gray-500">
-									By
-									{#if models[selectedModelIdx]?.info?.meta?.user.community}
-										<a
-											href="https://openwebui.com/m/{models[selectedModelIdx]?.info?.meta?.user
-												.username}"
-											>{models[selectedModelIdx]?.info?.meta?.user.name
-												? models[selectedModelIdx]?.info?.meta?.user.name
-												: `@${models[selectedModelIdx]?.info?.meta?.user.username}`}</a
-										>
-									{:else}
-										{models[selectedModelIdx]?.info?.meta?.user.name}
-									{/if}
-								</div>
-							{/if}
-						{/if}
+						<div class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 max-w-xl">
+							{$i18n.t('How can I help you today?')}
+						</div>
 					</div>
 				</div>
 			{/if}

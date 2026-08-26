@@ -37,6 +37,8 @@
 	import { getModels } from '$lib/apis';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
+	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
+	import ArrowLeft from '$lib/components/icons/ArrowLeft.svelte';
 	import Check from '$lib/components/icons/Check.svelte';
 	import Download from '$lib/components/icons/Download.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
@@ -80,7 +82,12 @@
 
 	export let pinModelHandler: (modelId: string) => void = () => {};
 
+	// VESQOR: two-level tier menu (chat only). Root = DEFAULT card + Effort folder;
+	// clicking Effort slides to the tier list. Raw models stay hidden.
+	export let vesqorTierMenu = false;
+
 	let show = false;
+	let view: 'root' | 'effort' = 'root';
 	let triggerElement: HTMLElement | null = null;
 	let contentElement: HTMLElement | null = null;
 	let panelElement: HTMLElement | null = null;
@@ -196,6 +203,7 @@
 		show = !show;
 		if (show) {
 			searchValue = '';
+			view = 'root';
 			listScrollTop = 0;
 			if (!selectionOnly) {
 				setOllamaVersion();
@@ -407,6 +415,25 @@
 	$: activeDownloadKeys = new Set(
 		downloadTargets.filter((target) => target.download).map((target) => target.poolKey)
 	);
+
+	// VESQOR: two-level menu derived state.
+	// Default = LIGHT tier (user decision 2026-08-26): the DEFAULT card
+	// resolves to the LIGHT model, and LIGHT stays checked inside the
+	// Effort folder. Fallback to a tier-less model if LIGHT is absent.
+	$: defaultItem =
+		items.find((item) => item.effortTier === 'LIGHT') ??
+		items.find((item) => !item.effortTier) ??
+		null;
+	$: effortItems = items.filter((item) => item.effortTier);
+	$: filteredEffort = searchValue
+		? effortItems.filter(
+				(item) =>
+					item.label.toLowerCase().includes(searchValue.toLowerCase()) ||
+					item.value.toLowerCase().includes(searchValue.toLowerCase()) ||
+					(item.effortTier ?? '').toLowerCase().includes(searchValue.toLowerCase())
+			)
+		: effortItems;
+	$: selectedEffortTier = selectedModel?.effortTier ?? null;
 
 	$: if (
 		selectedTag !== undefined ||
@@ -1030,13 +1057,13 @@
 			>
 				<slot>
 					{#if searchEnabled}
-						<div class="my-0.5 flex ml-2 mr-0.5 h-[1.6875rem] shrink-0 items-center gap-2">
+						<div class="my-0.5 flex ml-2 mr-0.5 h-10 shrink-0 items-center gap-2">
 							<Search className=" size-3.5 shrink-0" strokeWidth="2" />
 
 							<input
 								id="model-search-input"
 								bind:value={searchValue}
-								class="w-full bg-transparent text-[0.8125rem] font-normal outline-hidden placeholder:text-gray-400 dark:placeholder:text-gray-500"
+								class="w-full h-10 bg-transparent text-sm font-normal outline-hidden placeholder:text-gray-400 dark:placeholder:text-gray-500"
 								placeholder={searchPlaceholder}
 								autocomplete="off"
 								aria-label={$i18n.t('Search In Models')}
@@ -1100,8 +1127,8 @@
 											placeholder={$i18n.t('All')}
 											align="end"
 											items={modelFilterItems}
-											triggerClass="relative flex h-[1.375rem] max-w-32 items-center gap-0.5 rounded-xl bg-transparent px-1.5 text-[0.6875rem] font-normal text-gray-400 transition-colors duration-100 hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800/40 dark:hover:text-gray-300"
-											itemClass="flex h-[1.6875rem] w-full cursor-pointer items-center gap-2 rounded-xl bg-transparent px-2 text-[0.8125rem] capitalize hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100"
+											triggerClass="relative flex h-[1.375rem] max-w-32 items-center gap-0.5 rounded-xl bg-transparent px-1.5 text-xs font-normal text-gray-400 transition-colors duration-100 hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800/40 dark:hover:text-gray-300"
+											itemClass="flex h-10 w-full cursor-pointer items-center gap-2 rounded-xl bg-transparent px-2 text-sm capitalize hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100"
 											contentClass="min-w-36 model-selector-child-menu"
 											onChange={setModelFilter}
 										/>
@@ -1112,7 +1139,100 @@
 					{/if}
 
 					<div class="group relative flex min-h-0 flex-1 flex-col">
-						{#if filteredItems.length === 0}
+						{#if vesqorTierMenu}
+							{#if view === 'root'}
+								<div class="overflow-y-auto scrollbar-thin" style="max-height: 380px;">
+									{#if defaultItem && (!searchValue || defaultItem.label.toLowerCase().includes(searchValue.toLowerCase()))}
+										<button
+											type="button"
+											class="mb-1.5 flex w-full flex-col items-start rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60 {primaryValue ===
+											defaultItem.value
+												? 'ring-1 ring-emerald-500/60'
+												: ''}"
+											on:click={() => selectItem(defaultItem, 0)}
+										>
+											<div class="flex w-full items-center justify-between">
+												<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+													{$i18n.t('DEFAULT')}
+												</span>
+												{#if primaryValue === defaultItem.value}
+													<Check className="size-4 text-emerald-500" />
+												{/if}
+											</div>
+											<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+												{defaultItem.label}
+											</span>
+										</button>
+									{/if}
+
+									{#if effortItems.length > 0 && (!searchValue || 'effort'.includes(searchValue.toLowerCase()))}
+										<button
+											type="button"
+											class="flex w-full items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60"
+											on:click={() => {
+												view = 'effort';
+												searchValue = '';
+											}}
+										>
+											<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+												{$i18n.t('Effort')}
+											</span>
+											<ChevronRight className="size-4 text-gray-400" />
+										</button>
+									{/if}
+
+									{#if !defaultItem && effortItems.length === 0}
+										<div class="block px-2 py-1 text-sm text-gray-700 dark:text-gray-100">
+											{$i18n.t('No results found')}
+										</div>
+									{/if}
+								</div>
+							{:else}
+								<div class="flex items-center gap-1.5 px-1 py-1">
+									<button
+										type="button"
+										class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gray-500 transition-colors duration-75 hover:bg-gray-50/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-gray-100"
+										on:click={() => {
+											view = 'root';
+											searchValue = '';
+										}}
+									>
+										<ArrowLeft className="size-3.5" />
+										{$i18n.t('Effort')}
+									</button>
+								</div>
+								<div class="overflow-y-auto scrollbar-thin" style="max-height: 380px;">
+									{#each filteredEffort as item}
+										<button
+											type="button"
+											class="mb-1.5 flex w-full flex-col items-start rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60 {selectedEffortTier ===
+											item.effortTier
+												? 'ring-1 ring-emerald-500/60'
+												: ''}"
+											on:click={() => selectItem(item, 0)}
+										>
+											<div class="flex w-full items-center justify-between">
+												<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+													{item.effortTier.toLowerCase()}
+												</span>
+												{#if selectedEffortTier === item.effortTier}
+													<Check className="size-4 text-emerald-500" />
+												{/if}
+											</div>
+											{#if item.effortDesc}
+												<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+													{item.effortDesc}
+												</span>
+											{/if}
+										</button>
+									{:else}
+										<div class="block px-2 py-1 text-sm text-gray-700 dark:text-gray-100">
+											{$i18n.t('No results found')}
+										</div>
+									{/each}
+								</div>
+							{/if}
+						{:else if filteredItems.length === 0}
 							{#if items.length === 0 && $user?.role === 'admin'}
 								<div
 									class="my-2 flex w-full flex-col items-start justify-center px-4 py-3 text-start"
@@ -1122,12 +1242,12 @@
 									>
 										{$i18n.t('No models available')}
 									</div>
-									<div class="w-full text-[0.6875rem] leading-3.5 text-gray-500 dark:text-gray-400">
+									<div class="w-full text-xs leading-3.5 text-gray-500 dark:text-gray-400">
 										{$i18n.t('Connect to an AI provider to start chatting')}
 									</div>
 									<button
 										type="button"
-										class="focus-ring mt-3 rounded-lg px-0 py-1 text-[0.6875rem] font-normal leading-none text-gray-600 underline-offset-2 transition-colors duration-100 hover:text-gray-800 hover:underline focus:outline-hidden focus:underline dark:text-gray-300 dark:hover:text-gray-100"
+										class="focus-ring mt-3 rounded-lg px-0 py-1 text-xs font-normal leading-none text-gray-600 underline-offset-2 transition-colors duration-100 hover:text-gray-800 hover:underline focus:outline-hidden focus:underline dark:text-gray-300 dark:hover:text-gray-100"
 										on:click={() => {
 											show = false;
 											showSettings.set('admin:connections');
@@ -1139,7 +1259,7 @@
 							{:else}
 								<div class="">
 									<div
-										class="flex min-h-8 items-center rounded-xl px-2 text-[0.8125rem] text-gray-700 dark:text-gray-100"
+										class="flex min-h-8 items-center rounded-xl px-2 text-sm text-gray-700 dark:text-gray-100"
 									>
 										{$i18n.t('No results found')}
 									</div>
@@ -1149,7 +1269,7 @@
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
 							<div
 								class="min-h-0 flex-1 overflow-y-auto"
-								style="max-height: 18rem;"
+								style="max-height: 380px;"
 								role="listbox"
 								aria-label={$i18n.t('Available models')}
 								bind:this={listContainer}
@@ -1161,6 +1281,16 @@
 								<div style="height: {visibleStart * ITEM_HEIGHT}px;" />
 								{#each filteredItems.slice(visibleStart, visibleEnd) as item, i (item.value)}
 									{@const index = visibleStart + i}
+									{@const isFirstEffort =
+										item.effortTier &&
+										filteredItems.slice(visibleStart, index).every((prev) => !prev.effortTier)}
+									{#if isFirstEffort}
+										<div
+											class="mt-1 flex h-8 select-none items-center px-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+										>
+											{$i18n.t('Effort')}
+										</div>
+									{/if}
 									<ModelItem
 										{selectedModelIdx}
 										{item}
@@ -1178,6 +1308,15 @@
 									/>
 								{/each}
 								<div style="height: {(filteredItems.length - visibleEnd) * ITEM_HEIGHT}px;" />
+								{#if filteredItems.some((item) => item.effortTier)}
+									<div
+										class="shrink-0 border-t border-gray-100 px-3 py-2 text-[0.7rem] leading-4 text-gray-400 dark:border-gray-800 dark:text-gray-500"
+									>
+										{$i18n.t(
+											'Higher effort means more thorough responses, but takes longer and uses your limits faster.'
+										)}
+									</div>
+								{/if}
 							</div>
 						{/if}
 
@@ -1193,7 +1332,7 @@
 										role="option"
 										aria-selected={selectedModelIdx === filteredItems.length + targetIndex}
 										data-arrow-selected={selectedModelIdx === filteredItems.length + targetIndex}
-										class="flex h-8 w-full select-none items-center gap-2 rounded-xl px-2 text-left text-[0.8125rem] font-normal text-gray-700 outline-hidden transition-colors duration-75 dark:text-gray-100 {selectedModelIdx ===
+										class="flex h-10 w-full select-none items-center gap-2 rounded-xl px-2 text-left text-sm font-normal text-gray-700 outline-hidden transition-colors duration-75 dark:text-gray-100 {selectedModelIdx ===
 										filteredItems.length + targetIndex
 											? 'bg-gray-50/70 dark:bg-gray-800/60'
 											: ''}"
@@ -1217,7 +1356,7 @@
 											}}
 										>
 											<svg
-												class="size-2.5"
+												class="w-5 h-5 text-gray-800 dark:text-white"
 												aria-hidden="true"
 												xmlns="http://www.w3.org/2000/svg"
 												width="24"

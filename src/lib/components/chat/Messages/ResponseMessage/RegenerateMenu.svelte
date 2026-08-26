@@ -33,7 +33,7 @@
 				<input
 					type="text"
 					id="floating-message-input"
-					class="bg-transparent outline-hidden w-full flex-1 text-[0.8125rem]"
+					class="bg-transparent outline-hidden w-full flex-1 text-sm"
 					placeholder={$i18n.t('Suggest a change')}
 					bind:value={inputValue}
 					autocomplete="off"
@@ -73,7 +73,7 @@
 			</div>
 			<hr class="border-gray-50/30 dark:border-gray-800/30 my-0.5 mx-1" />
 			<button
-				class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+				class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 				on:click={() => {
 					onRegenerate();
 					show = false;
@@ -98,7 +98,7 @@
 			</button>
 
 			<button
-				class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+				class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 				on:click={() => {
 					onRegenerate($i18n.t('Add Details'));
 				}}
@@ -108,7 +108,7 @@
 			</button>
 
 			<button
-				class="select-none flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+				class="select-none flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 				on:click={() => {
 					onRegenerate($i18n.t('More Concise'));
 				}}

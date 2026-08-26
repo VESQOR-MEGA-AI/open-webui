@@ -87,4 +87,21 @@
 	<QueueList {className} {strokeWidth} />
 {:else if id === 'db'}
 	<Database {className} {strokeWidth} />
+{:else if id === 'vesqor'}
+	<svg
+		aria-hidden="true"
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke="currentColor"
+		stroke-width={strokeWidth}
+		class={className}
+	>
+		<rect x="8" y="8" width="8" height="8" rx="1" stroke-linecap="round" stroke-linejoin="round" />
+		<path
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			d="M9 3v2M12 3v2M15 3v2M9 19v2M12 19v2M15 19v2M3 9h2M3 12h2M3 15h2M19 9h2M19 12h2M19 15h2"
+		/>
+	</svg>
 {/if}

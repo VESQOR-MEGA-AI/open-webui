@@ -51,7 +51,6 @@
 	export let allowEmbeds = true;
 
 	export let sourceIds = [];
-
 	export let onSave = () => {};
 	export let onUpdate = () => {};
 
@@ -60,6 +59,27 @@
 	export let onSourceClick = () => {};
 	export let onTaskClick = () => {};
 	export let onToolCallResolved = () => {};
+
+	/**
+	 * Strip stray backslash-escapes that some models emit in Markdown output.
+	 * Symptom (2026-08-21, chat.vesqorai.com): reports rendered raw pipe
+	 * characters instead of a table. Root cause: `\|` inside GFM table rows,
+	 * a trailing `\` before newlines, and `\- ` list markers. A single
+	 * backslash at the end of the table delimiter row (`|---|---|---|\`)
+	 * makes marked fall back to a plain paragraph — the whole table leaks as
+	 * literal pipes. Mirror of lib/brain/parse.ts sanitizeReportMarkdown so
+	 * already-stored messages render correctly without re-generation.
+	 */
+	const sanitizeReportMarkdown = (report) => {
+		if (!report) return report;
+		return report
+			.replace(/\\\|/g, '|')
+			.replace(/(\|(?:-+\|)+)\| /g, '$1\n| ')
+			.replace(/\\\n/g, '\n')
+			.replace(/([^A-Za-z0-9\s])\\- /g, '$1\n- ')
+			.replace(/([^A-Za-z0-9\s])\\\+ /g, '$1\n+ ')
+			.replace(/([^A-Za-z0-9\s])\\\* /g, '$1\n* ');
+	};
 
 	let tokens = [];
 	let pendingUpdate = null;
@@ -70,7 +90,7 @@
 		if (content === lastContent) return;
 		lastContent = content;
 
-		const processed = replaceTokens(processResponseContent(content), model?.name, $user?.name);
+		const processed = replaceTokens(processResponseContent(sanitizeReportMarkdown(content)), model?.name, $user?.name);
 		if (processed === lastParsedContent) return;
 		lastParsedContent = processed;
 
