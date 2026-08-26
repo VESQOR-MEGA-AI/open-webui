@@ -150,6 +150,15 @@ class TokenForm(BaseModel):
         extra = "allow"
 
 
+class AdminUserCreateForm(BaseModel):
+    email: str
+    vip_access: bool = False
+
+
+class AdminUserUpdateForm(BaseModel):
+    vip_access: bool
+
+
 ############################
 # Billing
 ############################
@@ -341,4 +350,40 @@ async def update_token(id: str, form_data: TokenForm, user=Depends(get_verified_
 async def delete_token(id: str, user=Depends(get_verified_user)):
     _require_admin(user)
     body, _ = await _proxy("DELETE", f"/api/admin/tokens/{id}", user)
+    return body
+
+
+############################
+# Admin: Users
+############################
+
+
+@router.get("/admin/users")
+async def get_users(user=Depends(get_verified_user)):
+    _require_admin(user)
+    body, _ = await _proxy("GET", "/api/admin/users", user)
+    return body
+
+
+@router.post("/admin/users")
+async def create_user(form_data: AdminUserCreateForm, user=Depends(get_verified_user)):
+    _require_admin(user)
+    body, _ = await _proxy(
+        "POST",
+        "/api/admin/users",
+        user,
+        {"email": form_data.email, "vipAccess": form_data.vip_access},
+    )
+    return body
+
+
+@router.patch("/admin/users/{id}")
+async def update_user(id: str, form_data: AdminUserUpdateForm, user=Depends(get_verified_user)):
+    _require_admin(user)
+    body, _ = await _proxy(
+        "PATCH",
+        f"/api/admin/users/{id}",
+        user,
+        {"vipAccess": form_data.vip_access},
+    )
     return body

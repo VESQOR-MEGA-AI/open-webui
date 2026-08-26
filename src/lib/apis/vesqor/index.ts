@@ -113,6 +113,25 @@ export const deleteVesqorToken = async (token: string, id: string) => {
 	return _mutate(token, 'DELETE', `/admin/tokens/${id}`);
 };
 
+export const getVesqorUsers = async (token: string) => {
+	return _get(token, '/admin/users');
+};
+
+export const createVesqorUser = async (
+	token: string,
+	body: { email: string; vip_access?: boolean }
+) => {
+	return _mutate(token, 'POST', '/admin/users', body);
+};
+
+export const updateVesqorUser = async (
+	token: string,
+	id: string,
+	body: { vip_access: boolean }
+) => {
+	return _mutate(token, 'PATCH', `/admin/users/${id}`, body);
+};
+
 export interface VesqorExportParams {
 	format: 'pdf' | 'docx' | 'html' | 'md' | 'json';
 	reportId?: string;
