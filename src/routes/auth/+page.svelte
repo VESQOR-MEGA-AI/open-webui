@@ -339,12 +339,9 @@
 									/>
 								</div>
 								<div class="flex justify-center -mt-3 mb-4">
-									<img
-										src="{WEBUI_BASE_URL}/static/beta-badge.png"
-										class="h-4 self-center opacity-90"
-										alt="Beta version"
-										draggable="false"
-									/>
+									<span class="text-xs font-medium text-gray-400 dark:text-gray-500">
+										(beta)
+									</span>
 								</div>
 							{/if}
 							<form
