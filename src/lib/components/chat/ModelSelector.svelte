@@ -91,7 +91,7 @@
 						items={sortedModels.map((model) => ({
 							value: model.id,
 							label: model.info?.meta?.effortTier
-								? `Lizz 9.2 (${model.info.meta.effortTier})`
+								? `lizz 9.2 (${model.info.meta.effortTier.toLowerCase()})`
 								: model.name,
 							model: model,
 							effortTier: model.info?.meta?.effortTier,

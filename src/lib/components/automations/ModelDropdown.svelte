@@ -52,7 +52,7 @@
 			return TIER_ORDER.indexOf(ta) - TIER_ORDER.indexOf(tb) || ta.localeCompare(tb);
 		});
 
-	$: defaultModel = visibleModels.find((m) => !m.effortTier) ?? null;
+	$: defaultModel = visibleModels.find((m) => m.effortTier === 'LIGHT') ?? visibleModels.find((m) => !m.effortTier) ?? null;
 	$: effortModels = visibleModels.filter((m) => m.effortTier);
 
 	$: filteredEffort = modelSearch
@@ -69,7 +69,7 @@
 				const m = visibleModels.find((x) => x.id === model_id);
 				if (!m) return model_id;
 				return m.effortTier
-					? `${(m.name || m.id).split(' (')[0]} · ${m.effortTier}`
+					? `lizz 9.2 (${m.effortTier.toLowerCase()})`
 					: m.name;
 			})()
 		: $i18n.t('Select model');

@@ -229,9 +229,7 @@
 	$: triggerLabel = selectedModel
 		? compareEnabled && selectedCount > 1
 			? `${selectedModel.label} +${selectedCount - 1}`
-			: selectedModel.effortTier
-				? `${selectedModel.label.replace(/ · .*$/, '')} · ${selectedModel.effortTier}`
-				: selectedModel.label
+			: selectedModel.label
 		: placeholder;
 
 	let searchValue = '';
@@ -330,7 +328,13 @@
 	).filter((item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false));
 
 	// VESQOR: two-level menu derived state.
-	$: defaultItem = items.find((item) => !item.effortTier) ?? null;
+	// Default = LIGHT tier (user decision 2026-08-26): the DEFAULT card
+	// resolves to the LIGHT model, and LIGHT stays checked inside the
+	// Effort folder. Fallback to a tier-less model if LIGHT is absent.
+	$: defaultItem =
+		items.find((item) => item.effortTier === 'LIGHT') ??
+		items.find((item) => !item.effortTier) ??
+		null;
 	$: effortItems = items.filter((item) => item.effortTier);
 	$: filteredEffort = searchValue
 		? effortItems.filter(
@@ -940,7 +944,7 @@
 										>
 											<div class="flex w-full items-center justify-between">
 												<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-													{item.effortTier}
+													{item.effortTier.toLowerCase()}
 												</span>
 												{#if selectedEffortTier === item.effortTier}
 													<Check className="size-4 text-emerald-500" />
