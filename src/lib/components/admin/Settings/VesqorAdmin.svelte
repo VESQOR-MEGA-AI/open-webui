@@ -11,7 +11,10 @@
 		getVesqorTokens,
 		createVesqorToken,
 		updateVesqorToken,
-		deleteVesqorToken
+		deleteVesqorToken,
+		getVesqorUsers,
+		createVesqorUser,
+		updateVesqorUser
 	} from '$lib/apis/vesqor';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -22,7 +25,7 @@
 
 	const i18n: any = getContext('i18n');
 
-	type Section = 'providers' | 'tokens';
+	type Section = 'providers' | 'tokens' | 'users';
 	let section: Section = 'providers';
 
 	// Providers
@@ -43,6 +46,14 @@
 	let newRawToken: string | null = null;
 	let showDeleteTokenConfirm = false;
 	let tokenToDelete: any = null;
+
+	// Users
+	let users: any[] = [];
+	let usersLoading = true;
+	let newUserEmail = '';
+	let newUserVip = false;
+	let creatingUser = false;
+	let updatingUserId: string | null = null;
 
 	const loadProviders = async () => {
 		providersLoading = true;
@@ -175,9 +186,57 @@
 		}
 	};
 
+	const loadUsers = async () => {
+		usersLoading = true;
+		try {
+			const res = await getVesqorUsers(localStorage.token);
+			users = Array.isArray(res) ? res : (res?.users ?? []);
+		} catch (err: any) {
+			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to load users'));
+		} finally {
+			usersLoading = false;
+		}
+	};
+
+	const addUser = async () => {
+		const email = newUserEmail.trim();
+		if (!email) return;
+
+		creatingUser = true;
+		try {
+			await createVesqorUser(localStorage.token, { email, vip_access: newUserVip });
+			toast.success('User added');
+			newUserEmail = '';
+			newUserVip = false;
+			await loadUsers();
+		} catch (err: any) {
+			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to add user'));
+		} finally {
+			creatingUser = false;
+		}
+	};
+
+	const toggleUserVip = async (u: any) => {
+		const previous = !!u.vipAccess;
+		u.vipAccess = !previous;
+		users = users;
+		updatingUserId = u.id;
+		try {
+			await updateVesqorUser(localStorage.token, u.id, { vip_access: !previous });
+			toast.success('VIP status updated');
+		} catch (err: any) {
+			u.vipAccess = previous;
+			users = users;
+			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to update VIP status'));
+		} finally {
+			updatingUserId = null;
+		}
+	};
+
 	onMount(() => {
 		loadProviders();
 		loadTokens();
+		loadUsers();
 	});
 </script>
 
@@ -212,6 +271,14 @@
 			on:click={() => (section = 'tokens')}
 		>
 			Tokens
+		</button>
+		<button
+			class="px-3 py-1 rounded-lg {section === 'users'
+				? 'bg-gray-100 dark:bg-gray-800 font-medium'
+				: 'text-gray-500'}"
+			on:click={() => (section = 'users')}
+		>
+			Users
 		</button>
 	</div>
 
@@ -326,7 +393,7 @@
 				</button>
 			{/if}
 		</AdminSettingSection>
-	{:else}
+	{:else if section === 'tokens'}
 		<AdminSettingSection title="Agent tokens" first>
 			{#if newRawToken}
 				<div
@@ -425,6 +492,64 @@
 					+ Create token
 				</button>
 			{/if}
+		</AdminSettingSection>
+	{:else if section === 'users'}
+		<AdminSettingSection title="Users" first>
+			{#if usersLoading}
+				<div class="flex justify-center py-6"><Spinner /></div>
+			{:else}
+				{#if users.length === 0}
+					<div class="text-xs text-gray-400 dark:text-gray-600 py-2">No users yet.</div>
+				{/if}
+				{#each users as u (u.id)}
+					<div
+						class="flex items-center justify-between gap-2 py-2 px-2.5 rounded-lg bg-gray-50 dark:bg-gray-850"
+					>
+						<div class="min-w-0">
+							<div class="text-xs font-medium truncate">{u.email}</div>
+							<div class="text-[0.6875rem] text-gray-400 dark:text-gray-600 truncate">
+								{u.role ?? 'user'}{u.createdAt
+									? ` · ${new Date(u.createdAt).toLocaleDateString()}`
+									: ''}{u.hasSubscription ? ' · subscribed' : ''}
+							</div>
+						</div>
+						<div class="flex items-center gap-2 shrink-0">
+							{#if updatingUserId === u.id}
+								<Spinner className="size-3.5" />
+							{/if}
+							<span class="text-[0.6875rem] text-gray-400 dark:text-gray-600">VIP</span>
+							<Switch state={!!u.vipAccess} on:change={() => toggleUserVip(u)} />
+						</div>
+					</div>
+				{/each}
+			{/if}
+
+			<form
+				class="flex flex-col gap-2 mt-2 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-850"
+				on:submit|preventDefault={addUser}
+			>
+				<AdminSettingField label="Email">
+					<input
+						type="email"
+						class="w-full text-xs bg-transparent outline-hidden border rounded-lg px-2 py-1 dark:border-gray-700"
+						bind:value={newUserEmail}
+						required
+					/>
+				</AdminSettingField>
+				<div class="flex items-center gap-2">
+					<Switch bind:state={newUserVip} />
+					<span class="text-xs">VIP free access</span>
+				</div>
+				<div class="flex gap-2 justify-end mt-1">
+					<button
+						type="submit"
+						disabled={creatingUser}
+						class="text-xs px-2.5 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black disabled:opacity-50"
+					>
+						+ Add user
+					</button>
+				</div>
+			</form>
 		</AdminSettingSection>
 	{/if}
 </div>
