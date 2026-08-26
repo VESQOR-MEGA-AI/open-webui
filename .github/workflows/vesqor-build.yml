@@ -29,7 +29,7 @@ jobs:
         with:
           name: vesqor-webui-build
           path: build/
-          retention-days: 14
+          retention-days: 3
 
       # The Dockerfile copies the pre-built build/ into the image (vite build
       # OOMs on Fly's build machines). build/ is gitignored but present in the
