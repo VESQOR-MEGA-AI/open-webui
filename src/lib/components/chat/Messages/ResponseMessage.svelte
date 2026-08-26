@@ -698,7 +698,7 @@
 						placement="top-start"
 					>
 						<span id="response-message-model-name" class="line-clamp-1 text-black dark:text-white">
-							{model?.name ?? message.model}
+							{model?.info?.meta?.effortTier ?? model?.name ?? message.model}
 						</span>
 					</Tooltip>
 				</Name>

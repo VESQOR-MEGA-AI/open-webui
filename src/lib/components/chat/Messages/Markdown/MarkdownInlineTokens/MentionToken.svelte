@@ -72,7 +72,7 @@
 				// Model
 				const model = $models.find((m) => m.id === id);
 				if (model) {
-					label = model.name;
+					label = model.info?.meta?.effortTier ?? model.name;
 				} else {
 					label = $i18n.t('Unknown');
 				}

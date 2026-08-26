@@ -64,7 +64,7 @@
 		meta?.title ??
 		deriveReportTitle(body || content) ??
 		$i18n.t('VESQOR MEGA AI Report');
-	$: preparedBy = `${$i18n.t('Prepared by')}: VESQOR MEGA AI${model?.name ? ` — ${model.name}` : ''}`;
+	$: preparedBy = `${$i18n.t('Prepared by')}: VESQOR MEGA AI${model?.info?.meta?.effortTier ? ` — ${model.info.meta.effortTier}` : model?.name ? ` — ${model.name}` : ''}`;
 	$: preparedFor = `${$i18n.t('Prepared for')}: ${$user?.name || $user?.email || $i18n.t('Guest')}`;
 
 	let reportElement: HTMLDivElement;
