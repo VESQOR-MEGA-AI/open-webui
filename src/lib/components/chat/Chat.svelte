@@ -43,6 +43,7 @@
 		selectedFolder,
 		showEmbeds,
 		selectedTerminalId,
+		selectedPersona,
 		showFileNavPath,
 		showFileNavDir,
 		chatRequestQueues,
@@ -178,8 +179,12 @@
 
 	const getAvailableModelIds = () =>
 		$models.filter((m) => !(m?.info?.meta?.hidden ?? false)).map((m) => m.id);
-	const getDefaultModelIds = () =>
-		$config?.default_models ? $config.default_models.split(',') : [];
+	const getDefaultModelIds = () => {
+		const dm = $config?.default_models;
+		if (!dm) return [];
+		if (Array.isArray(dm)) return dm;
+		return String(dm).split(',');
+	};
 	const normalizeSelectedModels = (modelIds: string[] = []) => {
 		const availableModels = getAvailableModelIds();
 		const defaultModels = getDefaultModelIds();
@@ -1725,7 +1730,11 @@
 			.filter((m) => !(m?.info?.meta?.hidden ?? false))
 			.map((m) => m.id);
 
-		const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
+		const defaultModels = Array.isArray($config?.default_models)
+			? $config.default_models
+			: $config?.default_models
+				? String($config.default_models).split(',')
+				: [];
 
 		if ($page.url.searchParams.get('models') || $page.url.searchParams.get('model')) {
 			const urlModels = (
@@ -2376,6 +2385,16 @@
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
 		const { id, done, choices, content, output, sources, selected_model_id, error, usage } = data;
+
+		// VESQOR reports: the brain returns the machine-readable envelope
+		// (vq_meta) in the final non-streaming completion payload, nested
+		// under response_data. Persist it on the message so ReportView can
+		// render title / confidence / source without re-parsing.
+		if (data?.response_data?.vq_meta) {
+			message.vq_meta = data.response_data.vq_meta;
+		} else if (data?.vq_meta) {
+			message.vq_meta = data.vq_meta;
+		}
 
 		// Store raw OR-aligned output items from backend
 		if (output) {
@@ -3127,6 +3146,9 @@
 				stream: stream,
 				model: model.id,
 				...(messages.length > 0 ? { messages } : {}),
+				// PERSONA-1 (2026-08-22): the persona selector forces the report
+				// register via vq_audience; null = auto-detect (brain classifies).
+				...($selectedPersona ? { vq_audience: $selectedPersona } : {}),
 				params: {
 					...$settings?.params,
 					...params,
@@ -4055,7 +4077,7 @@
 												{#each suggestedPrompts as suggestion}
 													<button
 														type="button"
-														class="flex min-h-8 w-full items-center justify-between py-1 text-left text-[13px] leading-5 text-gray-500 transition hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+														class="flex min-h-8 w-full items-center justify-between py-1 text-left text-sm leading-5 text-gray-500 transition hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
 														on:click={async () => {
 															await tick();
 															await submitHandler(withSelectedText(suggestion));

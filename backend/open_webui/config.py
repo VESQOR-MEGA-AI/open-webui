@@ -168,6 +168,9 @@ AZURE_STORAGE_KEY = os.getenv('AZURE_STORAGE_KEY', None)
 UPLOAD_DIR = DATA_DIR / 'uploads'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+LIBRARY_DIR = DATA_DIR / 'library'
+LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+
 
 ####################################
 # Cache DIR
@@ -208,7 +211,8 @@ if CUSTOM_NAME:
                         r.raw.decode_content = True
                         shutil.copyfileobj(r.raw, f)
 
-            WEBUI_NAME = data['name']
+            if WEBUI_NAME == 'Open WebUI' and 'name' in data and data['name']:
+                WEBUI_NAME = data['name']
     except Exception as e:
         log.exception(e)
         pass

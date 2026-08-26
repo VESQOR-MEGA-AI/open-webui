@@ -22,7 +22,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response as FastAPIResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -127,7 +127,7 @@ from open_webui.events import (
     publish_event,
     upsert_event_webhook,
 )
-from open_webui.internal.db import engine, get_async_session
+from open_webui.internal.db import engine, get_async_db, get_async_session
 from open_webui.models.access_grants import AccessGrants
 from open_webui.models.channels import Channels
 from open_webui.models.chats import ChatForm, Chats
@@ -152,6 +152,7 @@ from open_webui.routers import (
     groups,
     images,
     knowledge,
+    library,
     memories,
     models,
     notifications,
@@ -168,6 +169,7 @@ from open_webui.routers import (
     tools,
     users,
     utils,
+    vesqor,
 )
 from open_webui.routers.retrieval import (
     get_ef,
@@ -815,6 +817,7 @@ app.include_router(memories.router, prefix='/api/v1/memories', tags=['memories']
 app.include_router(folders.router, prefix='/api/v1/folders', tags=['folders'])
 app.include_router(groups.router, prefix='/api/v1/groups', tags=['groups'])
 app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
+app.include_router(library.router, prefix='/api/v1/library', tags=['library'])
 app.include_router(functions.router, prefix='/api/v1/functions', tags=['functions'])
 app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['evaluations'])
 if ENABLE_ADMIN_ANALYTICS:
@@ -823,6 +826,7 @@ app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
+app.include_router(vesqor.router, prefix='/api/v1/vesqor', tags=['vesqor'])
 
 # SCIM 2.0 API for identity management
 if ENABLE_SCIM:
@@ -839,6 +843,13 @@ if ENABLE_SCIM:
 @app.get('/api/models')
 @app.get('/api/v1/models')  # Experimental: Compatibility with OpenAI API
 async def get_models(request: Request, refresh: bool = False, user=Depends(get_verified_user)):
+    # VESQOR: models change only via admin actions, so a short TTL cache makes
+    # page loads instant. Each uncached call costs ~10 Postgres round-trips (~3.8s).
+    _now = time.time()
+    _cache = getattr(request.app.state, 'MODELS_API_CACHE', None)
+    if _cache and not refresh and _now - _cache['ts'] < 60:
+        return _cache['data']
+
     all_models = await get_all_models(request, refresh=refresh, user=user)
 
     # Filter out filter pipelines
@@ -884,6 +895,7 @@ async def get_models(request: Request, refresh: bool = False, user=Depends(get_v
         log.debug(
             f'/api/models returned filtered models accessible to the user: {json.dumps([model.get("id") for model in models])}'
         )
+    request.app.state.MODELS_API_CACHE = {'ts': _now, 'data': {'data': models}}
     return {'data': models}
 
 
@@ -2065,8 +2077,9 @@ async def stop_tasks_by_chat_id_endpoint(request: Request, chat_id: str, user=De
 ##################################
 
 
-@app.get('/api/config')
-async def get_app_config(request: Request):
+async def _resolve_config_user(request: Request):
+    """Resolve the user from Authorization header or token cookie (shared by
+    /api/config and /api/v1/bootstrap). Returns (user, token)."""
     user = None
     token = None
 
@@ -2091,60 +2104,70 @@ async def get_app_config(request: Request):
         if data is not None and 'id' in data:
             user = await Users.get_user_by_id(data['id'])
 
+    return user, token
+
+
+BOOTSTRAP_CONFIG_KEYS = (
+    'oauth.enable',
+    'oauth.auto_redirect',
+    'ldap.enable',
+    'ui.enable_signup',
+    'ui.enable_login_form',
+    'auth.enable_api_keys',
+    'ui.enable_password_change_form',
+    'direct.enable',
+    'folders.enable',
+    'folders.max_file_count',
+    'channels.enable',
+    'calendar.enable',
+    'automations.enable',
+    'notes.enable',
+    'chat.context_compaction.enable',
+    'web.search.enable',
+    'web.search.confirmation.enable',
+    'web.search.confirmation.content',
+    'code_execution.enable',
+    'code_interpreter.enable',
+    'image_generation.enable',
+    'task.autocomplete.enable',
+    'ui.enable_community_sharing',
+    'ui.enable_message_rating',
+    'ui.enable_user_webhooks',
+    'users.enable_status',
+    'google_drive.enable',
+    'onedrive.enable',
+    'memories.enable',
+    'ui.default_models',
+    'ui.default_pinned_models',
+    'ui.prompt_suggestions',
+    'code_execution.engine',
+    'code_interpreter.engine',
+    'audio.tts.engine',
+    'audio.tts.voice',
+    'audio.tts.split_on',
+    'audio.stt.engine',
+    'rag.file.max_size',
+    'rag.file.max_count',
+    'file.image_compression_width',
+    'file.image_compression_height',
+    'user.permissions',
+    'ui.pending_user_overlay_title',
+    'ui.pending_user_overlay_content',
+    'ui.watermark',
+    'ui.auth_logo_position',
+)
+
+
+async def _build_app_config(request: Request, user, config: dict | None = None):
+    """Assemble the /api/config response body (shared with /api/v1/bootstrap)."""
     onboarding = False
     if user is None:
         onboarding = not await Users.has_users()
 
     license_metadata = getattr(app.state, 'LICENSE_METADATA', None)
     user_count = await Users.get_num_users() if license_metadata else None
-    config = await Config.get_many(
-        'oauth.enable',
-        'oauth.auto_redirect',
-        'ldap.enable',
-        'ui.enable_signup',
-        'ui.enable_login_form',
-        'auth.enable_api_keys',
-        'ui.enable_password_change_form',
-        'direct.enable',
-        'folders.enable',
-        'folders.max_file_count',
-        'channels.enable',
-        'calendar.enable',
-        'automations.enable',
-        'notes.enable',
-        'chat.context_compaction.enable',
-        'web.search.enable',
-        'web.search.confirmation.enable',
-        'web.search.confirmation.content',
-        'code_execution.enable',
-        'code_interpreter.enable',
-        'image_generation.enable',
-        'task.autocomplete.enable',
-        'ui.enable_community_sharing',
-        'ui.enable_message_rating',
-        'ui.enable_user_webhooks',
-        'users.enable_status',
-        'google_drive.enable',
-        'onedrive.enable',
-        'memories.enable',
-        'ui.default_models',
-        'ui.default_pinned_models',
-        'ui.prompt_suggestions',
-        'code_execution.engine',
-        'code_interpreter.engine',
-        'audio.tts.engine',
-        'audio.tts.voice',
-        'audio.tts.split_on',
-        'audio.stt.engine',
-        'rag.file.max_size',
-        'rag.file.max_count',
-        'file.image_compression_width',
-        'file.image_compression_height',
-        'user.permissions',
-        'ui.pending_user_overlay_title',
-        'ui.pending_user_overlay_content',
-        'ui.watermark',
-    )
+    if config is None:
+        config = await Config.get_many(*BOOTSTRAP_CONFIG_KEYS)
 
     return {
         **({'onboarding': True} if onboarding else {}),
@@ -2288,8 +2311,11 @@ async def get_app_config(request: Request):
                 **(
                     {
                         'metadata': {
-                            'login_footer': license_metadata.get('login_footer', ''),
-                            'auth_logo_position': license_metadata.get('auth_logo_position', ''),
+                            'login_footer': license_metadata.get('login_footer', '') if license_metadata else '',
+                            'auth_logo_position': (
+                                config.get('ui.auth_logo_position')
+                                or (license_metadata.get('auth_logo_position', '') if license_metadata else '')
+                            ),
                         }
                     }
                     if license_metadata
@@ -2298,6 +2324,231 @@ async def get_app_config(request: Request):
             }
         ),
     }
+
+
+@app.get('/api/config')
+async def get_app_config(request: Request):
+    user, _ = await _resolve_config_user(request)
+    return await _build_app_config(request, user)
+
+
+@app.get('/api/v1/bootstrap')
+async def get_app_bootstrap(request: Request):
+    """VESQOR (2026-08-13): single-request app bootstrap.
+
+    ONE round trip to the DB returns everything the dashboard needs on first
+    paint: user, auth, config, models, chats (last 7 days, max 100), functions,
+    tools, knowledge, prompts, memories, groups, notes. Replaces ~18 sequential
+    requests (each ~1.4s Postgres RTT → ~26s total).
+    """
+    user, _ = await _resolve_config_user(request)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Not authenticated',
+        )
+
+    config_keys = list(BOOTSTRAP_CONFIG_KEYS)
+    sql = text(
+        """
+        SELECT jsonb_build_object(
+            'user', (
+                SELECT to_jsonb(u)
+                FROM (
+                    SELECT
+                        id, email, name, role, profile_image_url, bio, gender,
+                        timezone, status_emoji, status_message, settings,
+                        last_active_at, created_at
+                    FROM "user"
+                    WHERE id = :user_id
+                ) u
+            ),
+            'auth', (
+                SELECT to_jsonb(a)
+                FROM (
+                    SELECT id, email, active, verified
+                    FROM auth
+                    WHERE id = :user_id
+                ) a
+            ),
+            'config', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(c)), '[]'::jsonb)
+                FROM (
+                    SELECT key, value
+                    FROM config
+                    WHERE key = ANY(:config_keys)
+                ) c
+            ),
+            'models', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(m)), '[]'::jsonb)
+                FROM (
+                    SELECT id, name, base_model_id, meta, params, is_active
+                    FROM model
+                ) m
+            ),
+            'chats', (
+                SELECT COALESCE(
+                    jsonb_agg(to_jsonb(c) ORDER BY c.updated_at DESC),
+                    '[]'::jsonb
+                )
+                FROM (
+                    SELECT
+                        id, title, created_at, updated_at, archived, pinned,
+                        folder_id, meta, summary
+                    FROM chat
+                    WHERE user_id = :user_id
+                      AND updated_at >= EXTRACT(EPOCH FROM NOW())::bigint - 604800
+                    ORDER BY updated_at DESC
+                    LIMIT 100
+                ) c
+            ),
+            'has_older_chats', EXISTS (
+                SELECT 1
+                FROM chat
+                WHERE user_id = :user_id
+                  AND updated_at < EXTRACT(EPOCH FROM NOW())::bigint - 604800
+            ),
+            'functions', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(f)), '[]'::jsonb)
+                FROM (
+                    SELECT id, name, type, meta, is_active, is_global
+                    FROM "function"
+                ) f
+            ),
+            'tools', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(t)), '[]'::jsonb)
+                FROM (
+                    SELECT id, name, meta, specs
+                    FROM tool
+                ) t
+            ),
+            'knowledge', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(k)), '[]'::jsonb)
+                FROM (
+                    SELECT id, name, description, meta, created_at
+                    FROM knowledge
+                ) k
+            ),
+            'prompts', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(p)), '[]'::jsonb)
+                FROM (
+                    SELECT id, command, name, content, meta, tags, is_active
+                    FROM prompt
+                ) p
+            ),
+            'memories', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(m)), '[]'::jsonb)
+                FROM (
+                    SELECT id, type, content, path, created_at
+                    FROM memory
+                ) m
+            ),
+            'groups', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(g)), '[]'::jsonb)
+                FROM (
+                    SELECT id, name, description, permissions, meta
+                    FROM "group"
+                ) g
+            ),
+            'notes', (
+                SELECT COALESCE(jsonb_agg(to_jsonb(n)), '[]'::jsonb)
+                FROM (
+                    SELECT id, title, data, meta, created_at
+                    FROM note
+                ) n
+            )
+        ) AS bootstrap
+        """
+    )
+
+    async with get_async_db() as db:
+        result = await db.execute(
+            sql, {'user_id': user.id, 'config_keys': config_keys}
+        )
+        row = result.scalar_one()
+
+    bootstrap = dict(row) if row else {}
+
+    # config rows → {key: value} with defaults for keys not stored in DB
+    config_rows = bootstrap.get('config') or []
+    config = {
+        key: Config.default_value(key)
+        for key in config_keys
+    }
+    for c in config_rows:
+        config[c['key']] = c['value']
+
+    # user row → session-user shape (permissions resolved from groups)
+    user_row = bootstrap.get('user')
+    if user_row:
+        from open_webui.utils.access_control import get_permissions
+
+        user_permissions = await get_permissions(
+            user.id, await Config.get('user.permissions')
+        )
+        user_row['permissions'] = user_permissions
+
+    return {
+        'config': await _build_app_config(request, user, config=config),
+        'user': user_row,
+        'models': {'data': bootstrap.get('models') or []},
+        'chats': bootstrap.get('chats') or [],
+        'has_older_chats': bool(bootstrap.get('has_older_chats')),
+        'functions': bootstrap.get('functions') or [],
+        'tools': bootstrap.get('tools') or [],
+        'knowledge': bootstrap.get('knowledge') or [],
+        'prompts': bootstrap.get('prompts') or [],
+        'memories': bootstrap.get('memories') or [],
+        'groups': bootstrap.get('groups') or [],
+        'notes': bootstrap.get('notes') or [],
+        'version': VERSION,
+        'deployment_id': DEPLOYMENT_ID,
+    }
+
+
+@app.get('/api/v1/chats/older')
+async def get_older_chats(
+    request: Request,
+    before_updated_at: int,
+    before_id: str,
+):
+    """VESQOR (2026-08-13): cursor pagination for chats older than 7 days.
+
+    Cursor = (updated_at, id) of the last chat received. Returns up to 50
+    chats strictly older than the cursor, ordered by (updated_at DESC, id DESC).
+    """
+    user, _ = await _resolve_config_user(request)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Not authenticated',
+        )
+
+    sql = text(
+        """
+        SELECT
+            id, title, created_at, updated_at, archived, pinned,
+            folder_id, meta, summary
+        FROM chat
+        WHERE user_id = :user_id
+          AND (updated_at, id) < (:before_updated_at, :before_id)
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 50
+        """
+    )
+
+    async with get_async_db() as db:
+        result = await db.execute(
+            sql,
+            {
+                'user_id': user.id,
+                'before_updated_at': before_updated_at,
+                'before_id': before_id,
+            },
+        )
+        rows = result.mappings().all()
+
+    return [dict(r) for r in rows]
 
 
 class EventWebhookForm(BaseModel):
@@ -2701,6 +2952,9 @@ async def get_manifest_json():
             'short_name': app.state.WEBUI_NAME,
             'description': f'{app.state.WEBUI_NAME} is an open, extensible, user-friendly interface for AI that adapts to your workflow.',
             'start_url': '/',
+            'id': '/',
+            'scope': '/',
+            'theme_color': '#171017',
             'display': 'standalone',
             'background_color': '#343541',
             'icons': [

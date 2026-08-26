@@ -447,6 +447,17 @@
 		});
 	}
 
+	// VESQOR: models are the product surface (Lizz + effort tiers) — new
+	// models default to PUBLIC (user:* read) so regular users can use them
+	// without an admin having to flip the privacy toggle afterwards.
+	const publicReadGrant = [
+		{
+			principal_type: 'user',
+			principal_id: '*',
+			permission: 'read'
+		}
+	];
+
 	const upsertModelHandler = async (model, overrides = {}, showToast = true) => {
 		model = { ...model, base_model_id: null, ...overrides };
 
@@ -465,7 +476,7 @@
 				name: model.name,
 				base_model_id: null,
 				params: {},
-				access_grants: [],
+				access_grants: publicReadGrant,
 				...model
 			}).catch((error) => {
 				return null;
@@ -486,7 +497,7 @@
 				base_model_id: null,
 				meta: {},
 				params: {},
-				access_grants: [],
+				access_grants: publicReadGrant,
 				is_active: model.is_active
 			}).catch((error) => {
 				return null;

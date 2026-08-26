@@ -54,6 +54,9 @@
 	import AdminImages from '$lib/components/admin/Settings/Images.svelte';
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
 	import AdminDatabase from '$lib/components/admin/Settings/Database.svelte';
+	import VesqorBilling from './Settings/VesqorBilling.svelte';
+	import AdminVesqor from '$lib/components/admin/Settings/VesqorAdmin.svelte';
+	import CreditCard from '../icons/CreditCard.svelte';
 
 	const i18n: Writable<any> = getContext('i18n');
 
@@ -113,6 +116,7 @@
 		usage: 'Data',
 		archived_chats: 'Data',
 		account: 'Profile',
+		billing: 'Profile',
 		about: 'Profile'
 	};
 	const adminSettingGroups: Record<string, string> = {
@@ -131,6 +135,7 @@
 		'admin:interface': 'Experience',
 		'admin:audio': 'Experience',
 		'admin:images': 'Experience',
+		'admin:vesqor': 'VESQOR',
 		'admin:db': 'Data'
 	};
 	const settingGroupTitle = (tabId: string) =>
@@ -589,6 +594,22 @@
 			]
 		},
 		{
+			id: 'billing',
+			title: 'Billing',
+			keywords: [
+				'billing',
+				'subscription',
+				'plan',
+				'credits',
+				'payment',
+				'stripe',
+				'upgrade',
+				'checkout',
+				'portal',
+				'vesqor'
+			]
+		},
+		{
 			id: 'about',
 			title: 'About',
 			keywords: [
@@ -741,6 +762,11 @@
 			id: 'admin:pipelines',
 			title: 'Pipelines',
 			keywords: ['pipelines', 'workflows', 'filters', 'valves', 'middleware']
+		},
+		{
+			id: 'admin:vesqor',
+			title: 'VESQOR',
+			keywords: ['vesqor', 'brain', 'providers', 'tokens', 'api', 'keys', 'usage']
 		},
 
 		{
@@ -1098,6 +1124,19 @@
 							<UserCircle className="size-3.5" strokeWidth="2" />
 							<span>{$i18n.t('Account')}</span>
 						</button>
+					{:else if tabId === 'billing'}
+						<button
+							role="tab"
+							aria-controls="tab-billing"
+							aria-selected={selectedTab === 'billing'}
+							class={tabButtonClass(selectedTab === 'billing')}
+							on:click={() => {
+								selectedTab = 'billing';
+							}}
+						>
+							<CreditCard className="size-3.5" strokeWidth="2" />
+							<span>{$i18n.t('Billing')}</span>
+						</button>
 					{:else if tabId === 'about'}
 						<button
 							role="tab"
@@ -1217,6 +1256,8 @@
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
 				/>
+			{:else if selectedTab === 'billing'}
+				<VesqorBilling />
 			{:else if selectedTab === 'about'}
 				<About />
 			{:else if selectedTab === 'admin:general'}
@@ -1275,6 +1316,8 @@
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
 				/>
+			{:else if selectedTab === 'admin:vesqor'}
+				<AdminVesqor />
 			{/if}
 		</div>
 	</div>

@@ -57,20 +57,46 @@
 	$: if (selectedModels.length > 1 && !compareModels) {
 		compareModels = true;
 	}
-</script>
 
-<div class="flex min-w-0 max-w-full flex-col items-start">
-	<div class="flex min-w-0 max-w-full">
-		<div class="min-w-0 max-w-full overflow-hidden">
-			<div class="min-w-0 max-w-full">
-				<Selector
-					id="model"
-					placeholder={$i18n.t('Select a model')}
-					items={$models.map((model) => ({
-						value: model.id,
-						label: model.name,
-						model: model
-					}))}
+	// VESQOR: hide base models that back a custom model (e.g. vesqor-reasoning
+	// backs "Lizz") — the custom model is the only surface users see.
+	// NOTE: the API nests base_model_id under model.info (not top-level).
+	$: baseModelIds = new Set(
+		$models
+			.map((model) => model.info?.base_model_id)
+			.filter((id): id is string => typeof id === 'string' && id.length > 0)
+	);
+	$: visibleModels = $models.filter((model) => !baseModelIds.has(model.id));
+
+	// VESQOR: effort tiers ordered by task complexity — simple → hard.
+	const TIER_ORDER = ['LIGHT', 'CORE', 'PRIME', 'PRO', 'ULTRA', 'TITAN', 'APEX'];
+
+	$: sortedModels = [...visibleModels].sort((a, b) => {
+		const ta = a.info?.meta?.effortTier;
+		const tb = b.info?.meta?.effortTier;
+		if (!ta && !tb) return a.name.localeCompare(b.name);
+		if (!ta) return -1; // DEFAULT (Lizz) first
+		if (!tb) return 1;
+		return TIER_ORDER.indexOf(ta) - TIER_ORDER.indexOf(tb) || ta.localeCompare(tb);
+	});
+	</script>
+
+	<div class="flex min-w-0 max-w-full flex-col items-start">
+		<div class="flex min-w-0 max-w-full">
+			<div class="min-w-0 max-w-full overflow-hidden">
+				<div class="min-w-0 max-w-full">
+					<Selector
+						id="model"
+						placeholder={$i18n.t('Select a model')}
+						items={sortedModels.map((model) => ({
+							value: model.id,
+							label: model.info?.meta?.effortTier
+								? `lizz 9.2 (${model.info.meta.effortTier.toLowerCase()})`
+								: model.name,
+							model: model,
+							effortTier: model.info?.meta?.effortTier,
+							effortDesc: model.info?.meta?.effortDesc
+						}))}
 					{pinModelHandler}
 					{className}
 					{triggerClassName}
@@ -78,6 +104,7 @@
 					{align}
 					{showSetDefault}
 					onSetDefault={saveDefaultModel}
+					vesqorTierMenu
 					multipleEnabled={$user?.role === 'admin' ||
 						($user?.permissions?.chat?.multiple_models ?? true)}
 					{disabled}

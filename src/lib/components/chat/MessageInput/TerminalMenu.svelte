@@ -86,15 +86,15 @@
 		selectedSystemTerminal?.id ||
 		selectedDirectTerminal?.name ||
 		selectedDirectTerminal?.url?.replace(/^https?:\/\//, '') ||
-		$i18n.t('Terminal');
+		$i18n.t('VESQOR MEGA AI');
 </script>
 
 <div class="flex items-center translate-x-0.5">
 	<Dropdown bind:show align="start">
-		<Tooltip content={$i18n.t('Terminal')} placement="top">
+		<Tooltip content="VESQOR MEGA AI" placement="top">
 			<button
 				type="button"
-				class="flex items-center gap-1.5 translate-y-[1px] text-[13px] text-gray-600 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/40 dark:hover:text-gray-200 transition rounded-lg cursor-pointer {$selectedTerminalId &&
+				class="flex items-center gap-1.5 translate-y-[1px] text-sm text-gray-600 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/40 dark:hover:text-gray-200 transition rounded-lg cursor-pointer {$selectedTerminalId &&
 				selectedLabel
 					? ' p-1 '
 					: ' p-1 opacity-50'}"
@@ -102,7 +102,7 @@
 				<Cloud className="size-3.5" strokeWidth="2" />
 
 				{#if $selectedTerminalId && selectedLabel}
-					<span class="truncate text-[13px] max-w-[100px] sm:max-w-[150px]">{selectedLabel}</span>
+					<span class="truncate text-sm max-w-[100px] sm:max-w-[150px]">{selectedLabel}</span>
 				{/if}
 			</button>
 		</Tooltip>
@@ -146,7 +146,7 @@
 					{#each directTerminals as terminal}
 						<button
 							type="button"
-							class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[13px] font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
+							class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
 							terminal.url
 								? 'bg-gray-50/40 dark:bg-gray-800/40'
 								: 'hover:bg-gray-50/40 dark:hover:bg-gray-800/40'}"
@@ -215,7 +215,7 @@
 					{#each systemTerminals as terminal}
 						<button
 							type="button"
-							class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[13px] font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
+							class="flex w-full justify-between gap-2 items-center h-10 px-2 text-sm font-normal cursor-pointer rounded-xl {$selectedTerminalId ===
 							terminal.id
 								? 'bg-gray-50/40 dark:bg-gray-800/40'
 								: 'hover:bg-gray-50/40 dark:hover:bg-gray-800/40'}"

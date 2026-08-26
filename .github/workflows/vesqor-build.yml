@@ -1,0 +1,46 @@
+name: vesqor-frontend-build
+
+on:
+  push:
+    branches: [vesqor]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend (no pyodide)
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+        run: npx vite build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesqor-webui-build
+          path: build/
+          retention-days: 3
+
+      # The Dockerfile copies the pre-built build/ into the image (vite build
+      # OOMs on Fly's build machines). build/ is gitignored but present in the
+      # checkout from the build step above — fly deploy uses local files, so
+      # the Dockerfile's `COPY build /app/build` picks it up directly.
+      - name: Install flyctl
+        run: |
+          curl -sL https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
+
+      - name: Deploy to Fly.io (vesqor-chat)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy -a vesqor-chat --remote-only

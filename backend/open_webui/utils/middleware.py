@@ -1930,16 +1930,19 @@ async def chat_completion_files_handler(
                 unique_ids.add(_id)
 
         sources_count = len(unique_ids)
-        await __event_emitter__(
-            {
-                'type': 'status',
-                'data': {
-                    'action': 'sources_retrieved',
-                    'count': sources_count,
-                    'done': True,
-                },
-            }
-        )
+        # VESQOR: don't emit the status when zero sources were found.
+        # The "No sources found" line is pure noise before every report.
+        if sources_count > 0:
+            await __event_emitter__(
+                {
+                    'type': 'status',
+                    'data': {
+                        'action': 'sources_retrieved',
+                        'count': sources_count,
+                        'done': True,
+                    },
+                }
+            )
 
     return body, {'sources': sources}
 
@@ -3682,15 +3685,20 @@ async def non_streaming_chat_response_handler(response, ctx):
                     usage = normalize_usage(response_data.get('usage', {}) or {})
 
                     if save_to_chat:
+                        save_payload = {
+                            'done': True,
+                            'role': 'assistant',
+                            'output': response_output,
+                            **({'usage': usage} if usage else {}),
+                        }
+                        # VESQOR reports: persist the machine-readable envelope so
+                        # the report UI can render title/confidence/source after reload.
+                        if response_data.get('vq_meta') and isinstance(response_data['vq_meta'], dict):
+                            save_payload['vq_meta'] = response_data['vq_meta']
                         await Chats.upsert_message_to_chat_by_id_and_message_id(
                             metadata['chat_id'],
                             metadata['message_id'],
-                            {
-                                'done': True,
-                                'role': 'assistant',
-                                'output': response_output,
-                                **({'usage': usage} if usage else {}),
-                            },
+                            save_payload,
                         )
 
                     await publish_chat_finished_event(request, user, metadata, title, content, response_output)

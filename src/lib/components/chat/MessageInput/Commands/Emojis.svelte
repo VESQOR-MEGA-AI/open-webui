@@ -70,7 +70,7 @@
 
 	{#each filteredItems as emoji, emojiIdx}
 		<button
-			class="flex h-[1.6875rem] w-full items-center rounded-xl px-2 text-left text-[13px] hover:bg-gray-50/40 dark:hover:bg-gray-800/40 {emojiIdx ===
+			class="flex h-10 w-full items-center rounded-xl px-2 text-left text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 {emojiIdx ===
 			selectedIdx
 				? 'bg-gray-50/40 dark:bg-gray-800/40 selected-command-option-button'
 				: ''}"
@@ -91,7 +91,7 @@
 					class="size-4.5 flex-shrink-0"
 					loading="lazy"
 				/>
-				<div class="truncate text-[13px]">
+				<div class="truncate text-sm">
 					:{emoji.shortCodes[0]}:
 				</div>
 			</div>

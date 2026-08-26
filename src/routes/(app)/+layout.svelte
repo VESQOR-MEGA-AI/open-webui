@@ -89,6 +89,20 @@
 		}
 	};
 
+	// VESQOR: IndexedDB must never block first paint. If the browser denies
+	// access (private mode, sandboxed iframe, storage partition), bail out
+	// fast instead of hanging the whole onMount chain.
+	const checkLocalDBChatsSafe = async () => {
+		try {
+			await Promise.race([
+				checkLocalDBChats(),
+				new Promise((resolve) => setTimeout(resolve, 1500))
+			]);
+		} catch (error) {
+			// ignore — chat list loads from the backend anyway
+		}
+	};
+
 	const setUserSettings = async (cb?: () => Promise<void>) => {
 		let userSettings = await getUserSettings(localStorage.token).catch((error) => {
 			console.error(error);
@@ -244,17 +258,33 @@
 	};
 
 	onMount(async () => {
-		if ($user === undefined || $user === null) {
-			await gotoAuth();
-			return;
+		// VESQOR: never strand the app on the spinner. loaded=true is set in a
+		// finally block so the main surface ALWAYS mounts; if the session user
+		// isn't resolved yet, the reactive gotoAuth() block below handles the
+		// redirect (it fires once $user becomes defined — or immediately if it
+		// was never going to be).
+		try {
+			await runInit();
+		} catch (e) {
+			console.error('[vesqor-init] layout onMount failed:', e);
+		} finally {
+			loaded = true;
+			console.log('[vesqor-init] layout loaded=true');
 		}
+	});
+
+	const runInit = async () => {
 		if (!['user', 'admin'].includes($user?.role)) {
 			return;
 		}
 
-		clearChatInputStorage();
+		try {
+			clearChatInputStorage();
+		} catch (error) {
+			// storage may be denied (private mode / sandbox) — never block load
+		}
 		await Promise.all([
-			checkLocalDBChats(),
+			checkLocalDBChatsSafe(),
 			setBanners().catch((e) => console.error('Failed to load banners:', e)),
 			setTools().catch((e) => console.error('Failed to load tools:', e)),
 			setUserSettings(async () => {
@@ -262,7 +292,13 @@
 			}).catch((e) => console.error('Failed to load user settings:', e))
 		]);
 
-		selectedTerminalId.set(localStorage.selectedTerminalId ?? null);
+		let selectedTerminal = null;
+		try {
+			selectedTerminal = localStorage.selectedTerminalId ?? null;
+		} catch (error) {
+			// storage denied — fall back to no terminal
+		}
+		selectedTerminalId.set(selectedTerminal);
 
 		const loadToolServers = setToolServers().catch((e) => {
 			console.error('Failed to load tool servers:', e);
@@ -383,11 +419,17 @@
 		// Check for version updates
 		if ($user?.role === 'admin' && $config?.features?.enable_version_update_check) {
 			// Check if the user has dismissed the update toast in the last 24 hours
-			if (localStorage.dismissedUpdateToast) {
-				const dismissedUpdateToast = new Date(Number(localStorage.dismissedUpdateToast));
+			let dismissedUpdateToast = null;
+			try {
+				dismissedUpdateToast = localStorage.dismissedUpdateToast;
+			} catch (error) {
+				// storage denied
+			}
+			if (dismissedUpdateToast) {
+				const dismissedUpdateToastDate = new Date(Number(dismissedUpdateToast));
 				const now = new Date();
 
-				if (now - dismissedUpdateToast > 24 * 60 * 60 * 1000) {
+				if (now - dismissedUpdateToastDate > 24 * 60 * 60 * 1000) {
 					checkForVersionUpdates();
 				}
 			} else {
@@ -396,24 +438,34 @@
 		}
 		// Persist showControls: track open/close state separately from saved size
 		// chatControlsSize always retains the last width for openPane()
-		await showControls.set(!$mobile ? localStorage.showControls === 'true' : false);
+		let showControlsInitial = false;
+		try {
+			showControlsInitial = !$mobile ? localStorage.showControls === 'true' : false;
+		} catch (error) {
+			// storage denied
+		}
+		await showControls.set(showControlsInitial);
 		showControls.subscribe((value) => {
-			localStorage.showControls = value ? 'true' : 'false';
+			try {
+				localStorage.showControls = value ? 'true' : 'false';
+			} catch (error) {
+				// storage denied
+			}
 		});
 
 		// Persist selectedTerminalId across page loads
 		selectedTerminalId.subscribe((value) => {
-			if (value === null) {
-				delete localStorage.selectedTerminalId;
-			} else {
-				localStorage.selectedTerminalId = value;
+			try {
+				if (value === null) {
+					delete localStorage.selectedTerminalId;
+				} else {
+					localStorage.selectedTerminalId = value;
+				}
+			} catch (error) {
+				// storage denied
 			}
 		});
-
-		await tick();
-
-		loaded = true;
-	});
+	};
 
 	// `$page.url` must be referenced here: `$:` only tracks variables used in
 	// the statement itself, and reads inside openSettingsFromUrl don't count —

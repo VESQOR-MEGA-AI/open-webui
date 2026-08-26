@@ -931,6 +931,34 @@ async def update_user_by_id(
         if form_data.profile_image_url is not None:
             update_data['profile_image_url'] = form_data.profile_image_url
 
+        # ── VESQOR: admin approval / verification via role change ─────
+        # Any admin-set role of 'user' or 'admin' is explicit admin
+        # approval: the user becomes sign-in eligible immediately, even if
+        # they never clicked the verification email (e.g. lost mailbox
+        # access). This applies not only to 'pending' users — a user whose
+        # local role was already set while authdb still says 'pending'
+        # (unverified) must be unlocked by the admin's role change too,
+        # otherwise they stay gated by the 403 email-verification check.
+        new_role = update_data.get('role')
+        if new_role is not None and new_role != 'pending':
+            is_verified = await Auths.is_email_verified(user_id, db=db)
+            if not is_verified:
+                # Local auth row: verified=true (removes the 403 sign-in gate).
+                await Auths.mark_verified_by_id(user_id, db=db)
+                # Shared authdb: email_verified=true + admin-chosen role, so
+                # the next authdb projection doesn't flip the user back.
+                try:
+                    from open_webui.utils.vesqor_authdb import vesqor_authdb_mark_verified
+                    if not vesqor_authdb_mark_verified(user.email, role=new_role):
+                        log.warning(
+                            'Admin approved user %s (%s) but authdb update '
+                            'returned no row (user may not exist in shared authdb)',
+                            user.email,
+                            user_id,
+                        )
+                except Exception as e:
+                    log.error('authdb mark_verified for %s failed: %s', user.email, e)
+
         if update_data:
             updated_user = await Users.update_user_by_id(
                 user_id,

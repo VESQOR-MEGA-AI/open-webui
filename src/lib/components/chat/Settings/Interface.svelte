@@ -279,7 +279,9 @@
 
 		defaultModelId = $settings?.models?.at(0) ?? '';
 		if ($config?.default_models) {
-			defaultModelId = $config.default_models.split(',')[0];
+			defaultModelId = Array.isArray($config.default_models)
+				? $config.default_models[0]
+				: $config.default_models.split(',')[0];
 		}
 
 		backgroundImageUrl = $settings?.backgroundImageUrl ?? null;

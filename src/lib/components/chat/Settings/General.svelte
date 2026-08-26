@@ -111,7 +111,7 @@
 	};
 
 	onMount(async () => {
-		selectedTheme = localStorage.theme ?? 'system';
+		selectedTheme = localStorage.theme ?? 'dark';
 
 		languages = await getLanguages();
 
@@ -164,7 +164,7 @@
 				metaThemeColor.setAttribute(
 					'content',
 					_theme === 'dark'
-						? '#171717'
+						? '#020914'
 						: _theme === 'oled-dark'
 							? '#000000'
 							: _theme === 'her'
