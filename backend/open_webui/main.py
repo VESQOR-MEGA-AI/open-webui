@@ -1114,6 +1114,11 @@ async def chat_completion(
         fallback_model = None
         missing_base_model = False
         if not model_item.get('direct', False):
+            _models_len = len(request.app.state.MODELS) if hasattr(request.app.state, 'MODELS') else -1
+            log.warning(
+                f'[VESQOR-DEBUG] chat_completion model_id={model_id!r} '
+                f'state.MODELS len={_models_len} keys={sorted(request.app.state.MODELS.keys())[:15] if hasattr(request.app.state, "MODELS") and isinstance(request.app.state.MODELS, dict) else "n/a"}'
+            )
             if model_id not in request.app.state.MODELS:
                 raise Exception('Model not found')
 
