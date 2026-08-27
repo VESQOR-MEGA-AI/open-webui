@@ -158,6 +158,18 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
 
     existing_ids = {m['id'] for m in models}
 
+    # VESQOR guard: a base model referenced by an ACTIVE custom model must
+    # never be dropped from the runtime list, even if the base row is
+    # (accidentally) deactivated — otherwise every chat completion on the
+    # custom model fails with 'Model not found' (has_base_model_access →
+    # base_model_id not in state.MODELS). Track which ids are required as
+    # bases so the is_active removal below skips them.
+    required_base_ids = {
+        c.base_model_id
+        for c in custom_models
+        if c.is_active and c.base_model_id is not None
+    }
+
     for custom_model in custom_models:
         if custom_model.base_model_id is None:
             # Override applied directly to a base model (shares the same ID)
@@ -185,8 +197,8 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
 
                     model['action_ids'] = action_ids
                     model['filter_ids'] = filter_ids
-                else:
-                    models = [m for m in models if m is not model]
+                elif custom_model.id not in required_base_ids:
+                    models.remove(model)
 
         elif custom_model.is_active:
             if custom_model.id in existing_ids:
