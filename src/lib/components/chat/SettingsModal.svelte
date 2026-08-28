@@ -24,6 +24,7 @@
 	import Connections from './Settings/Connections.svelte';
 	import Integrations from './Settings/Integrations.svelte';
 	import DatabaseSettings from '../icons/DatabaseSettings.svelte';
+	import Database from '../icons/Database.svelte';
 	import SettingsAlt from '../icons/SettingsAlt.svelte';
 	import Link from '../icons/Link.svelte';
 	import UserCircle from '../icons/UserCircle.svelte';
@@ -55,6 +56,7 @@
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
 	import AdminDatabase from '$lib/components/admin/Settings/Database.svelte';
 	import VesqorBilling from './Settings/VesqorBilling.svelte';
+	import VesqorBrain from './Settings/VesqorBrain.svelte';
 	import AdminVesqor from '$lib/components/admin/Settings/VesqorAdmin.svelte';
 	import CreditCard from '../icons/CreditCard.svelte';
 
@@ -151,6 +153,7 @@
 		archived_chats: 'Data',
 		account: 'Profile',
 		billing: 'Profile',
+		brain: 'Profile',
 		about: 'Profile'
 	};
 	const adminSettingGroups: Record<string, string> = {
@@ -643,6 +646,25 @@
 				'checkout',
 				'portal',
 				'vesqor'
+			]
+		},
+		{
+			id: 'brain',
+			title: 'My Brain',
+			keywords: [
+				'brain',
+				'memory',
+				'my brain',
+				'user brain',
+				'companies',
+				'projects',
+				'decisions',
+				'facts',
+				'preferences',
+				'documents',
+				'knowledge',
+				'learned',
+				'library'
 			]
 		},
 		{
@@ -1178,6 +1200,19 @@
 							<CreditCard className="size-3.5" strokeWidth="2" />
 							<span>{$i18n.t('Billing')}</span>
 						</button>
+					{:else if tabId === 'brain'}
+						<button
+							role="tab"
+							aria-controls="tab-brain"
+							aria-selected={selectedTab === 'brain'}
+							class={tabButtonClass(selectedTab === 'brain')}
+							on:click={() => {
+								selectedTab = 'brain';
+							}}
+						>
+							<Database className="size-3.5" strokeWidth="2" />
+							<span>{$i18n.t('My Brain')}</span>
+						</button>
 					{:else if tabId === 'about'}
 						<button
 							role="tab"
@@ -1300,6 +1335,8 @@
 				/>
 			{:else if selectedTab === 'billing'}
 				<VesqorBilling />
+			{:else if selectedTab === 'brain'}
+				<VesqorBrain />
 			{:else if selectedTab === 'about'}
 				<About />
 			{:else if selectedTab === 'admin:general'}

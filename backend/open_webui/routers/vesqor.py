@@ -6,10 +6,12 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from open_webui.config import LIBRARY_DIR
 from open_webui.env import VESQOR_API_BASE_URL, VESQOR_SERVICE_TOKEN
 from open_webui.models.library import Library, LibraryItemForm
 from open_webui.utils.auth import get_verified_user
+from open_webui.utils.headers import _mint_forward_user_jwt
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -192,6 +194,124 @@ async def get_credits(user=Depends(get_verified_user)):
 async def create_credit_topup(form_data: CreditTopupForm, user=Depends(get_verified_user)):
     body, _ = await _proxy("POST", "/api/credits/topup", user, form_data.model_dump())
     return body
+
+
+############################
+# User Brain (Neuro-Brain Network, 2026-08-28)
+############################
+
+
+def _brain_headers(user) -> dict:
+    """Service token + signed chat JWT so the brain scopes memory to THIS user
+    (chat:<sub>). The JWT is minted with the same secret the brain verifies
+    (FORWARD_USER_INFO_HEADER_JWT_SECRET == CHAT_USER_JWT_SECRET)."""
+    headers = _service_headers(user)
+    headers["X-OpenWebUI-User-Jwt"] = _mint_forward_user_jwt(user)
+    return headers
+
+
+async def _proxy_brain(method: str, path: str, user, json_body: Optional[dict] = None):
+    if not VESQOR_SERVICE_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VESQOR integration not configured",
+        )
+
+    url = f"{VESQOR_API_BASE_URL.rstrip('/')}{path}"
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.request(
+                method,
+                url,
+                headers=_brain_headers(user),
+                json=json_body,
+            )
+    except httpx.RequestError as e:
+        log.exception(f"VESQOR brain request failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="VESQOR service is currently unreachable",
+        )
+
+    if response.status_code in (401, 403):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized for VESQOR",
+        )
+
+    if response.status_code >= 500:
+        log.error(f"VESQOR brain returned {response.status_code}: {response.text}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="VESQOR service error",
+        )
+
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+
+    return body, response.status_code
+
+
+class BrainMemoryForm(BaseModel):
+    layer: str
+    content: str
+    source: Optional[str] = None
+    confidence: Optional[float] = None
+    meta: Optional[dict] = None
+
+
+class BrainMemoryPatchForm(BaseModel):
+    content: Optional[str] = None
+    pinned: Optional[bool] = None
+    corrected: Optional[bool] = None
+    forgotten: Optional[bool] = None
+    confidence: Optional[float] = None
+
+
+@router.get("/user-brain")
+async def get_user_brain(
+    layer: Optional[str] = None,
+    limit: int = 200,
+    user=Depends(get_verified_user),
+):
+    qs = []
+    if layer:
+        qs.append(f"layer={layer}")
+    qs.append(f"limit={min(max(limit, 1), 500)}")
+    body, _ = await _proxy_brain("GET", f"/api/v1/user-brain?{'&'.join(qs)}", user)
+    return body
+
+
+@router.post("/user-brain/memories")
+async def add_user_brain_memory(form_data: BrainMemoryForm, user=Depends(get_verified_user)):
+    body, status_code = await _proxy_brain(
+        "POST", "/api/v1/user-brain/memories", user, form_data.model_dump(exclude_none=True)
+    )
+    return JSONResponse(content=body, status_code=status_code)
+
+
+@router.patch("/user-brain/memories/{memory_id}")
+async def patch_user_brain_memory(
+    memory_id: str, form_data: BrainMemoryPatchForm, user=Depends(get_verified_user)
+):
+    body, status_code = await _proxy_brain(
+        "PATCH",
+        f"/api/v1/user-brain/memories/{memory_id}",
+        user,
+        form_data.model_dump(exclude_none=True),
+    )
+    return JSONResponse(content=body, status_code=status_code)
+
+
+@router.delete("/user-brain/memories/{memory_id}")
+async def delete_user_brain_memory(memory_id: str, user=Depends(get_verified_user)):
+    body, status_code = await _proxy_brain(
+        "DELETE", f"/api/v1/user-brain/memories/{memory_id}", user
+    )
+    return JSONResponse(content=body, status_code=status_code)
 
 
 ############################

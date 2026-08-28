@@ -77,6 +77,27 @@ export const createVesqorCreditTopup = async (token: string, credits: number) =>
 	return _mutate(token, 'POST', '/credits/topup', { credits });
 };
 
+// --- User Brain (Neuro-Brain Network, 2026-08-28) ---
+
+export const getVesqorUserBrain = async (token: string, layer?: string, limit = 200) => {
+	const qs = new URLSearchParams();
+	if (layer) qs.set('layer', layer);
+	qs.set('limit', String(limit));
+	return _get(token, `/user-brain?${qs.toString()}`);
+};
+
+export const addVesqorBrainMemory = async (token: string, body: object) => {
+	return _mutate(token, 'POST', '/user-brain/memories', body);
+};
+
+export const patchVesqorBrainMemory = async (token: string, id: string, body: object) => {
+	return _mutate(token, 'PATCH', `/user-brain/memories/${id}`, body);
+};
+
+export const deleteVesqorBrainMemory = async (token: string, id: string) => {
+	return _mutate(token, 'DELETE', `/user-brain/memories/${id}`);
+};
+
 export const getVesqorProviders = async (token: string) => {
 	return _get(token, '/admin/providers');
 };
