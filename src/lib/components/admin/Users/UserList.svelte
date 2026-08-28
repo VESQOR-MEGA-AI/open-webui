@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { adminUserCount, config, user } from '$lib/stores';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -12,6 +12,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { getUsers, deleteUserById } from '$lib/apis/users';
+	import { getVesqorUsers, updateVesqorUser } from '$lib/apis/vesqor';
 
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import ChatBubbles from '$lib/components/icons/ChatBubbles.svelte';
@@ -19,6 +20,7 @@
 	import Eye from '$lib/components/icons/Eye.svelte';
 	import Trash from '$lib/components/icons/Trash.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import Switch from '$lib/components/common/Switch.svelte';
 
 	import EditUserModal from '$lib/components/admin/Users/UserList/EditUserModal.svelte';
 	import UserChatsModal from '$lib/components/admin/Users/UserList/UserChatsModal.svelte';
@@ -41,6 +43,11 @@
 
 	let users = null;
 	let total = null;
+
+	// VESQOR VIP map: email -> { id (brain Prisma id), vipAccess }
+	let vesqorUsers: Record<string, { id: string; vipAccess: boolean }> = {};
+	let vesqorLoading = true;
+	let vesqorUpdating: string | null = null;
 
 	let query = '';
 	let searchDebounceTimer: ReturnType<typeof setTimeout>;
@@ -113,6 +120,45 @@
 		}
 	};
 
+	const loadVesqorUsers = async () => {
+		vesqorLoading = true;
+		try {
+			const res = await getVesqorUsers(localStorage.token);
+			const list = Array.isArray(res) ? res : (res?.users ?? []);
+			vesqorUsers = {};
+			for (const u of list) {
+				if (u?.email) {
+					vesqorUsers[u.email.toLowerCase()] = { id: u.id, vipAccess: !!u.vipAccess };
+				}
+			}
+		} catch (err) {
+			// VESQOR brain unreachable — VIP column just stays hidden/off
+			console.error('Failed to load VESQOR users:', err);
+			vesqorUsers = {};
+		} finally {
+			vesqorLoading = false;
+		}
+	};
+
+	const toggleVesqorVip = async (email: string) => {
+		const entry = vesqorUsers[email.toLowerCase()];
+		if (!entry) return;
+		const previous = entry.vipAccess;
+		entry.vipAccess = !previous;
+		vesqorUsers = vesqorUsers;
+		vesqorUpdating = email;
+		try {
+			await updateVesqorUser(localStorage.token, entry.id, { vip_access: !previous });
+			toast.success('VIP status updated');
+		} catch (err: any) {
+			entry.vipAccess = previous;
+			vesqorUsers = vesqorUsers;
+			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to update VIP status'));
+		} finally {
+			vesqorUpdating = null;
+		}
+	};
+
 	const handleSearchInput = () => {
 		clearTimeout(searchDebounceTimer);
 		searchDebounceTimer = setTimeout(() => {
@@ -127,6 +173,10 @@
 	$: if (page !== null && orderBy !== null && direction !== null) {
 		getUserList();
 	}
+
+	onMount(() => {
+		loadVesqorUsers();
+	});
 
 	onDestroy(() => {
 		clearTimeout(searchDebounceTimer);
@@ -342,6 +392,9 @@
 					</th>
 
 					<th scope="col" class="px-2.5 py-1.5 font-normal text-right"></th>
+					<th scope="col" class="font-normal select-none px-2.5 py-1.5">
+						<span class="flex items-center gap-1.5">VIP</span>
+					</th>
 				</tr>
 			</thead>
 			<tbody class="">
@@ -459,6 +512,24 @@
 									</Tooltip>
 								{/if}
 							</div>
+						</td>
+						<td class="px-3 py-1">
+							{#if vesqorLoading}
+								<span class="text-gray-300 dark:text-gray-600">—</span>
+							{:else if vesqorUsers[user.email?.toLowerCase()]}
+								<div class="flex items-center gap-1.5">
+									{#if vesqorUpdating === user.email}
+										<Spinner className="size-3.5" />
+									{:else}
+										<Switch
+											state={vesqorUsers[user.email.toLowerCase()].vipAccess}
+											on:change={() => toggleVesqorVip(user.email)}
+										/>
+									{/if}
+								</div>
+							{:else}
+								<span class="text-gray-300 dark:text-gray-600">—</span>
+							{/if}
 						</td>
 					</tr>
 				{/each}
