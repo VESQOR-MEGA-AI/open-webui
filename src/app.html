@@ -78,8 +78,11 @@
 				const metaThemeColorTag = document.querySelector('meta[name="theme-color"]');
 				const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-				if (!localStorage?.theme) {
-					// VESQOR default skin is dark (Navy/Black/Emerald custom.css)
+				if (!localStorage?.theme || localStorage.theme === 'system') {
+					// VESQOR default skin is dark (Navy/Black/Emerald custom.css).
+					// 'system' was the old default — migrate it to the VESQOR skin
+					// so every user sees the branded theme unless they explicitly
+					// picked light/oled/her.
 					localStorage.theme = 'dark';
 				}
 
