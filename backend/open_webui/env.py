@@ -738,6 +738,13 @@ WEBUI_AUTH = os.getenv('WEBUI_AUTH', 'True').lower() == 'true'
 ENABLE_INITIAL_ADMIN_SIGNUP = os.getenv('ENABLE_INITIAL_ADMIN_SIGNUP', 'False').lower() == 'true'
 ENABLE_SIGNUP_PASSWORD_CONFIRMATION = os.getenv('ENABLE_SIGNUP_PASSWORD_CONFIRMATION', 'False').lower() == 'true'
 
+# VESQOR (2026-08-28, A.9): restrict self-service signup to specific countries.
+# Comma-separated ISO-3166 alpha-2 codes, e.g. "US,CA". Empty = allow all.
+# Geo lookup via ipapi.co (free, no key); fail-open when the lookup service
+# is unreachable so legitimate users behind VPNs/CDNs are never blocked by
+# an outage. This is a compliance gate, not a censorship system.
+SIGNUP_ALLOWED_COUNTRIES = os.getenv('SIGNUP_ALLOWED_COUNTRIES', '').strip()
+
 ####################################
 # Secret key & cookies
 ####################################

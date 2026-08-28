@@ -28,6 +28,7 @@ from open_webui.env import (
     OAUTH_TOKEN_EXCHANGE_RATE_LIMIT,
     OAUTH_TOKEN_EXCHANGE_RATE_LIMIT_WINDOW,
     OAUTH_TOKEN_EXCHANGE_TRUSTED_CLIENT_IDS,
+    SIGNUP_ALLOWED_COUNTRIES,
     SMTP_HOST,
     SMTP_VERIFY_ENABLED,
     VERIFY_EMAIL_URL,
@@ -995,6 +996,29 @@ async def signup(
 
     if await Users.get_user_by_email(form_data.email.lower(), db=db):
         raise HTTPException(400, detail=ERROR_MESSAGES.EMAIL_TAKEN)
+
+    # ── VESQOR (2026-08-28, A.9): US-only signup gate ────────────────────
+    # When SIGNUP_ALLOWED_COUNTRIES is set, the signup IP must geolocate to
+    # an allowed country. Fail-open: if the lookup service is unreachable,
+    # allow (never block legitimate users on an outage). The first admin
+    # signup is exempt (no users yet — the admin is the operator).
+    if SIGNUP_ALLOWED_COUNTRIES and has_users:
+        allowed = {c.strip().upper() for c in SIGNUP_ALLOWED_COUNTRIES.split(',') if c.strip()}
+        if allowed:
+            client_ip = request.headers.get('fly-client-ip') or (request.client.host if request.client else '')
+            country = None
+            try:
+                async with ClientSession() as session:
+                    async with session.get(f'https://ipapi.co/{client_ip}/country/', timeout=5) as resp:
+                        if resp.status == 200:
+                            country = (await resp.text()).strip().upper()
+            except Exception:
+                log.warning(f'Geo lookup failed for signup IP {client_ip}; allowing (fail-open)')
+            if country and country not in allowed:
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN,
+                    detail='Signup is currently available in the United States only.',
+                )
 
     try:
         try:
