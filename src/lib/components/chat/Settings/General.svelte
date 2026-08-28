@@ -17,7 +17,7 @@
 	export let getModels: Function;
 
 	// General
-	let themes = ['dark', 'light', 'oled-dark'];
+	let themes = ['dark', 'light', 'oled-dark', 'vesqor'];
 	let selectedTheme = 'system';
 
 	let languages: Awaited<ReturnType<typeof getLanguages>> = [];
@@ -132,7 +132,11 @@
 			themeToApply = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 		}
 
-		if (themeToApply === 'dark' && !_theme.includes('oled')) {
+		if (_theme === 'vesqor') {
+			themeToApply = 'dark vesqor';
+		}
+
+		if (themeToApply.includes('dark') && !_theme.includes('oled') && _theme !== 'vesqor') {
 			document.documentElement.style.setProperty('--color-gray-800', '#333');
 			document.documentElement.style.setProperty('--color-gray-850', '#262626');
 			document.documentElement.style.setProperty('--color-gray-900', '#171717');
@@ -163,7 +167,7 @@
 				console.log('Setting meta theme color: ' + _theme);
 				metaThemeColor.setAttribute(
 					'content',
-					_theme === 'dark'
+					_theme === 'dark' || _theme === 'vesqor'
 						? '#020914'
 						: _theme === 'oled-dark'
 							? '#000000'
@@ -212,6 +216,7 @@
 					on:change={() => themeChangeHandler(selectedTheme)}
 				>
 					<option value="system">⚙️ {$i18n.t('System')}</option>
+					<option value="vesqor">💚 VESQOR</option>
 					<option value="dark">🌑 {$i18n.t('Dark')}</option>
 					<option value="oled-dark">🌃 {$i18n.t('OLED Dark')}</option>
 					<option value="light">☀️ {$i18n.t('Light')}</option>

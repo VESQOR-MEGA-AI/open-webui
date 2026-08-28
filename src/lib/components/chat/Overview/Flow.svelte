@@ -31,7 +31,7 @@
 	{edges}
 	fitView
 	minZoom={0.001}
-	colorMode={$theme.includes('dark')
+	colorMode={$theme.includes('dark') || $theme === 'vesqor'
 		? 'dark'
 		: $theme === 'system'
 			? window.matchMedia('(prefers-color-scheme: dark)').matches

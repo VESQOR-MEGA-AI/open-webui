@@ -83,10 +83,13 @@
 					// 'system' was the old default — migrate it to the VESQOR skin
 					// so every user sees the branded theme unless they explicitly
 					// picked light/oled/her.
-					localStorage.theme = 'dark';
+					localStorage.theme = 'vesqor';
 				}
 
-				if (localStorage.theme === 'system') {
+				if (localStorage.theme === 'vesqor') {
+					document.documentElement.classList.add('dark', 'vesqor');
+					metaThemeColorTag.setAttribute('content', '#020914');
+				} else if (localStorage.theme === 'system') {
 					document.documentElement.classList.add(prefersDarkTheme ? 'dark' : 'light');
 					metaThemeColorTag.setAttribute('content', prefersDarkTheme ? '#171717' : '#ffffff');
 				} else if (localStorage.theme === 'oled-dark') {
@@ -99,11 +102,15 @@
 				} else if (localStorage.theme === 'light') {
 					document.documentElement.classList.add('light');
 					metaThemeColorTag.setAttribute('content', '#ffffff');
+				} else if (localStorage.theme === 'dark') {
+					document.documentElement.classList.add('dark');
+					metaThemeColorTag.setAttribute('content', '#171717');
 				} else if (localStorage.theme === 'her') {
 					document.documentElement.classList.add('her');
 					metaThemeColorTag.setAttribute('content', '#983724');
 				} else {
-					document.documentElement.classList.add('dark');
+					// legacy 'system'/unknown/empty → VESQOR skin
+					document.documentElement.classList.add('dark', 'vesqor');
 					metaThemeColorTag.setAttribute('content', '#020914');
 				}
 
