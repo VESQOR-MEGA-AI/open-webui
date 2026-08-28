@@ -1,14 +1,8 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
-	import { toast } from 'svelte-sonner';
 
-	import {
-		getVesqorBillingStatus,
-		createVesqorCheckout,
-		createVesqorPortalSession,
-		createVesqorCreditTopup
-	} from '$lib/apis/vesqor';
+	import { getVesqorBillingStatus } from '$lib/apis/vesqor';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import UserSettingSection from './UserSettingSection.svelte';
 	import UserSettingRow from './UserSettingRow.svelte';
@@ -18,7 +12,6 @@
 	let loading = true;
 	let error: string | null = null;
 	let status: any = null;
-	let redirecting = false;
 
 	const planNames: Record<string, string> = {
 		trial: 'Trial',
@@ -42,48 +35,6 @@
 		}
 	};
 
-	const redirectTo = (url?: string) => {
-		if (url) {
-			window.location.href = url;
-		}
-	};
-
-	const upgrade = async () => {
-		redirecting = true;
-		try {
-			const res = await createVesqorCheckout(localStorage.token, 'quarterly');
-			redirectTo(res?.url);
-		} catch (err: any) {
-			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to start checkout'));
-		} finally {
-			redirecting = false;
-		}
-	};
-
-	const manageSubscription = async () => {
-		redirecting = true;
-		try {
-			const res = await createVesqorPortalSession(localStorage.token);
-			redirectTo(res?.url);
-		} catch (err: any) {
-			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to open portal'));
-		} finally {
-			redirecting = false;
-		}
-	};
-
-	const buyCredits = async (credits: number) => {
-		redirecting = true;
-		try {
-			const res = await createVesqorCreditTopup(localStorage.token, credits);
-			redirectTo(res?.url);
-		} catch (err: any) {
-			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to start credit purchase'));
-		} finally {
-			redirecting = false;
-		}
-	};
-
 	onMount(load);
 </script>
 
@@ -95,6 +46,13 @@
 	{:else if error}
 		<div class="text-xs text-red-500 py-4">{error}</div>
 	{:else}
+		<div class="p-3 mb-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs leading-relaxed">
+			<span class="font-semibold text-emerald-700 dark:text-emerald-300">VESQOR is in open BETA.</span>
+			<span class="text-emerald-800 dark:text-emerald-200">
+				Every registered account gets 1 report per day, free. Payments are paused — you will not be charged.
+			</span>
+		</div>
+
 		<UserSettingSection title="Subscription" first>
 			<UserSettingRow label="Plan">
 				<span class="text-xs font-medium">{planName}</span>
@@ -114,42 +72,11 @@
 			</UserSettingRow>
 		</UserSettingSection>
 
-		<UserSettingSection title="Manage">
-			<div class="flex flex-wrap gap-2">
-				<button
-					class="px-3 py-1.5 text-xs font-medium rounded-lg bg-black text-white dark:bg-white dark:text-black disabled:opacity-50"
-					disabled={redirecting}
-					on:click={upgrade}
-				>
-					Upgrade
-				</button>
-				<button
-					class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
-					disabled={redirecting}
-					on:click={manageSubscription}
-				>
-					Manage subscription
-				</button>
-			</div>
-		</UserSettingSection>
-
-		<UserSettingSection title="Buy credits">
-			<div class="flex flex-wrap gap-2">
-				<button
-					class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
-					disabled={redirecting}
-					on:click={() => buyCredits(50)}
-				>
-					50 credits
-				</button>
-				<button
-					class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
-					disabled={redirecting}
-					on:click={() => buyCredits(150)}
-				>
-					150 credits
-				</button>
-			</div>
+		<UserSettingSection title="Free during BETA">
+			<p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+				Billing is currently disabled. You can run one report per day for free. Once the BETA ends,
+				paid plans will open here.
+			</p>
 		</UserSettingSection>
 	{/if}
 </div>
