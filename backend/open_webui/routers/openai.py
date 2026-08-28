@@ -178,6 +178,16 @@ async def get_headers_and_cookies(
         if metadata and metadata.get('chat_id'):
             headers[FORWARD_SESSION_INFO_HEADER_CHAT_ID] = metadata.get('chat_id')
 
+    # Forward the real client IP so the brain's sanctions geo-block (owner
+    # 2026-08-27) sees the user, not this app. uvicorn runs with
+    # --forwarded-allow-ips *, so request.client.host is the true peer from
+    # the X-Forwarded-For chain, not the LB address.
+    try:
+        if request and request.client and request.client.host:
+            headers['X-Forwarded-For'] = request.client.host
+    except Exception:
+        pass
+
     token = None
     auth_type = config.get('auth_type')
 
