@@ -35,7 +35,9 @@ html {
 
 body {
 	min-height: 100%;
-	background: transparent;
+	/* !important: app.css (.dark body) sets an opaque #171717 AFTER this
+	   stylesheet loads — without it the skin gradient on html is hidden. */
+	background: transparent !important;
 	color: var(--vesqor-text);
 }
 
