@@ -84,12 +84,14 @@ from open_webui.utils.misc import parse_duration, validate_email_format
 from open_webui.utils.rate_limit import RateLimiter
 from open_webui.utils.vesqor_authdb import (
     vesqor_authdb_create_user,
+    vesqor_authdb_delete_user,
     vesqor_authdb_get_user,
     vesqor_authdb_hash_password,
     vesqor_authdb_mark_verified,
     vesqor_authdb_update_password,
     vesqor_authdb_verify,
 )
+from open_webui.utils.vesqor_compliance import screen_embryo
 from open_webui.utils.redis import get_redis_client
 from open_webui.utils.vesqor_mailer import (
     send_password_reset_email,
@@ -1215,6 +1217,29 @@ async def verify_email(
             status.HTTP_400_BAD_REQUEST,
             detail='Invalid or expired verification link. Please sign up again.',
         )
+
+    # ── VESQOR (2026-08-28): the embryo is born only after VESQOR Mega AI
+    # screens it against the sanctions engine (OFAC/UK/EU/UN). A critical
+    # match means the embryo is rejected — the account is never activated.
+    # Fail-open: brain unreachable → allow (never block on an outage).
+    user = await Users.get_user_by_id(user_id, db=db)
+    if user:
+        info = dict(user.info or {})
+        company = info.get('company_name') if isinstance(info.get('company_name'), str) else None
+        allowed, level, matches = await screen_embryo(user.name or user.email, company)
+        if not allowed:
+            log.warning(
+                'Embryo %s rejected at birth: compliance level=%s matches=%s',
+                user.email,
+                level,
+                matches,
+            )
+            await Users.delete_user_by_id(user_id, db=db)
+            vesqor_authdb_delete_user(user.email)
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail='Your account could not be activated. Please contact support.',
+            )
 
     await Auths.mark_verified_by_id(user_id, db=db)
     user = await Users.get_user_by_id(user_id, db=db)
