@@ -7,7 +7,7 @@
 	import { goto } from '$app/navigation';
 
 	import { updateUserById, getUserGroupsById } from '$lib/apis/users';
-	import { updateVesqorUser } from '$lib/apis/vesqor';
+	import { updateVesqorUser, createVesqorUser } from '$lib/apis/vesqor';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import localizedFormat from 'dayjs/plugin/localizedFormat';
@@ -32,21 +32,27 @@
 
 	$: vesqorEntry = selectedUser?.email ? vesqorUsers[selectedUser.email.toLowerCase()] : null;
 	let vesqorVip = false;
-	$: if (show && vesqorEntry) vesqorVip = vesqorEntry.vipAccess;
+	$: if (show) vesqorVip = vesqorEntry?.vipAccess ?? false;
 	let vesqorUpdating = false;
 
 	const toggleVesqorVip = async () => {
-		if (!vesqorEntry) return;
-		const previous = vesqorEntry.vipAccess;
-		vesqorEntry.vipAccess = !previous;
-		vesqorVip = !previous;
+		if (!selectedUser?.email) return;
+		const email = selectedUser.email.toLowerCase();
+		const previous = vesqorEntry?.vipAccess ?? false;
+		const next = !previous;
+		vesqorVip = next;
 		vesqorUpdating = true;
 		try {
-			await updateVesqorUser(localStorage.token, vesqorEntry.id, { vip_access: !previous });
-			toast.success('VIP status updated');
-			dispatch('vipToggle', { email: selectedUser.email });
+			if (vesqorEntry) {
+				await updateVesqorUser(localStorage.token, vesqorEntry.id, { vip_access: next });
+			} else {
+				// User not in the brain yet — create with VIP flag in one call.
+				await createVesqorUser(localStorage.token, { email, vip_access: next });
+				vesqorUsers[email] = { id: '', vipAccess: next };
+			}
+			toast.success(next ? 'VIP access granted' : 'VIP access revoked');
+			dispatch('vipToggle', { email });
 		} catch (err: any) {
-			vesqorEntry.vipAccess = previous;
 			vesqorVip = previous;
 			toast.error(typeof err === 'string' ? err : (err?.detail ?? 'Failed to update VIP status'));
 		} finally {
@@ -180,21 +186,19 @@
 										</div>
 									</div>
 
-									{#if vesqorEntry}
-										<div class="flex flex-col w-full">
-											<div class="mb-1 text-xs text-gray-500">VIP</div>
-											<div class="flex items-center gap-2">
-												{#if vesqorUpdating}
-													<Spinner className="size-3.5" />
-												{:else}
-													<Switch state={vesqorVip} on:change={toggleVesqorVip} />
-												{/if}
-												<span class="text-xs text-gray-500 dark:text-gray-400">
-													{vesqorVip ? 'VIP access (unlimited)' : 'Free tier (1 report/day)'}
-												</span>
-											</div>
+									<div class="flex flex-col w-full">
+										<div class="mb-1 text-xs text-gray-500">VIP</div>
+										<div class="flex items-center gap-2">
+											{#if vesqorUpdating}
+												<Spinner className="size-3.5" />
+											{:else}
+												<Switch state={vesqorVip} on:change={toggleVesqorVip} />
+											{/if}
+											<span class="text-xs text-gray-500 dark:text-gray-400">
+												{vesqorVip ? 'VIP access (unlimited)' : 'Free tier (1 report/day)'}
+											</span>
 										</div>
-									{/if}
+									</div>
 
 									<div class="flex flex-col w-full">
 										<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Name')}</div>
