@@ -587,8 +587,9 @@
 											{/if}
 										{/if}
 									{/if}
-								</div>
-							</form>
+								{/if}
+							</div>
+						</form>
 
 							{#if Object.keys($config?.oauth?.providers ?? {}).length > 0 && !isRecovery}
 								<div class="inline-flex items-center justify-center w-full">
