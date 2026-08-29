@@ -144,3 +144,20 @@ def vesqor_authdb_mark_verified(email: str, role: str = "user") -> bool:
     except Exception as e:
         log.error("vesqor_authdb_mark_verified failed: %s", e)
         return False
+
+
+def vesqor_authdb_delete_user(email: str) -> bool:
+    """Remove a user from the shared authdb (embryo rejected at birth).
+
+    Returns True on success. Used by the compliance gate: a rejected
+    embryo must not be able to sign in on ANY app (chat, tryon, ...).
+    """
+    try:
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM users WHERE email = %s", (email.lower(),))
+                conn.commit()
+                return cur.rowcount > 0
+    except Exception as e:
+        log.error("vesqor_authdb_delete_user failed: %s", e)
+        return False
