@@ -981,6 +981,12 @@ async def update_user_by_id(
             await Auths.update_email_by_id(user_id, form_data.email.lower(), db=db)
         if form_data.profile_image_url is not None:
             update_data['profile_image_url'] = form_data.profile_image_url
+        if form_data.info is not None:
+            # VESQOR: merge company_name (and any other info fields) into the
+            # existing info dict — never clobber unrelated keys.
+            merged = dict(user.info or {})
+            merged.update(form_data.info)
+            update_data['info'] = merged
 
         # ── VESQOR: admin approval / verification via role change ─────
         # Any admin-set role of 'user' or 'admin' is explicit admin

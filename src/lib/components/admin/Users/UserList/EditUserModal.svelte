@@ -64,6 +64,7 @@
 		if (selectedUser) {
 			_user = selectedUser;
 			_user.password = '';
+			_user.company_name = selectedUser.info?.company_name ?? '';
 			loadUserGroups();
 		}
 	};
@@ -73,13 +74,26 @@
 		role: 'pending',
 		name: '',
 		email: '',
-		password: ''
+		password: '',
+		company_name: ''
 	};
 
 	let userGroups: any[] | null = null;
 
 	const submitHandler = async () => {
-		const res = await updateUserById(localStorage.token, selectedUser.id, _user).catch((error) => {
+		// VESQOR: company name lives in user.info.company_name — carry it
+		// through the update payload so the admin can edit it.
+		const info = { ...(selectedUser.info ?? {}) };
+		if (_user.company_name?.trim()) {
+			info.company_name = _user.company_name.trim();
+		} else {
+			delete info.company_name;
+		}
+
+		const res = await updateUserById(localStorage.token, selectedUser.id, {
+			..._user,
+			info
+		}).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -228,6 +242,21 @@
 												placeholder={$i18n.t('Enter Your Email')}
 												autocomplete="off"
 												required
+											/>
+										</div>
+									</div>
+
+									<div class="flex flex-col w-full">
+										<div class=" mb-1 text-xs text-gray-500">Company</div>
+
+										<div class="flex-1">
+											<input
+												class="w-full text-sm bg-transparent outline-hidden"
+												type="text"
+												bind:value={_user.company_name}
+												aria-label="Company"
+												placeholder="Company name"
+												autocomplete="off"
 											/>
 										</div>
 									</div>

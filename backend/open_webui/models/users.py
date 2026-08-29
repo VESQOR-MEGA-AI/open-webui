@@ -264,6 +264,7 @@ class UserUpdateForm(BaseModel):
     email: str | None = None
     profile_image_url: str | None = None
     password: str | None = None
+    info: dict | None = None
 
     @field_validator('profile_image_url', mode='before')
     @classmethod

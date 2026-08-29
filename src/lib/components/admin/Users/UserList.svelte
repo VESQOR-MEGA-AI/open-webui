@@ -350,6 +350,10 @@
 						</button>
 					</th>
 
+					<th scope="col" class="font-normal select-none px-2.5 py-1.5">
+						<span class="flex items-center gap-1.5">Company</span>
+					</th>
+
 					<th scope="col" class="font-normal select-none" aria-sort={sortState('last_active_at')}>
 						<button
 							type="button"
@@ -449,6 +453,10 @@
 							</button>
 						</td>
 						<td class=" px-3 py-1 max-w-48 truncate"> {user.email} </td>
+
+						<td class=" px-3 py-1 max-w-40 truncate text-gray-500 dark:text-gray-400">
+							{user.info?.company_name ?? '—'}
+						</td>
 
 						<td class=" px-3 py-1">
 							{dayjs(user.last_active_at * 1000).fromNow()}
