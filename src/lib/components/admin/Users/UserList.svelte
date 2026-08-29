@@ -450,6 +450,9 @@
 								}}
 							>
 								{$i18n.t(user.role)}
+								{#if vesqorUsers[user.email?.toLowerCase()]?.vipAccess}
+									<span class="normal-case text-[10px] font-semibold text-amber-500 dark:text-amber-400"> (VIP)</span>
+								{/if}
 							</button>
 						</td>
 						<td class=" px-3 py-1 max-w-48 truncate"> {user.email} </td>
