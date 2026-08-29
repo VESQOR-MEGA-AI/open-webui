@@ -563,24 +563,7 @@
 												</div>
 											{:else}
 												{#if mode === 'signin'}
-													<div class="mt-4 flex justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-														<button
-															class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
-															type="button"
-															on:click={() => enterMode('forgot-password')}
-														>
-															{$i18n.t('Forgot password?')}
-														</button>
-														<button
-															class="font-normal underline hover:text-gray-700 dark:hover:text-gray-200 transition"
-															type="button"
-															on:click={() => enterMode('forgot-username')}
-														>
-															{$i18n.t('Forgot username?')}
-														</button>
-													</div>
-												{/if}
-												{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
+													{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
 													<div class=" mt-4 text-sm text-center">
 														{mode === 'signin'
 															? $i18n.t("Don't have an account?")
