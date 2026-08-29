@@ -201,6 +201,12 @@
 	bind:show={showEditUserModal}
 	{selectedUser}
 	sessionUser={$user}
+	{vesqorUsers}
+	on:vipToggle={() => {
+		// The modal already mutated the shared entry object (same reference);
+		// just trigger reactivity so the table column re-renders.
+		vesqorUsers = vesqorUsers;
+	}}
 	on:save={async () => {
 		getUserList();
 	}}
