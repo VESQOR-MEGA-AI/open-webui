@@ -305,7 +305,7 @@
 	"Attach Webpage": "",
 	"Attention to detail": "تەپسىلاتقا دىققەت",
 	"Attribute for Mail": "ئېلىخەت خاسلىقى",
-	"Attribute for Username": "ئىشلەتكۈچى ئىسمى\u00a0 خاسلىقى",
+	"Attribute for Username": "ئىشلەتكۈچى ئىسمى  خاسلىقى",
 	"Audio": "ئاۋاز",
 	"August": "ئاۋغۇست",
 	"Auth": "تەستىقلاش",
@@ -3089,5 +3089,7 @@
 	"Youtube Language": "Youtube تىلى",
 	"Youtube Proxy URL": "Youtube ۋاكالەتچى URL",
 	"Zoom in": "",
-	"Zoom out": ""
+	"Zoom out": "",
+	"VESQOR Backgrounds": "VESQOR Backgrounds",
+	"Choose a preset background for the chat.": "Choose a preset background for the chat."
 }

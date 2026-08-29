@@ -3147,5 +3147,7 @@
 	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "Ми надіслали посилання для підтвердження на {{email}}. Перейдіть за ним, щоб активувати обліковий запис, потім увійдіть.",
 	"Reset password": "Скинути пароль",
 	"Password reset. You can now sign in.": "Пароль змінено. Тепер ви можете увійти.",
-	"Invalid or expired reset link. Please request a new one.": "Посилання недійсне або застаріле. Запросіть нове."
+	"Invalid or expired reset link. Please request a new one.": "Посилання недійсне або застаріле. Запросіть нове.",
+	"VESQOR Backgrounds": "Фони VESQOR",
+	"Choose a preset background for the chat.": "Оберіть готовий фон для чату."
 }

@@ -3091,5 +3091,7 @@
 	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "我们已将验证链接发送至 {{email}}。点击链接激活账户后即可登录。",
 	"Reset password": "重置密码",
 	"Password reset. You can now sign in.": "密码已重置，您现在可以登录了。",
-	"Invalid or expired reset link. Please request a new one.": "重置链接无效或已过期，请重新申请。"
+	"Invalid or expired reset link. Please request a new one.": "重置链接无效或已过期，请重新申请。",
+	"VESQOR Backgrounds": "VESQOR 背景",
+	"Choose a preset background for the chat.": "为聊天选择预设背景。"
 }

@@ -2390,7 +2390,7 @@
 	"Secrets": "",
 	"See readme.md for instructions": "निर्देशों के लिए readme.md देखें",
 	"See what's new": "देखें, क्या नया है",
-	"Seed": "सीड्\u200c",
+	"Seed": "सीड्‌",
 	"Select": "",
 	"Select {{modelName}} model": "",
 	"Select a .py file": "",
@@ -3089,5 +3089,7 @@
 	"Youtube Language": "",
 	"Youtube Proxy URL": "",
 	"Zoom in": "",
-	"Zoom out": ""
+	"Zoom out": "",
+	"VESQOR Backgrounds": "VESQOR पृष्ठभूमियाँ",
+	"Choose a preset background for the chat.": "चैट के लिए एक पहले से तैयार पृष्ठभूमि चुनें।"
 }

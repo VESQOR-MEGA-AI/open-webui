@@ -3121,5 +3121,7 @@
 	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "",
 	"Reset password": "",
 	"Password reset. You can now sign in.": "",
-	"Invalid or expired reset link. Please request a new one.": ""
+	"Invalid or expired reset link. Please request a new one.": "",
+	"VESQOR Backgrounds": "VESQOR Backgrounds",
+	"Choose a preset background for the chat.": "Choose a preset background for the chat."
 }

@@ -26,6 +26,18 @@
 	let inputFiles: FileList | null = null;
 	let filesInputElement: HTMLInputElement | null = null;
 
+	const vesqorBackgrounds = [
+		'emerald_digital_network_vortex',
+		'emerald_particle_wave_in_deep_space',
+		'ethereal_teal_aurora_waves',
+		'futuristic_glass_interface_architecture',
+		'glassy_teal_waves_in_a_minimal_future'
+	].map((name) => ({
+		name,
+		thumb: `/static/backgrounds/thumbs/${name}.webp`,
+		full: `/static/backgrounds/full/${name}.webp`
+	}));
+
 	// Addons
 	let titleAutoGenerate = true;
 	let autoFollowUps = true;
@@ -721,6 +733,54 @@
 		</div>
 		<p class={settingDescriptionClass}>
 			{$i18n.t('Choose whether the app opens to the default home or chat view.')}
+		</p>
+	</div>
+
+	<div>
+		<div class={settingRowClass}>
+			<div id="vesqor-backgrounds-label" class={settingLabelClass}>
+				{$i18n.t('VESQOR Backgrounds')}
+			</div>
+
+			<div class="flex shrink-0 items-center gap-1.5">
+				{#each vesqorBackgrounds as bg (bg.name)}
+					<button
+						aria-labelledby="vesqor-backgrounds-label"
+						aria-label={bg.name}
+						class="shrink-0 overflow-hidden rounded-lg ring-offset-1 ring-offset-white transition dark:ring-offset-gray-900 {backgroundImageUrl ===
+						bg.full
+							? 'ring-2 ring-black dark:ring-white'
+							: 'ring-1 ring-gray-200 hover:ring-gray-400 dark:ring-gray-700 dark:hover:ring-gray-500'}"
+						on:click={() => {
+							backgroundImageUrl = backgroundImageUrl === bg.full ? null : bg.full;
+							saveSettings({ backgroundImageUrl });
+						}}
+						type="button"
+					>
+						<img
+							src={bg.thumb}
+							alt={bg.name}
+							class="h-10 w-16 object-cover"
+							draggable="false"
+						/>
+					</button>
+				{/each}
+
+				<button
+					aria-labelledby="vesqor-backgrounds-label"
+					class={actionButtonClass}
+					on:click={() => {
+						backgroundImageUrl = null;
+						saveSettings({ backgroundImageUrl });
+					}}
+					type="button"
+				>
+					{$i18n.t('None')}
+				</button>
+			</div>
+		</div>
+		<p class={settingDescriptionClass}>
+			{$i18n.t('Choose a preset background for the chat.')}
 		</p>
 	</div>
 

@@ -3121,5 +3121,7 @@
 	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "Abbiamo inviato un link di verifica a {{email}}. Cliccalo per attivare il tuo account, poi accedi.",
 	"Reset password": "Reimposta password",
 	"Password reset. You can now sign in.": "Password reimpostata. Ora puoi accedere.",
-	"Invalid or expired reset link. Please request a new one.": "Link non valido o scaduto. Richiedine uno nuovo."
+	"Invalid or expired reset link. Please request a new one.": "Link non valido o scaduto. Richiedine uno nuovo.",
+	"VESQOR Backgrounds": "Sfondi VESQOR",
+	"Choose a preset background for the chat.": "Scegli uno sfondo preimpostato per la chat."
 }
