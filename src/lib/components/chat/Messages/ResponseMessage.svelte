@@ -214,6 +214,38 @@
 		getOutputText(message.output) || removeAllDetails(message.content ?? '');
 	$: hasResponseContent = Boolean((message.content ?? '').trim() || message.output?.length);
 
+	// VESQOR: live elapsed-time counter while the brain composes the report
+	// (SSE is buffered until the first streamed token — otherwise the screen
+	// looks frozen for 10-180s). Ticks every second, resets when streaming starts.
+	export let thinkingElapsed = 0;
+	let thinkingInterval = null;
+
+	const formatThinkingTime = (s) => {
+		if (s < 60) return `${s}s`;
+		const m = Math.floor(s / 60);
+		const sec = s % 60;
+		return `${m}m ${sec}s`;
+	};
+
+	const stopThinkingTimer = () => {
+		if (thinkingInterval) {
+			clearInterval(thinkingInterval);
+			thinkingInterval = null;
+		}
+		thinkingElapsed = 0;
+	};
+
+	$: if (!message.done && !message.error && !hasResponseContent && !hasVisibleStatus) {
+		if (!thinkingInterval) {
+			thinkingElapsed = 0;
+			thinkingInterval = setInterval(() => {
+				thinkingElapsed += 1;
+			}, 1000);
+		}
+	} else if (thinkingInterval) {
+		stopThinkingTimer();
+	}
+
 	let edit = false;
 	let editedContent = '';
 	let editedOutput: any[] | null = null;
@@ -666,6 +698,11 @@
 		if (contentContainerElement) {
 			contentContainerElement.removeEventListener('copy', contentCopyHandler);
 		}
+
+		if (thinkingInterval) {
+			clearInterval(thinkingInterval);
+			thinkingInterval = null;
+		}
 	});
 </script>
 
@@ -916,19 +953,22 @@
 										></span>
 									</div>
 								{:else if !hasVisibleStatus}
-									<!-- VESQOR: brain is composing the report — nothing streamed yet, show a progress indicator -->
-									<div class="vesqor-thinking">
-										<span class="vesqor-thinking-label">
-											<span class="vesqor-thinking-dots"><span></span><span></span><span></span></span>
-											{model?.info?.meta?.effortTier ?? model?.name ?? message.model}
-											{' '}
-											{$i18n.t('Thinking...') || 'Thinking...'}
-										</span>
-										<div class="vesqor-thinking-bar">
-											<div class="vesqor-thinking-bar-fill"></div>
+										<!-- VESQOR: brain is composing the report — nothing streamed yet, show a progress indicator -->
+										<div class="vesqor-thinking">
+											<span class="vesqor-thinking-label">
+												<span class="vesqor-thinking-dots"><span></span><span></span><span></span></span>
+												{model?.info?.meta?.effortTier ?? model?.name ?? message.model}
+												{' '}
+												{$i18n.t('Thinking...') || 'Thinking...'}
+												{#if thinkingElapsed >= 1}
+													<span class="vesqor-thinking-timer">{formatThinkingTime(thinkingElapsed)}</span>
+												{/if}
+											</span>
+											<div class="vesqor-thinking-bar">
+												<div class="vesqor-thinking-bar-fill"></div>
+											</div>
 										</div>
-									</div>
-								{/if}
+									{/if}
 							{/if}
 
 							{#if message?.error}
@@ -1693,6 +1733,29 @@
 		font-size: 0.9375rem;
 		line-height: 1.4;
 		color: #9aa8b5;
+	}
+
+	.vesqor-thinking-timer {
+		font-variant-numeric: tabular-nums;
+		font-size: 0.8125rem;
+		color: #54e88b;
+		background: rgba(84, 232, 139, 0.1);
+		border: 1px solid rgba(84, 232, 139, 0.22);
+		border-radius: 9999px;
+		padding: 0.05rem 0.5rem;
+		line-height: 1.5;
+		animation: vesqorTimerFade 0.25s ease;
+	}
+
+	@keyframes vesqorTimerFade {
+		from {
+			opacity: 0;
+			transform: scale(0.92);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
 	}
 
 	.vesqor-thinking-dots {
