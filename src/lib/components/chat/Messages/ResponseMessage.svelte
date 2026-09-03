@@ -907,12 +907,28 @@
 								/>
 							{/if}
 
-							{#if !message.done && !message.error && (hasResponseContent || !hasVisibleStatus)}
-								<div class="text-[0.9375rem] leading-relaxed">
-									<span
-										class="inline-block w-[0.125rem] h-3.5 bg-gray-400 dark:bg-gray-500 ml-0.5 animate-pulse align-text-bottom"
-									></span>
-								</div>
+							{#if !message.done && !message.error}
+								{#if hasResponseContent}
+									<!-- Streaming: content is arriving, keep the thin blinking cursor -->
+									<div class="text-[0.9375rem] leading-relaxed">
+										<span
+											class="inline-block w-[0.125rem] h-3.5 bg-gray-400 dark:bg-gray-500 ml-0.5 animate-pulse align-text-bottom"
+										></span>
+									</div>
+								{:else if !hasVisibleStatus}
+									<!-- VESQOR: brain is composing the report — nothing streamed yet, show a progress indicator -->
+									<div class="vesqor-thinking">
+										<span class="vesqor-thinking-label">
+											<span class="vesqor-thinking-dots"><span></span><span></span><span></span></span>
+											{model?.info?.meta?.effortTier ?? model?.name ?? message.model}
+											{' '}
+											{$i18n.t('Thinking...') || 'Thinking...'}
+										</span>
+										<div class="vesqor-thinking-bar">
+											<div class="vesqor-thinking-bar-fill"></div>
+										</div>
+									</div>
+								{/if}
 							{/if}
 
 							{#if message?.error}
@@ -1656,5 +1672,89 @@
 	.buttons {
 		-ms-overflow-style: none; /* IE and Edge */
 		scrollbar-width: none; /* Firefox */
+	}
+
+	/* ========================= VESQOR THINKING INDICATOR ========================= */
+	/* Shown while the brain composes the report but has not streamed any token
+	   yet (SSE is buffered until the JSON envelope opens). The pulsing dots +
+	   progress bar give the user a live signal instead of a bare blinking cursor. */
+	.vesqor-thinking {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.375rem 0;
+		user-select: none;
+	}
+
+	.vesqor-thinking-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.9375rem;
+		line-height: 1.4;
+		color: #9aa8b5;
+	}
+
+	.vesqor-thinking-dots {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.28rem;
+	}
+
+	.vesqor-thinking-dots span {
+		width: 0.42rem;
+		height: 0.42rem;
+		border-radius: 9999px;
+		background: #54e88b;
+		animation: vesqorDotPulse 1.2s ease-in-out infinite;
+	}
+
+	.vesqor-thinking-dots span:nth-child(2) {
+		animation-delay: 0.18s;
+	}
+
+	.vesqor-thinking-dots span:nth-child(3) {
+		animation-delay: 0.36s;
+	}
+
+	@keyframes vesqorDotPulse {
+		0%,
+		100% {
+			opacity: 0.25;
+			transform: translateY(0);
+		}
+		50% {
+			opacity: 1;
+			transform: translateY(-0.14rem);
+		}
+	}
+
+	.vesqor-thinking-bar {
+		width: 100%;
+		max-width: 26rem;
+		height: 0.24rem;
+		border-radius: 9999px;
+		background: rgba(84, 232, 139, 0.12);
+		overflow: hidden;
+		position: relative;
+	}
+
+	.vesqor-thinking-bar-fill {
+		position: absolute;
+		inset: 0;
+		border-radius: 9999px;
+		background: linear-gradient(90deg, #26bd78, #54e88b, #26bd78);
+		background-size: 200% 100%;
+		animation: vesqorBarSlide 1.6s linear infinite;
+		transform: translateX(-100%);
+	}
+
+	@keyframes vesqorBarSlide {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(100%);
+		}
 	}
 </style>
