@@ -1765,10 +1765,12 @@
 	}
 
 	.vesqor-thinking-dots span {
-		width: 0.42rem;
-		height: 0.42rem;
+		width: 0.9rem;
+		height: 0.9rem;
 		border-radius: 9999px;
-		background: #54e88b;
+		background: url('/static/vesqor-matrix-bubble.webp') center / cover no-repeat;
+		border: 1px solid rgba(84, 232, 139, 0.35);
+		box-shadow: 0 0 0.45rem rgba(84, 232, 139, 0.25);
 		animation: vesqorDotPulse 1.2s ease-in-out infinite;
 	}
 
