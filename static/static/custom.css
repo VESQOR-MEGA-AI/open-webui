@@ -17,19 +17,19 @@
 }
 
 /* ========================= MAIN BACKGROUND ========================= */
-/* The gradient lives on html ONLY (canvas). Body stays transparent so the
-   fixed ::before/::after decorations (negative z-index) paint ABOVE the
-   gradient but BELOW content — body's own background would cover them. */
+/* VESQOR Matrix digital-rain background (2026-09-03, owner: replace old
+   emerald gradient with the Matrix-style VESQOR/AI/TRYON rain image).
+   Dark overlay above the image keeps the chat readable; gradient layers
+   below it act as a fallback while the image loads. */
 html {
 	min-height: 100%;
-	background: radial-gradient(
-			circle at 85% 12%,
-			rgba(14, 129, 115, 0.38),
-			transparent 34%
-		),
-		radial-gradient(circle at 12% 90%, rgba(38, 189, 120, 0.18), transparent 32%),
-		linear-gradient(135deg, #01101d 0%, #04202e 42%, #04352f 100%) !important;
-	background-attachment: fixed;
+	background-image: linear-gradient(rgba(2, 9, 20, 0.82), rgba(2, 9, 20, 0.82)),
+		url('/static/backgrounds/full/matrix_digital_rain.webp');
+	background-size: auto, cover;
+	background-position: center, center;
+	background-repeat: repeat, no-repeat;
+	background-attachment: fixed, fixed;
+	background-color: #020914;
 	color: var(--vesqor-text);
 }
 

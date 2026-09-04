@@ -27,11 +27,7 @@
 	let filesInputElement: HTMLInputElement | null = null;
 
 	const vesqorBackgrounds = [
-		'emerald_digital_network_vortex',
-		'emerald_particle_wave_in_deep_space',
-		'ethereal_teal_aurora_waves',
-		'futuristic_glass_interface_architecture',
-		'glassy_teal_waves_in_a_minimal_future'
+		'matrix_digital_rain'
 	].map((name) => ({
 		name,
 		thumb: `/static/backgrounds/thumbs/${name}.webp`,
