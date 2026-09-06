@@ -40,7 +40,9 @@
 				var id = 'G-NRF1DRN448';
 				if (!id) return;
 				window.dataLayer = window.dataLayer || [];
-				function gtag() { dataLayer.push(arguments); }
+				function gtag() {
+					dataLayer.push(arguments);
+				}
 				gtag('js', new Date());
 				gtag('config', id, { send_page_view: true });
 				var s = document.createElement('script');
