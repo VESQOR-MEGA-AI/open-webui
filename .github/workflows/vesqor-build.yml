@@ -44,3 +44,20 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy -a vesqor-chat --remote-only
+
+  deploy-gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout vesqor-core
+        uses: actions/checkout@v4
+        with:
+          repository: VESQOR-MEGA-AI/vesqor-core
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy gateway
+        working-directory: apps/vesqor-m365-gateway
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --strategy rolling
