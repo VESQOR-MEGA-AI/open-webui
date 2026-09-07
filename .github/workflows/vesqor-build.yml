@@ -61,3 +61,20 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy --remote-only --strategy rolling
+
+  deploy-brain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout vesqor-core
+        uses: actions/checkout@v4
+        with:
+          repository: VESQOR-MEGA-AI/vesqor-core
+          ref: main
+          token: ${{ secrets.VESQOR_CORE_PAT }}
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy brain
+        working-directory: apps/vesqor-mega-ai
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy -a vesqor-brain --remote-only --strategy rolling
