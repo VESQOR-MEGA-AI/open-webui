@@ -77,10 +77,14 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           NOTIFY_SECRET: ${{ secrets.M365_GATEWAY_NOTIFY_SECRET }}
+          TG_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           flyctl secrets set \
             M365_GATEWAY_NOTIFY_URL=https://vesqor-m365-gateway.fly.dev/api/notify \
             M365_GATEWAY_NOTIFY_SECRET="$NOTIFY_SECRET" \
+            TELEGRAM_BOT_TOKEN="$TG_BOT_TOKEN" \
+            TELEGRAM_CHAT_ID="$TG_CHAT_ID" \
             -a vesqor-brain
 
       - name: Deploy brain
