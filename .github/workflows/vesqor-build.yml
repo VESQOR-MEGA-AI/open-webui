@@ -73,6 +73,16 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Set brain notify env secrets
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          NOTIFY_SECRET: ${{ secrets.M365_GATEWAY_NOTIFY_SECRET }}
+        run: |
+          flyctl secrets set \
+            M365_GATEWAY_NOTIFY_URL=https://vesqor-m365-gateway.fly.dev/api/notify \
+            M365_GATEWAY_NOTIFY_SECRET="$NOTIFY_SECRET" \
+            -a vesqor-brain
+
       - name: Deploy brain
         working-directory: apps/vesqor-mega-ai
         env:
