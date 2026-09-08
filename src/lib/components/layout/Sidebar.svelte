@@ -83,6 +83,7 @@
 	import CodeIcon from './Sidebar/icons/Code.svelte';
 	import EditPencilIcon from './Sidebar/icons/EditPencil.svelte';
 	import LibraryIcon from './Sidebar/icons/Folder.svelte';
+	import LegalIcon from './Sidebar/icons/Legal.svelte';
 	import NotesIcon from './Sidebar/icons/Notes.svelte';
 	import SearchIcon from './Sidebar/icons/Search.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
@@ -95,7 +96,7 @@
 	import MoreHorizontalIcon from './Sidebar/icons/MoreHorizontal.svelte';
 
 	const BREAKPOINT = 768;
-	const DEFAULT_PINNED_ITEMS = ['notes', 'workspace'];
+	const DEFAULT_PINNED_ITEMS = ['notes', 'workspace', 'legal'];
 
 	let scrollTop = 0;
 
@@ -176,6 +177,8 @@
 				);
 			case 'playground':
 				return $user?.role === 'admin';
+			case 'legal':
+				return true;
 			default:
 				return false;
 		}
@@ -187,7 +190,8 @@
 			workspace: { label: 'Workspace', href: '/workspace', iconType: 'workspace' },
 			automations: { label: 'Automations', href: '/automations', iconType: 'automations' },
 			calendar: { label: 'Calendar', href: '/calendar', iconType: 'calendar' },
-			playground: { label: 'Playground', href: '/playground', iconType: 'playground' }
+			playground: { label: 'Playground', href: '/playground', iconType: 'playground' },
+			legal: { label: 'Legal', href: '/legal', iconType: 'legal' }
 		};
 		return items[id];
 	};
@@ -198,7 +202,8 @@
 		calendar: '/calendar',
 		automations: '/automations',
 		playground: '/playground',
-		library: '/library'
+		library: '/library',
+		legal: '/legal'
 	};
 
 	const getActiveMenuItemId = (pathname) => {
@@ -1079,6 +1084,8 @@
 											<CalendarIcon className="size-5" strokeWidth="1.5" />
 										{:else if itemId === 'playground'}
 											<CodeIcon className="size-5" strokeWidth="1.5" />
+										{:else if itemId === 'legal'}
+											<LegalIcon className="size-5" strokeWidth="1.5" />
 										{/if}
 									</div>
 								</a>
@@ -1318,6 +1325,8 @@
 												<CalendarIcon className="size-5" strokeWidth="1.5" />
 											{:else if itemId === 'playground'}
 												<CodeIcon className="size-5" strokeWidth="1.5" />
+											{:else if itemId === 'legal'}
+												<LegalIcon className="size-5" strokeWidth="1.5" />
 											{/if}
 										</div>
 
