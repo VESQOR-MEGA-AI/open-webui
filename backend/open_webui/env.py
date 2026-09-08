@@ -768,6 +768,13 @@ VERIFY_EMAIL_URL = os.getenv('VERIFY_EMAIL_URL', '')  # public base, e.g. https:
 VESQOR_SERVICE_TOKEN = os.environ.get('VESQOR_SERVICE_TOKEN', '')
 VESQOR_API_BASE_URL = os.environ.get('VESQOR_API_BASE_URL', 'https://api.vesqorai.com')
 
+# ── VESQOR: Legal & Enterprise Documents department ────────────────────
+# When false (default), the /api/v1/legal/* proxy routes are disabled on the
+# chat side (they return 404) and the /legal UI entry is hidden. The brain
+# applies its own LEGAL_DEPARTMENT_ENABLED flag independently; keeping the
+# flag here lets us shut the department off without a redeploy of the chat.
+LEGAL_DEPARTMENT_ENABLED = os.getenv('LEGAL_DEPARTMENT_ENABLED', 'False').lower() == 'true'
+
 WEBUI_AUTH_TRUSTED_EMAIL_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_EMAIL_HEADER', None)
 WEBUI_AUTH_TRUSTED_NAME_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_NAME_HEADER', None)
 WEBUI_AUTH_TRUSTED_GROUPS_HEADER = os.getenv('WEBUI_AUTH_TRUSTED_GROUPS_HEADER', None)
