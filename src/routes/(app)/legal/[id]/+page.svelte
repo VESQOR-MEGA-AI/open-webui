@@ -10,6 +10,6 @@
 		: ''} max-w-full"
 >
 	<div class="flex-1 max-h-full overflow-y-auto">
-		<LegalDocumentDetail id={$page.params.id} />
+		<LegalDocumentDetail id={$page.params.id ?? ''} />
 	</div>
 </div>
