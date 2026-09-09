@@ -52,6 +52,20 @@ body {
 	background-attachment: scroll, scroll;
 	animation: ambient-shift 34s ease-in-out infinite alternate;
 }
+
+/* Mobile: the original matrix webp is very dark (mean RGB ~[10,22,37]) and
+   reads as pure black on phone screens. Use the brightened variant. */
+@media (max-width: 768px) {
+	.ambient-bg {
+		background-image: linear-gradient(rgba(2, 9, 20, 0.25), rgba(2, 9, 20, 0.25)),
+			url('/static/vesqor-matrix-bright.webp');
+	}
+	.ambient-orb--a,
+	.ambient-orb--b,
+	.ambient-orb--c {
+		background-image: url('/static/vesqor-matrix-rain-bright.webp');
+	}
+}
 @keyframes ambient-shift {
 	0%   { background-position: 0% 0%, center; }
 	100% { background-position: 100% 100%, center; }
