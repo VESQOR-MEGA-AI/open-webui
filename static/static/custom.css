@@ -41,7 +41,7 @@ body::before {
 	inset: 0;
 	z-index: -1;
 	pointer-events: none;
-	background-image: linear-gradient(rgba(2, 9, 20, 0.72), rgba(2, 9, 20, 0.72)),
+	background-image: linear-gradient(rgba(2, 9, 20, 0.45), rgba(2, 9, 20, 0.45)),
 		url('/static/vesqor-matrix.webp');
 	background-size: auto, cover;
 	background-position: center, center;
