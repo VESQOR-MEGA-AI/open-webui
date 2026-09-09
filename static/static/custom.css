@@ -1,87 +1,73 @@
 /* =========================================================
-   VESQOR DARK AI THEME — Open WebUI Navy / Black / Emerald
-   Default skin for VESQOR MEGA AI (chat.vesqorai.com).
+   VESQOR MEGA AI CHAT THEME — Matrix + Matte Glass
+   chat.vesqorai.com — matches vesqorai.com landing design:
+   dark matrix digital-rain background + matte glass cards.
    Loaded via app.html <link rel="stylesheet" href="/static/custom.css">.
    ========================================================= */
 :root {
 	--vesqor-bg: #020914;
 	--vesqor-bg-2: #031522;
-	--vesqor-panel: rgba(5, 18, 30, 0.78);
-	--vesqor-panel-strong: rgba(3, 12, 22, 0.94);
+	--vesqor-panel: rgba(8, 22, 15, 0.97);
+	--vesqor-panel-strong: rgba(3, 12, 22, 0.97);
 	--vesqor-green: #54e88b;
 	--vesqor-green-soft: #26bd78;
 	--vesqor-teal: #0e8173;
 	--vesqor-text: #f5f7f9;
 	--vesqor-muted: #9aa8b5;
-	--vesqor-border: rgba(84, 232, 139, 0.14);
+	--vesqor-border: rgba(126, 240, 176, 0.16);
 }
 
-/* ========================= MAIN BACKGROUND ========================= */
-/* The gradient lives on html ONLY (canvas). Body stays transparent so the
-   fixed ::before/::after decorations (negative z-index) paint ABOVE the
-   gradient but BELOW content — body's own background would cover them. */
+/* ========================= MAIN BACKGROUND — MATRIX ========================= */
+/* The matrix image + dark overlay lives on html ONLY (canvas). Body stays
+   transparent so the fixed decorations paint above the gradient but below
+   content. Same treatment as vesqorai.com landing (ambient-bg). */
 html {
 	min-height: 100%;
-	background: radial-gradient(
-			circle at 85% 12%,
-			rgba(14, 129, 115, 0.24),
-			transparent 34%
-		),
-		radial-gradient(circle at 12% 90%, rgba(38, 189, 120, 0.1), transparent 32%),
-		linear-gradient(135deg, #010713 0%, #03111d 42%, #03201e 100%) !important;
-	background-attachment: fixed;
+	background-image: linear-gradient(rgba(2, 9, 20, 0.82), rgba(2, 9, 20, 0.82)),
+		url('/static/vesqor-matrix.webp');
+	background-size: auto, cover;
+	background-position: center, center;
+	background-repeat: repeat, no-repeat;
+	background-attachment: fixed, fixed;
 	color: var(--vesqor-text);
 }
 
 body {
 	min-height: 100%;
 	/* !important: app.css (.dark body) sets an opaque #171717 AFTER this
-	   stylesheet loads — without it the skin gradient on html is hidden. */
+	   stylesheet loads — without it the matrix on html is hidden. */
 	background: transparent !important;
 	color: var(--vesqor-text);
 }
 
-/* ========================= AI NETWORK / DOT PATTERN ========================= */
-/* Negative z-index: above the html/body bg gradient, below in-flow content. */
-body::before {
-	content: '';
-	position: fixed;
-	inset: 0;
-	z-index: -2;
-	pointer-events: none;
-	background-image: radial-gradient(circle, rgba(84, 232, 139, 0.22) 1px, transparent 1.5px),
-		linear-gradient(
-			115deg,
-			transparent 48%,
-			rgba(84, 232, 139, 0.025) 49%,
-			rgba(84, 232, 139, 0.025) 50%,
-			transparent 51%
-		),
-		radial-gradient(circle at 25% 100%, rgba(45, 212, 136, 0.11), transparent 68%);
-	background-size: 32px 32px, 210px 210px, 480px 480px;
-	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.15));
-	opacity: 0.55;
+/* ========================= MATTE GLASS CARDS ========================= */
+/* Same matte language as vesqorai.com .vesqor-glass-dark:
+   rgba(8,22,15,0.97) + blur(14px) — predominantly opaque, matrix barely
+   shows through, strong text contrast. */
+[role='dialog'],
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl,
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-gray-800,
+.bg-gray-900,
+.bg-black\/50,
+.bg-black\/60,
+.bg-black\/70,
+.bg-black\/80,
+.bg-black\/90 {
+	background-color: var(--vesqor-panel) !important;
+	-webkit-backdrop-filter: blur(14px) saturate(1.2);
+	backdrop-filter: blur(14px) saturate(1.2);
+	border: 1px solid var(--vesqor-border) !important;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
 }
 
-/* ========================= LARGE DIGITAL GLOBE EFFECT ========================= */
-body::after {
-	content: '';
-	position: fixed;
-	width: 720px;
-	height: 720px;
-	right: -260px;
-	top: -230px;
-	border-radius: 50%;
-	pointer-events: none;
-	z-index: -1;
-	background: radial-gradient(circle, rgba(84, 232, 139, 0.13) 1.2px, transparent 1.8px);
-	background-size: 18px 18px;
-	box-shadow: 0 0 130px rgba(22, 180, 125, 0.08);
-	opacity: 0.65;
-}
 /* ========================= AUTH PAGE ========================= */
 /* The auth route pins a solid bg-white/dark:bg-black overlay under the form;
-   let the navy gradient show through instead. */
+   let the matrix show through instead. */
 #auth-page > div.w-full.h-full.absolute {
 	background: transparent !important;
 }
@@ -95,7 +81,7 @@ main {
 /* ========================= SIDEBAR / NAVIGATION ========================= */
 aside,
 nav {
-	background: linear-gradient(180deg, rgba(3, 12, 22, 0.96), rgba(3, 17, 26, 0.88)) !important;
+	background: linear-gradient(180deg, rgba(3, 12, 22, 0.97), rgba(3, 17, 26, 0.94)) !important;
 	border-right: 1px solid var(--vesqor-border) !important;
 	backdrop-filter: blur(18px);
 }
@@ -108,15 +94,7 @@ main > div {
 /* User / AI message containers */
 [class*='message'],
 [class*='chat'] {
-	border-color: rgba(84, 232, 139, 0.08);
-}
-
-/* ========================= CARDS / MODALS / PANELS ========================= */
-[role='dialog'],
-.rounded-xl,
-.rounded-2xl,
-.rounded-3xl {
-	border-color: var(--vesqor-border);
+	border-color: rgba(126, 240, 176, 0.1);
 }
 
 /* ========================= INPUT / PROMPT BOX ========================= */
@@ -125,17 +103,17 @@ input[type='text'],
 input[type='email'],
 input[type='password'],
 input[type='search'] {
-	background: rgba(7, 21, 32, 0.88) !important;
+	background: rgba(8, 22, 15, 0.97) !important;
 	color: var(--vesqor-text) !important;
-	border: 1px solid rgba(84, 232, 139, 0.18) !important;
+	border: 1px solid rgba(126, 240, 176, 0.18) !important;
 	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22), 0 0 22px rgba(37, 190, 122, 0.035);
-	backdrop-filter: blur(18px);
+	backdrop-filter: blur(14px);
 }
 
 textarea:focus,
 input:focus {
-	border-color: rgba(84, 232, 139, 0.48) !important;
-	box-shadow: 0 0 0 1px rgba(84, 232, 139, 0.16), 0 0 28px rgba(38, 189, 120, 0.08) !important;
+	border-color: rgba(126, 240, 176, 0.48) !important;
+	box-shadow: 0 0 0 1px rgba(126, 240, 176, 0.16), 0 0 28px rgba(38, 189, 120, 0.08) !important;
 	outline: none !important;
 }
 
@@ -149,7 +127,7 @@ button {
 }
 
 button:hover {
-	border-color: rgba(84, 232, 139, 0.28);
+	border-color: rgba(126, 240, 176, 0.28);
 	box-shadow: 0 0 16px rgba(38, 189, 120, 0.06);
 }
 
@@ -208,20 +186,4 @@ a {
 
 a:hover {
 	color: var(--vesqor-green) !important;
-}
-
-/* ========================= VESQOR GLOW ACCENT ========================= */
-/* The app uses divs (no <main>), so the glow layer lives on body::before
-   (third background layer) instead. Kept as a no-op guard for any <main>. */
-main::before {
-	content: '';
-	position: fixed;
-	width: 480px;
-	height: 480px;
-	left: 25%;
-	bottom: -300px;
-	border-radius: 50%;
-	background: radial-gradient(circle, rgba(45, 212, 136, 0.11), transparent 68%);
-	pointer-events: none;
-	z-index: -1;
 }
