@@ -17,10 +17,9 @@
 	--vesqor-border: rgba(126, 240, 176, 0.16);
 }
 
-/* ========================= MAIN BACKGROUND — MATRIX ========================= */
-/* html = dark canvas. The matrix image lives on body::before (fixed layer,
-   z-index -1) so it paints ABOVE the dark html background but BELOW content —
-   same visual result as the landing's .ambient-bg fixed div. */
+/* ========================= LIVING BACKGROUND — MATRIX + ORBS ========================= */
+/* Same as vesqorai.com landing: fixed matrix rain layer + 3 drifting orbs
+   (bubbles) + rising particles. DOM injected in app.html. */
 html {
 	min-height: 100%;
 	background-color: #020914;
@@ -35,16 +34,142 @@ body {
 	color: var(--vesqor-text);
 }
 
-body::before {
-	content: '';
+.ambient-bg {
 	position: fixed;
 	inset: 0;
-	z-index: -1;
+	z-index: 0;
+	overflow: hidden;
 	pointer-events: none;
-	background-image: url('/static/vesqor-matrix.webp');
-	background-size: cover;
-	background-position: center;
-	background-repeat: no-repeat;
+	-webkit-transform: translateZ(0);
+	transform: translateZ(0);
+	background-image: linear-gradient(rgba(2, 9, 20, 0.82), rgba(2, 9, 20, 0.82)),
+		url('/static/vesqor-matrix.webp');
+	background-size: auto, cover;
+	background-position: center, center;
+	background-repeat: repeat, no-repeat;
+	background-attachment: fixed, fixed;
+	animation: ambient-shift 34s ease-in-out infinite alternate;
+}
+@keyframes ambient-shift {
+	0%   { background-position: 0% 0%, center; }
+	100% { background-position: 100% 100%, center; }
+}
+
+.ambient-orb {
+	position: absolute;
+	border-radius: 50%;
+	-webkit-mask-image: radial-gradient(circle, #000 62%, transparent 88%);
+	mask-image: radial-gradient(circle, #000 62%, transparent 88%);
+	border: 1.5px solid rgba(84, 232, 139, 0.45);
+	box-shadow: 0 0 70px rgba(57, 181, 74, 0.35), inset 0 0 40px rgba(2, 9, 20, 0.25);
+	opacity: 0.85;
+}
+.ambient-orb--a {
+	width: 46vw;
+	height: 46vw;
+	min-width: 420px;
+	min-height: 420px;
+	top: -8%;
+	left: -6%;
+	background: url('/static/vesqor-matrix-rain.webp') center / cover no-repeat;
+	animation: drift-a 14s ease-in-out infinite alternate;
+}
+.ambient-orb--b {
+	width: 40vw;
+	height: 40vw;
+	min-width: 380px;
+	min-height: 380px;
+	bottom: -10%;
+	right: -6%;
+	background: url('/static/vesqor-matrix-rain.webp') center / cover no-repeat;
+	animation: drift-b 18s ease-in-out infinite alternate;
+}
+.ambient-orb--c {
+	width: 30vw;
+	height: 30vw;
+	min-width: 300px;
+	min-height: 300px;
+	top: 30%;
+	left: 40%;
+	background: url('/static/vesqor-matrix-rain.webp') center / cover no-repeat;
+	animation: drift-c 22s ease-in-out infinite alternate;
+}
+
+@keyframes drift-a {
+	0%   { transform: translate3d(0, 0, 0) scale(1); }
+	50%  { transform: translate3d(10vw, 8vh, 0) scale(1.15); }
+	100% { transform: translate3d(-5vw, 12vh, 0) scale(0.92); }
+}
+@keyframes drift-b {
+	0%   { transform: translate3d(0, 0, 0) scale(1); }
+	50%  { transform: translate3d(-9vw, -10vh, 0) scale(1.18); }
+	100% { transform: translate3d(7vw, -5vh, 0) scale(0.9); }
+}
+@keyframes drift-c {
+	0%   { transform: translate3d(0, 0, 0) scale(1); }
+	33%  { transform: translate3d(7vw, -7vh, 0) scale(1.2); }
+	66%  { transform: translate3d(-7vw, 5vh, 0) scale(0.9); }
+	100% { transform: translate3d(3vw, -3vh, 0) scale(1.1); }
+}
+
+/* Mobile: shrink the orbs so they stay on-screen. */
+@media (max-width: 640px) {
+	.ambient-orb--a {
+		width: 70vw;
+		height: 70vw;
+		min-width: 0;
+		min-height: 0;
+		top: -12%;
+		left: -25%;
+	}
+	.ambient-orb--b {
+		width: 65vw;
+		height: 65vw;
+		min-width: 0;
+		min-height: 0;
+		bottom: -15%;
+		right: -25%;
+	}
+	.ambient-orb--c {
+		width: 55vw;
+		height: 55vw;
+		min-width: 0;
+		min-height: 0;
+		top: 25%;
+		left: 30%;
+	}
+}
+
+/* Floating particles — small glowing motes drifting upward. */
+.ambient-particle {
+	position: absolute;
+	bottom: -12px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(57, 181, 74, 0.9), rgba(57, 181, 74, 0) 70%);
+	opacity: 0;
+	animation: particle-rise linear infinite;
+}
+.ambient-particle--1 { left: 8%;  width: 7px;  height: 7px;  animation-duration: 11s; animation-delay: 0s; }
+.ambient-particle--2 { left: 22%; width: 5px;  height: 5px;  animation-duration: 14s; animation-delay: 2.5s; }
+.ambient-particle--3 { left: 38%; width: 9px;  height: 9px;  animation-duration: 12s; animation-delay: 5s; }
+.ambient-particle--4 { left: 55%; width: 6px;  height: 6px;  animation-duration: 16s; animation-delay: 1.2s; }
+.ambient-particle--5 { left: 70%; width: 8px;  height: 8px;  animation-duration: 13s; animation-delay: 7s; }
+.ambient-particle--6 { left: 84%; width: 5px;  height: 5px;  animation-duration: 15s; animation-delay: 3.8s; }
+.ambient-particle--7 { left: 93%; width: 7px;  height: 7px;  animation-duration: 12.5s; animation-delay: 9s; }
+.ambient-particle--8 { left: 14%; width: 4px;  height: 4px;  animation-duration: 17s; animation-delay: 6.2s; }
+@keyframes particle-rise {
+	0%   { transform: translateY(0) scale(0.6); opacity: 0; }
+	12%  { opacity: 0.85; }
+	85%  { opacity: 0.5; }
+	100% { transform: translateY(-105vh) scale(1.15); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ambient-bg,
+	.ambient-orb,
+	.ambient-particle {
+		animation: none !important;
+	}
 }
 
 /* ========================= MATTE GLASS CARDS ========================= */
@@ -94,6 +219,12 @@ body::before {
 #app,
 main {
 	background: transparent !important;
+}
+
+/* Content must sit ABOVE the fixed ambient layer (z-index 0). */
+#app {
+	position: relative;
+	z-index: 1;
 }
 
 /* ========================= SIDEBAR / NAVIGATION ========================= */
