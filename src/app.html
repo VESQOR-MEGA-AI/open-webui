@@ -43,6 +43,16 @@
 				function gtag() {
 					dataLayer.push(arguments);
 				}
+				// Consent Mode v2: analytics denied until the visitor accepts
+				// via the cookie banner (see #consent-banner in body).
+				gtag('consent', 'default', {
+					ad_storage: 'denied',
+					analytics_storage: 'denied',
+					functionality_storage: 'granted',
+					personalization_storage: 'denied',
+					security_storage: 'granted',
+					wait_for_update: 500,
+				});
 				gtag('js', new Date());
 				gtag('config', id, { send_page_view: true });
 				var s = document.createElement('script');
@@ -274,4 +284,56 @@
 			animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 		}
 	</style>
+
+	<!-- Cookie consent banner (GDPR / EU AI Act) — analytics stay denied
+	     until the visitor explicitly accepts (Consent Mode v2). -->
+	<div id="consent-banner" style="display: none; position: fixed; bottom: 1rem; left: 1rem; right: 1rem; z-index: 9999; max-width: 36rem; margin: 0 auto; background: #171717; border: 1px solid rgba(255,255,255,0.15); border-radius: 0.75rem; padding: 1rem 1.25rem; box-shadow: 0 8px 30px rgba(0,0,0,0.5); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e5e5e5; font-size: 0.875rem; line-height: 1.5;">
+		<p style="margin: 0 0 0.75rem;">
+			We use cookies to understand how visitors use this site and to improve the product.
+			Analytics are only enabled with your consent.
+		</p>
+		<div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+			<button id="consent-accept" style="background: #10a37f; color: #fff; border: none; border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.875rem; cursor: pointer;">Accept</button>
+			<button id="consent-decline" style="background: transparent; color: #e5e5e5; border: 1px solid rgba(255,255,255,0.3); border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.875rem; cursor: pointer;">Decline</button>
+		</div>
+	</div>
+	<script>
+		(function () {
+			var KEY = 'vesqor-consent';
+			var banner = document.getElementById('consent-banner');
+			if (!banner) return;
+			function pushConsent(analytics) {
+				window.dataLayer = window.dataLayer || [];
+				window.dataLayer.push({
+					event: 'consent_update',
+					consent: {
+						ad_storage: 'denied',
+						analytics_storage: analytics,
+						functionality_storage: 'granted',
+						personalization_storage: 'denied',
+						security_storage: 'granted'
+					}
+				});
+			}
+			var stored = null;
+			try { stored = localStorage.getItem(KEY); } catch (e) {}
+			if (stored === 'accepted') {
+				pushConsent('granted');
+			} else if (stored === 'declined') {
+				pushConsent('denied');
+			} else {
+				banner.style.display = 'block';
+			}
+			document.getElementById('consent-accept').addEventListener('click', function () {
+				try { localStorage.setItem(KEY, 'accepted'); } catch (e) {}
+				pushConsent('granted');
+				banner.style.display = 'none';
+			});
+			document.getElementById('consent-decline').addEventListener('click', function () {
+				try { localStorage.setItem(KEY, 'declined'); } catch (e) {}
+				pushConsent('denied');
+				banner.style.display = 'none';
+			});
+		})();
+	</script>
 </html>
