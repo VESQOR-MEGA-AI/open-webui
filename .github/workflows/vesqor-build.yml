@@ -56,6 +56,15 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Sync SSO audience secret
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # Teams SSO: token aud = webApplicationInfo.resource = api://<sso-app-id>.
+          # Must match the AAD app identifierUri and the gateway validator.
+          flyctl secrets set \
+            ENTRA_EXPECTED_AUDIENCE=api://0d20c7a1-1f62-4adb-8ef8-6107b56e0e68 \
+            -a vesqor-m365-gateway
       - name: Deploy gateway
         working-directory: apps/vesqor-m365-gateway
         env:
