@@ -41,11 +41,10 @@ body::before {
 	inset: 0;
 	z-index: -1;
 	pointer-events: none;
-	background-image: linear-gradient(rgba(2, 9, 20, 0.45), rgba(2, 9, 20, 0.45)),
-		url('/static/vesqor-matrix.webp');
-	background-size: auto, cover;
-	background-position: center, center;
-	background-repeat: repeat, no-repeat;
+	background-image: url('/static/vesqor-matrix.webp');
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
 /* ========================= MATTE GLASS CARDS ========================= */
