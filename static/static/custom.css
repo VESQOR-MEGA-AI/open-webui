@@ -42,12 +42,14 @@ body {
 	pointer-events: none;
 	-webkit-transform: translateZ(0);
 	transform: translateZ(0);
-	background-image: linear-gradient(rgba(2, 9, 20, 0.82), rgba(2, 9, 20, 0.82)),
+	/* No background-attachment: fixed — it breaks rendering on iOS/Android
+	   mobile browsers (black background). scroll is the safe default. */
+	background-image: linear-gradient(rgba(2, 9, 20, 0.35), rgba(2, 9, 20, 0.35)),
 		url('/static/vesqor-matrix.webp');
 	background-size: auto, cover;
 	background-position: center, center;
 	background-repeat: repeat, no-repeat;
-	background-attachment: fixed, fixed;
+	background-attachment: scroll, scroll;
 	animation: ambient-shift 34s ease-in-out infinite alternate;
 }
 @keyframes ambient-shift {
