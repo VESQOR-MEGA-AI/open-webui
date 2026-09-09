@@ -54,16 +54,15 @@ body {
 }
 
 /* Mobile: the original matrix webp is very dark (mean RGB ~[10,22,37]) and
-   reads as pure black on phone screens. Use the brightened variant. */
+   reads as pure black on phone screens. Use the green-boosted variant. */
 @media (max-width: 768px) {
 	.ambient-bg {
-		background-image: linear-gradient(rgba(2, 9, 20, 0.25), rgba(2, 9, 20, 0.25)),
-			url('/static/vesqor-matrix-bright.webp');
+		background-image: url('/static/vesqor-matrix-green.webp');
 	}
 	.ambient-orb--a,
 	.ambient-orb--b,
 	.ambient-orb--c {
-		background-image: url('/static/vesqor-matrix-rain-bright.webp');
+		background-image: url('/static/vesqor-matrix-rain-green.webp');
 	}
 }
 @keyframes ambient-shift {
@@ -232,10 +231,13 @@ body {
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
 }
 
-/* Mobile: tighter padding so placeholders and helper links don't wrap. */
+/* Mobile: tighter padding so placeholders and helper links don't wrap.
+   Lower blur so the matrix stays visible through the card (less matte). */
 @media (max-width: 640px) {
 	#auth-login-card {
 		padding: 1.5rem 1.25rem !important;
+		-webkit-backdrop-filter: blur(6px) saturate(1.1) !important;
+		backdrop-filter: blur(6px) saturate(1.1) !important;
 	}
 	/* Keep Forgot password? / Forgot username? on one line. */
 	#auth-login-card .mt-4.flex.justify-center {
