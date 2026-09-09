@@ -18,17 +18,12 @@
 }
 
 /* ========================= MAIN BACKGROUND — MATRIX ========================= */
-/* The matrix image + dark overlay lives on html ONLY (canvas). Body stays
-   transparent so the fixed decorations paint above the gradient but below
-   content. Same treatment as vesqorai.com landing (ambient-bg). */
+/* html = dark canvas. The matrix image lives on body::before (fixed layer,
+   z-index -1) so it paints ABOVE the dark html background but BELOW content —
+   same visual result as the landing's .ambient-bg fixed div. */
 html {
 	min-height: 100%;
-	background-image: linear-gradient(rgba(2, 9, 20, 0.82), rgba(2, 9, 20, 0.82)),
-		url('/static/vesqor-matrix.webp');
-	background-size: auto, cover;
-	background-position: center, center;
-	background-repeat: repeat, no-repeat;
-	background-attachment: fixed, fixed;
+	background-color: #020914;
 	color: var(--vesqor-text);
 }
 
@@ -38,6 +33,19 @@ body {
 	   stylesheet loads — without it the matrix on html is hidden. */
 	background: transparent !important;
 	color: var(--vesqor-text);
+}
+
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background-image: linear-gradient(rgba(2, 9, 20, 0.72), rgba(2, 9, 20, 0.72)),
+		url('/static/vesqor-matrix.webp');
+	background-size: auto, cover;
+	background-position: center, center;
+	background-repeat: repeat, no-repeat;
 }
 
 /* ========================= MATTE GLASS CARDS ========================= */
