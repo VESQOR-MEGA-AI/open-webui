@@ -204,9 +204,10 @@ body {
 	background: transparent !important;
 }
 
-/* Auth form card — matte glass like the landing cards. */
+/* Auth form card — see-through glass: the living matrix background shows
+   through the card. Text stays readable thanks to blur + dark tint. */
 #auth-login-card {
-	background: rgba(8, 22, 15, 0.97) !important;
+	background: rgba(8, 22, 15, 0.55) !important;
 	-webkit-backdrop-filter: blur(14px) saturate(1.2);
 	backdrop-filter: blur(14px) saturate(1.2);
 	border: 1px solid rgba(126, 240, 176, 0.16) !important;
