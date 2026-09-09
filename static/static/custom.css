@@ -221,8 +221,10 @@ main {
 	background: transparent !important;
 }
 
-/* Content must sit ABOVE the fixed ambient layer (z-index 0). */
-#app {
+/* Content must sit ABOVE the fixed ambient layer (z-index 0). The SvelteKit
+   root is a plain static div (no id) — target it as the non-ambient child. */
+#app,
+body > div:not(.ambient-bg) {
 	position: relative;
 	z-index: 1;
 }
