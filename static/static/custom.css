@@ -187,10 +187,11 @@ body {
 	}
 }
 
-/* ========================= MATTE GLASS CARDS ========================= */
-/* Same matte language as vesqorai.com .vesqor-glass-dark:
-   rgba(8,22,15,0.97) + blur(14px) — predominantly opaque, matrix barely
-   shows through, strong text contrast. */
+/* ========================= GLASS CARDS (APP) ========================= */
+/* In-app cards are CLEAR see-through glass: the living matrix background
+   shows through them (like vesqorai.com). Text stays readable thanks to
+   blur + dark tint. Inputs/buttons/sidebar keep their own opaque styles
+   (defined below, they override these broad selectors). */
 [role='dialog'],
 .rounded-xl,
 .rounded-2xl,
@@ -205,7 +206,7 @@ body {
 .bg-black\/70,
 .bg-black\/80,
 .bg-black\/90 {
-	background-color: var(--vesqor-panel) !important;
+	background-color: rgba(8, 22, 15, 0.45) !important;
 	-webkit-backdrop-filter: blur(14px) saturate(1.2);
 	backdrop-filter: blur(14px) saturate(1.2);
 	border: 1px solid var(--vesqor-border) !important;
@@ -219,10 +220,11 @@ body {
 	background: transparent !important;
 }
 
-/* Auth form card — see-through glass: the living matrix background shows
-   through the card. Text stays readable thanks to blur + dark tint. */
+/* Auth form card — MATTE glass: predominantly opaque so the login form
+   reads clearly against the living matrix background. Only the login info
+   card is matte; everything else in the app is clear see-through glass. */
 #auth-login-card {
-	background: rgba(8, 22, 15, 0.45) !important;
+	background: rgba(8, 22, 15, 0.97) !important;
 	-webkit-backdrop-filter: blur(14px) saturate(1.2);
 	backdrop-filter: blur(14px) saturate(1.2);
 	border: 1px solid rgba(126, 240, 176, 0.16) !important;
@@ -232,12 +234,12 @@ body {
 }
 
 /* Mobile: tighter padding so placeholders and helper links don't wrap.
-   Lower blur so the matrix stays visible through the card (less matte). */
+   Matte stays matte — blur is cosmetic here since the card is opaque. */
 @media (max-width: 640px) {
 	#auth-login-card {
 		padding: 1.5rem 1.25rem !important;
-		-webkit-backdrop-filter: blur(6px) saturate(1.1) !important;
-		backdrop-filter: blur(6px) saturate(1.1) !important;
+		-webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
+		backdrop-filter: blur(14px) saturate(1.2) !important;
 	}
 	/* Keep Forgot password? / Forgot username? on one line. */
 	#auth-login-card .mt-4.flex.justify-center {
