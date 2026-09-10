@@ -87,6 +87,9 @@ body {
 	border: 1.5px solid rgba(84, 232, 139, 0.45);
 	box-shadow: 0 0 70px rgba(57, 181, 74, 0.35), inset 0 0 40px rgba(2, 9, 20, 0.25);
 	opacity: 0.85;
+	/* VESQOR: orbs are transparent — the crystal-clear canvas rain shows
+	   through them. The dark rain image made the background muddy. */
+	background: transparent !important;
 }
 .ambient-orb--a {
 	width: 46vw;

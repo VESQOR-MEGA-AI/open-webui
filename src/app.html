@@ -169,7 +169,7 @@
 				if (!canvas) return;
 				var ctx = canvas.getContext('2d');
 				var chars = 'VESQOR MEGA AI 01 02 03 TRYON アカサタナハマヤラワ0123456789';
-				var fontSize = 16;
+				var fontSize = 14;
 				var columns, drops, w, h;
 				function resize() {
 					w = canvas.width = window.innerWidth;
@@ -185,7 +185,7 @@
 					// ~30fps cap keeps CPU low; the fade trail gives the rain depth.
 					if (ts - last < 33) { requestAnimationFrame(draw); return; }
 					last = ts;
-					ctx.fillStyle = 'rgba(2, 9, 20, 0.12)';
+					ctx.fillStyle = 'rgba(2, 9, 20, 0.08)';
 					ctx.fillRect(0, 0, w, h);
 					ctx.font = fontSize + 'px monospace';
 					for (var i = 0; i < columns; i++) {
