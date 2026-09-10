@@ -260,6 +260,7 @@ from open_webui.utils.plugin import install_tool_and_function_dependencies
 from open_webui.utils.redis import get_redis_client
 from open_webui.utils.security_headers import SecurityHeadersMiddleware
 from open_webui.utils.session_pool import cleanup_response, get_session, stream_wrapper
+from open_webui.utils.three_assistants import seed_three_assistants
 from open_webui.utils.tools import set_terminal_servers, set_tool_servers
 
 if SAFE_MODE:
@@ -438,6 +439,11 @@ async def lifespan(app: FastAPI):
             log.warning('License data retrieval is still pending; continuing startup without it')
         except Exception as e:
             log.warning(f'License data retrieval failed during startup: {e}')
+
+    # Seed the three VESQOR assistant presets (Copilot / ChatGPT / VESQOR).
+    # Runs after the model pre-fetch so it can pick a real base model id
+    # from the connected provider; falls back to a default id if none.
+    await seed_three_assistants(app)
 
     app.state.startup_complete = True
     await publish_event(app, EVENTS.SYSTEM_STARTUP_COMPLETED, source='system')
