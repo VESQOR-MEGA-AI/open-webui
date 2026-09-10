@@ -3026,5 +3026,7 @@
 	"We sent a verification link to {{email}}. Click it to activate your account, then sign in.": "",
 	"Reset password": "",
 	"Password reset. You can now sign in.": "",
-	"Invalid or expired reset link. Please request a new one.": ""
+	"Invalid or expired reset link. Please request a new one.": "",
+	"VESQOR MEGA AI can make mistakes. Please verify important information and cited sources.": "",
+	"Learn about VESQOR MEGA AI accuracy and limitations": ""
 }

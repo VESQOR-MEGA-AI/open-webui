@@ -2442,6 +2442,20 @@
 						{:else}
 							<div class="mb-1" />
 						{/if}
+
+						<!-- AI Accuracy Notice (2026-09-10): deterministic client-side
+						     disclosure — independent of model, provider, agent, prompt,
+						     conversation, tenant, and response state. Must remain visible
+						     beneath the composer and must not scroll with history. -->
+						<a
+							href="https://vesqorai.com/help/ai-accuracy"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="block w-full px-3 pb-2 pt-0.5 text-center text-[11px] leading-4 text-gray-500 opacity-60 no-underline transition hover:opacity-90 hover:underline focus:opacity-90 focus:underline dark:text-gray-400"
+							aria-label={$i18n.t('Learn about VESQOR MEGA AI accuracy and limitations')}
+						>
+							{$i18n.t('VESQOR MEGA AI can make mistakes. Please verify important information and cited sources.')}
+						</a>
 					</form>
 				</div>
 			</div>
