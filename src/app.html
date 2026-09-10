@@ -182,20 +182,24 @@
 				window.addEventListener('resize', resize);
 				var last = 0;
 				function draw(ts) {
-					// ~30fps cap keeps CPU low; the fade trail gives the rain depth.
+					// ~30fps cap keeps CPU low.
 					if (ts - last < 33) { requestAnimationFrame(draw); return; }
 					last = ts;
-					ctx.fillStyle = 'rgba(2, 9, 20, 0.08)';
-					ctx.fillRect(0, 0, w, h);
 					ctx.font = fontSize + 'px monospace';
 					for (var i = 0; i < columns; i++) {
-						var ch = chars[Math.floor(Math.random() * chars.length)];
-						// Head glyph is bright emerald; trail is dimmer.
-						ctx.fillStyle = 'rgba(126, 240, 176, 0.95)';
-						ctx.fillText(ch, i * fontSize, drops[i] * fontSize);
-						ctx.fillStyle = 'rgba(57, 181, 74, 0.55)';
-						ctx.fillText(ch, i * fontSize, (drops[i] - 1) * fontSize);
-						if (drops[i] * fontSize > h && Math.random() > 0.975) drops[i] = 0;
+						var y = drops[i] * fontSize;
+						if (y > h + 40) { drops[i] = Math.floor(Math.random() * -40); continue; }
+						// Trail: 4 glyphs with fading brightness (no bg fill —
+						// keeps the base crystal-clear dark).
+						for (var t = 0; t < 4; t++) {
+							var ch = chars[Math.floor(Math.random() * chars.length)];
+							var alpha = t === 0 ? 0.95 : 0.55 - t * 0.12;
+							ctx.fillStyle = t === 0
+								? 'rgba(126, 240, 176, ' + alpha + ')'
+								: 'rgba(57, 181, 74, ' + alpha + ')';
+							ctx.fillText(ch, i * fontSize, y - t * fontSize);
+						}
+						if (Math.random() > 0.975) drops[i] = Math.floor(Math.random() * -40);
 						drops[i]++;
 					}
 					requestAnimationFrame(draw);

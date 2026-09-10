@@ -39,16 +39,9 @@ body {
 	pointer-events: none;
 	-webkit-transform: translateZ(0);
 	transform: translateZ(0);
-	/* No background-attachment: fixed — it breaks rendering on iOS/Android
-	   mobile browsers (black background). scroll is the safe default.
-	   The canvas draws the crystal-clear living rain; the image is a static
-	   fallback for no-JS / reduced-motion. */
-	background-image: url('/static/vesqor-matrix-green.webp');
-	background-size: cover;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-attachment: scroll;
-	animation: ambient-shift 34s ease-in-out infinite alternate;
+	/* Crystal-clear: no static image, no overlay — the canvas draws the
+	   living rain directly on the dark base. */
+	background: transparent;
 }
 
 /* Crystal-clear living matrix rain (canvas) — sits above the static image,
