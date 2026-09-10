@@ -37,10 +37,9 @@ body {
 	z-index: 0;
 	overflow: hidden;
 	pointer-events: none;
-	-webkit-transform: translateZ(0);
-	transform: translateZ(0);
 	/* Crystal-clear: no static image, no overlay — the canvas draws the
-	   living rain directly on the dark base. */
+	   living rain directly on the dark base. No translateZ(0): it creates
+	   a separate compositing layer that headless screenshots miss. */
 	background: transparent;
 }
 
