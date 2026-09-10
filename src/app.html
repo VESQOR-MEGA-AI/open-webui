@@ -176,7 +176,9 @@
 					h = canvas.height = window.innerHeight;
 					columns = Math.floor(w / fontSize);
 					drops = [];
-					for (var i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * -h / fontSize);
+					// Start drops at random positions across the FULL height so the
+					// rain is visible immediately (not after ~1.5s of falling).
+					for (var i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * h / fontSize);
 				}
 				resize();
 				window.addEventListener('resize', resize);
