@@ -37,10 +37,14 @@ body {
 	z-index: 0;
 	overflow: hidden;
 	pointer-events: none;
-	/* Crystal-clear: no static image, no overlay — the canvas draws the
-	   living rain directly on the dark base. No translateZ(0): it creates
-	   a separate compositing layer that headless screenshots miss. */
-	background: transparent;
+	/* Crystal-clear base: bright green matrix image (guaranteed visible in
+	   every browser) + canvas rain on top for the living animation. */
+	background-image: url('/static/vesqor-matrix-crystal.webp');
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-attachment: scroll;
+	animation: ambient-shift 34s ease-in-out infinite alternate;
 }
 
 /* Crystal-clear living matrix rain (canvas) — sits above the static image,
