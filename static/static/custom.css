@@ -26,12 +26,9 @@ html {
 	color: var(--vesqor-text);
 }
 
+/* The matrix layer must be crystal-clear: no dark base bleeding through. */
 body {
-	min-height: 100%;
-	/* !important: app.css (.dark body) sets an opaque #171717 AFTER this
-	   stylesheet loads — without it the matrix on html is hidden. */
 	background: transparent !important;
-	color: var(--vesqor-text);
 }
 
 .ambient-bg {
@@ -43,13 +40,13 @@ body {
 	-webkit-transform: translateZ(0);
 	transform: translateZ(0);
 	/* No background-attachment: fixed — it breaks rendering on iOS/Android
-	   mobile browsers (black background). scroll is the safe default. */
-	background-image: linear-gradient(rgba(2, 9, 20, 0.35), rgba(2, 9, 20, 0.35)),
-		url('/static/vesqor-matrix.webp');
-	background-size: auto, cover;
-	background-position: center, center;
-	background-repeat: repeat, no-repeat;
-	background-attachment: scroll, scroll;
+	   mobile browsers (black background). scroll is the safe default.
+	   No dark overlay: the matrix must be crystal-clear see-through. */
+	background-image: url('/static/vesqor-matrix-green.webp');
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-attachment: scroll;
 	animation: ambient-shift 34s ease-in-out infinite alternate;
 }
 
@@ -215,8 +212,11 @@ body {
 
 /* ========================= AUTH PAGE ========================= */
 /* The auth route pins a solid bg-white/dark:bg-black overlay under the form;
-   let the matrix show through instead. */
-#auth-page > div.w-full.h-full.absolute {
+   let the matrix show through instead. Match any direct child of #auth-page
+   that carries the full-screen absolute overlay classes. */
+#auth-page > div.w-full.h-full.absolute,
+#auth-page > div[class*='absolute'][class*='bg-white'],
+#auth-page > div[class*='absolute'][class*='bg-black'] {
 	background: transparent !important;
 }
 
