@@ -146,6 +146,7 @@
 		<!-- VESQOR ambient living background — same as vesqorai.com landing:
 		     matrix rain + 3 drifting orbs + rising particles. Purely decorative. -->
 		<div class="ambient-bg" aria-hidden>
+			<canvas id="vesqor-matrix-canvas" aria-hidden></canvas>
 			<div class="ambient-orb ambient-orb--a"></div>
 			<div class="ambient-orb ambient-orb--b"></div>
 			<div class="ambient-orb ambient-orb--c"></div>
@@ -158,6 +159,50 @@
 			<div class="ambient-particle ambient-particle--7"></div>
 			<div class="ambient-particle ambient-particle--8"></div>
 		</div>
+		<script>
+			// VESQOR crystal-clear living matrix rain (canvas). Bright, sharp,
+			// animated — the same "alive" signal as the vesqorai.com hero.
+			// Purely decorative; honours prefers-reduced-motion.
+			(function () {
+				if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+				var canvas = document.getElementById('vesqor-matrix-canvas');
+				if (!canvas) return;
+				var ctx = canvas.getContext('2d');
+				var chars = 'VESQOR MEGA AI 01 02 03 TRYON アカサタナハマヤラワ0123456789';
+				var fontSize = 16;
+				var columns, drops, w, h;
+				function resize() {
+					w = canvas.width = window.innerWidth;
+					h = canvas.height = window.innerHeight;
+					columns = Math.floor(w / fontSize);
+					drops = [];
+					for (var i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * -h / fontSize);
+				}
+				resize();
+				window.addEventListener('resize', resize);
+				var last = 0;
+				function draw(ts) {
+					// ~30fps cap keeps CPU low; the fade trail gives the rain depth.
+					if (ts - last < 33) { requestAnimationFrame(draw); return; }
+					last = ts;
+					ctx.fillStyle = 'rgba(2, 9, 20, 0.12)';
+					ctx.fillRect(0, 0, w, h);
+					ctx.font = fontSize + 'px monospace';
+					for (var i = 0; i < columns; i++) {
+						var ch = chars[Math.floor(Math.random() * chars.length)];
+						// Head glyph is bright emerald; trail is dimmer.
+						ctx.fillStyle = 'rgba(126, 240, 176, 0.95)';
+						ctx.fillText(ch, i * fontSize, drops[i] * fontSize);
+						ctx.fillStyle = 'rgba(57, 181, 74, 0.55)';
+						ctx.fillText(ch, i * fontSize, (drops[i] - 1) * fontSize);
+						if (drops[i] * fontSize > h && Math.random() > 0.975) drops[i] = 0;
+						drops[i]++;
+					}
+					requestAnimationFrame(draw);
+				}
+				requestAnimationFrame(draw);
+			})();
+		</script>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>
