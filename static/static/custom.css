@@ -348,6 +348,24 @@ main > div {
 	border-color: rgba(126, 240, 176, 0.1);
 }
 
+/* ========================= MESSAGES ANCHORING ========================= */
+/* Mobile report: the response block "floated" mid-screen with a big empty
+   gap above the input. Open WebUI top-aligns short chats (Messages.svelte
+   root: className="h-full flex pt-18", a flex-ROW with one child
+   div.w-full.pt-2). Make it a column and margin-top:auto on that child —
+   short chats flush messages directly ABOVE the composer (messenger style);
+   when content overflows, auto margins collapse and #messages-container
+   scrolling is untouched. ChatPlaceholder (empty chat) has no div.w-full
+   child, so it is unaffected. */
+#messages-container .h-full.flex.pt-18,
+#messages-container .h-full.flex.pt-4 {
+	flex-direction: column;
+}
+#messages-container .h-full.flex.pt-18 > div.w-full,
+#messages-container .h-full.flex.pt-4 > div.w-full {
+	margin-top: auto;
+}
+
 /* ========================= INPUT / PROMPT BOX ========================= */
 textarea,
 input[type='text'],
