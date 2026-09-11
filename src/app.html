@@ -157,7 +157,50 @@
 			<div class="ambient-particle ambient-particle--6"></div>
 			<div class="ambient-particle ambient-particle--7"></div>
 			<div class="ambient-particle ambient-particle--8"></div>
-		</div>
-		<div style="display: contents">%sveltekit.body%</div>
+			</div>
+			<script>
+			// VESQOR living-background states (owner 2026-09-10):
+			//   idle            — matrix alive, glass clear (0.45)
+			//   interacting     — user focused/typing/clicked → matrix paused,
+			//                     glass matte (~95%). Removed when focus leaves
+			//                     the app (blur) or input blur fires.
+			//   report-open     — set by ReportView.svelte when a report is fully
+			//                     rendered (done=true): matrix paused + matte.
+			(function () {
+				var body = document.body;
+				function setInteracting(on) {
+					body.classList.toggle('vesqor-interacting', !!on);
+				}
+				// Any interaction starts the tint; leaving everything ends it.
+				// Pointer down anywhere counts ("anything touches the background").
+				document.addEventListener('pointerdown', function () {
+					setInteracting(true);
+				}, true);
+				document.addEventListener('focusin', function () {
+					setInteracting(true);
+				}, true);
+				document.addEventListener('keydown', function () {
+					setInteracting(true);
+				}, true);
+				// Focus moved outside the document root → back to idle (matrix
+				// resumes, glass clears). Blur with no replacement target.
+				window.addEventListener('blur', function () {
+					setInteracting(false);
+				});
+				// When the last focusable element inside the app loses focus,
+				// return to idle after a tick (allows focus jumps between fields).
+				document.addEventListener('focusout', function (e) {
+					var next = e.relatedTarget;
+					if (!next) {
+						requestAnimationFrame(function () {
+							if (!body.contains(document.activeElement)) {
+								setInteracting(false);
+							}
+						});
+					}
+				});
+			})();
+			</script>
+			<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

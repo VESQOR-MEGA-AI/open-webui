@@ -15,6 +15,10 @@
 	--vesqor-text: #f5f7f9;
 	--vesqor-muted: #9aa8b5;
 	--vesqor-border: rgba(126, 240, 176, 0.16);
+	/* Glass opacity: 0.45 = clear see-through (idle), 0.97 = matte (~95%).
+	   body.vesqor-interacting / body.vesqor-report-open flip it to matte
+	   and pause the living background (owner 2026-09-10). */
+	--vesqor-glass-bg: rgba(8, 22, 15, 0.45);
 }
 
 /* ========================= LIVING BACKGROUND — MATRIX + ORBS ========================= */
@@ -196,11 +200,65 @@ body {
 .vesqor-chat-root .bg-black\/70,
 .vesqor-chat-root .bg-black\/80,
 .vesqor-chat-root .bg-black\/90 {
-	background-color: rgba(8, 22, 15, 0.45) !important;
+	background-color: var(--vesqor-glass-bg) !important;
 	-webkit-backdrop-filter: blur(14px) saturate(1.2);
 	backdrop-filter: blur(14px) saturate(1.2);
 	border: 1px solid var(--vesqor-border) !important;
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+	/* Smooth tint: clear → matte must be gradual, not instant (owner 2026-09-10). */
+	transition: background-color 0.7s ease;
+}
+
+/* Interacting (focus/typing) or reading an open report → matte ~95% glass
+   + living background paused. Reading mode (report open, no typing) keeps
+   the matrix visible until the report finishes; see app.html JS. */
+body.vesqor-interacting .vesqor-chat-root [role='dialog'],
+body.vesqor-interacting .vesqor-chat-root .rounded-xl,
+body.vesqor-interacting .vesqor-chat-root .rounded-2xl,
+body.vesqor-interacting .vesqor-chat-root .rounded-3xl,
+body.vesqor-interacting .vesqor-chat-root .bg-white,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-50,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-100,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-800,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-900,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/50,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/60,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/70,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/80,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/90 {
+	background-color: rgba(8, 22, 15, 0.97) !important;
+}
+
+/* Pause the living matrix when interacting or reading an open report —
+   orbs/particles freeze so the tinted glass reads stable (no motion). */
+body.vesqor-interacting .ambient-bg,
+body.vesqor-report-open .ambient-bg {
+	animation: none !important;
+}
+body.vesqor-interacting .ambient-orb,
+body.vesqor-interacting .ambient-particle,
+body.vesqor-report-open .ambient-orb,
+body.vesqor-report-open .ambient-particle {
+	animation-play-state: paused !important;
+}
+
+/* Opening an existing report: while it loads (report loading) the matrix
+   stays alive and glass is clear; once done, the whole app tints matte. */
+body.vesqor-report-open .vesqor-chat-root [role='dialog'],
+body.vesqor-report-open .vesqor-chat-root .rounded-xl,
+body.vesqor-report-open .vesqor-chat-root .rounded-2xl,
+body.vesqor-report-open .vesqor-chat-root .rounded-3xl,
+body.vesqor-report-open .vesqor-chat-root .bg-white,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-50,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-100,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-800,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-900,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/50,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/60,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/70,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/80,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/90 {
+	background-color: rgba(8, 22, 15, 0.97) !important;
 }
 
 /* ========================= AUTH PAGE ========================= */
