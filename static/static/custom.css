@@ -1,21 +1,12 @@
 /* =========================================================
-   VESQOR MEGA AI CHAT THEME — Matrix + Matte Glass
-   chat.vesqorai.com — matches vesqorai.com landing design:
-   dark matrix digital-rain background + matte glass cards.
+   VESQOR MEGA AI CHAT — LIVING MATRIX BACKGROUND ONLY
+   chat.vesqorai.com. UI is STOCK Open WebUI (no custom cards,
+   input, sidebar, buttons, scrollbar, text colors — owner
+   directive 2026-09-11). This sheet only adds the animated
+   matrix rain background (identical to vesqorai.com landing)
+   and the transparency that lets it show through the app shell.
    Loaded via app.html <link rel="stylesheet" href="/static/custom.css">.
    ========================================================= */
-:root {
-	--vesqor-bg: #020914;
-	--vesqor-bg-2: #031522;
-	--vesqor-panel: rgba(8, 22, 15, 0.97);
-	--vesqor-panel-strong: rgba(3, 12, 22, 0.97);
-	--vesqor-green: #54e88b;
-	--vesqor-green-soft: #26bd78;
-	--vesqor-teal: #0e8173;
-	--vesqor-text: #f5f7f9;
-	--vesqor-muted: #9aa8b5;
-	--vesqor-border: rgba(126, 240, 176, 0.16);
-}
 
 /* ========================= LIVING BACKGROUND — MATRIX + ORBS ========================= */
 /* EXACT copy of vesqorai.com landing ambient layer (globals.css lines 57-193):
@@ -24,7 +15,6 @@
 html {
 	min-height: 100%;
 	background-color: #020914;
-	color: var(--vesqor-text);
 }
 
 body {
@@ -179,18 +169,6 @@ body {
 		animation: none !important;
 	}
 }
-/* ============ IN-CHAT CARDS ============
-   Owner directive (Anna, 2026-09-11) / previous session (user, 19:01 09-10):
-   remove the custom input box and custom glass card styling — chat UI must
-   look like the ORIGINAL Open WebUI: regular text box for questions, stock
-   message bubbles, stock action toolbar (thumbs up etc.). The ONLY
-   customization that stays is the VESQOR living matrix background behind the
-   app (ambient layer above) and the matte login card (AUTH PAGE block).
-   The .vesqor-chat-root glass rules and the body.vesqor-interacting tint
-   were DELETED on 2026-09-11 because tapping anywhere paused the matrix and
-   tinted everything matte ("click on anything and it looks broken"). The
-   background remains alive; cards are stock Open WebUI. */
-
 /* ========================= AUTH PAGE ========================= */
 /* The auth route pins a solid bg-white/dark:bg-black overlay under the form;
    let the matrix show through instead. Match any direct child of #auth-page
@@ -201,39 +179,11 @@ body {
 	background: transparent !important;
 }
 
-/* Auth form card — MATTE glass: predominantly opaque so the login form
-   reads clearly against the living matrix background. Only the login info
-   card is matte; everything else in the app is clear see-through glass. */
-#auth-login-card {
-	background: rgba(8, 22, 15, 0.97) !important;
-	-webkit-backdrop-filter: blur(14px) saturate(1.2);
-	backdrop-filter: blur(14px) saturate(1.2);
-	border: 1px solid rgba(126, 240, 176, 0.16) !important;
-	border-radius: 1rem !important;
-	padding: 2rem 2.5rem !important;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
-}
-
-/* Mobile: tighter padding so placeholders and helper links don't wrap.
-   Matte stays matte — blur is cosmetic here since the card is opaque. */
-@media (max-width: 640px) {
-	#auth-login-card {
-		padding: 1.5rem 1.25rem !important;
-		-webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
-		backdrop-filter: blur(14px) saturate(1.2) !important;
-	}
-	/* Keep Forgot password? / Forgot username? on one line. */
-	#auth-login-card .mt-4.flex.justify-center {
-		flex-wrap: nowrap !important;
-		gap: 0.75rem !important;
-	}
-	#auth-login-card .mt-4.flex.justify-center button {
-		white-space: nowrap !important;
-		font-size: 0.8rem !important;
-	}
-}
-
 /* ========================= APP ========================= */
+/* Transparency needed so the living matrix background stays visible behind
+   the app shell. UI components themselves are STOCK Open WebUI (owner
+   directive 2026-09-11: no custom cards / input / sidebar / scrollbar /
+   buttons / text colors — only the matrix background). */
 #app,
 main {
 	background: transparent !important;
@@ -242,13 +192,9 @@ main {
 /* ROOT APP SHELL — the div that makes post-login UI flat black.
    (app)/+layout.svelte renders <div class="... bg-white dark:bg-gray-900
    h-screen ..."> around everything; that opaque fill hides the ambient
-   matrix layer. Auth page has no such shell (matrix visible there). */
+   matrix layer. */
 .app.relative > div {
 	background: transparent !important;
-}
-.app.relative > div,
-.app.relative {
-	background-color: transparent !important;
 }
 
 /* Content must sit ABOVE the fixed ambient layer (z-index 0). The SvelteKit
@@ -257,107 +203,4 @@ main {
 body > div:not(.ambient-bg) {
 	position: relative;
 	z-index: 1;
-}
-
-/* ========================= SIDEBAR / NAVIGATION ========================= */
-aside,
-nav {
-	background: linear-gradient(180deg, rgba(3, 12, 22, 0.97), rgba(3, 17, 26, 0.94)) !important;
-	border-right: 1px solid var(--vesqor-border) !important;
-	backdrop-filter: blur(18px);
-}
-
-/* ========================= CHAT AREA ========================= */
-main > div {
-	background-color: transparent;
-}
-
-/* User / AI message containers */
-[class*='message'],
-[class*='chat'] {
-	border-color: rgba(126, 240, 176, 0.1);
-}
-
-/* ========================= INPUT / PROMPT BOX ========================= */
-/*
-	Owner 2026-09-11: restore ORIGINAL Open WebUI field look — both the chat
-	composer and the auth/login inputs must look stock. The old rule below hit
-	EVERY text/email/password/textarea with a dark green box + border + blur,
-	turning login fields into "custom-made text boxes" (taller, framed). Deleting
-	it lets the stock Open WebUI field styles (bg-transparent, no border) show.
-	Keep: the matte glass #auth-login-card, the living matrix background, and
-	the glass scoping — those are separate rules above. The focus rule below
-	was removed for the same reason: a green focus ring on EVERY field is part
-	of the custom look being reverted. Stock Open WebUI focus states restored.
-*/
-
-/* ========================= BUTTONS ========================= */
-button {
-	transition:
-		background-color 0.18s ease,
-		border-color 0.18s ease,
-		transform 0.18s ease,
-		box-shadow 0.18s ease;
-}
-
-button:hover {
-	border-color: rgba(126, 240, 176, 0.28);
-	box-shadow: 0 0 16px rgba(38, 189, 120, 0.06);
-}
-
-/* Primary action buttons */
-button[type='submit'] {
-	background: linear-gradient(135deg, #16835d, #35cf83) !important;
-	color: #ffffff !important;
-	box-shadow: 0 5px 22px rgba(38, 189, 120, 0.18);
-}
-
-button[type='submit']:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 7px 28px rgba(38, 189, 120, 0.3);
-}
-
-/* ========================= SCROLLBAR ========================= */
-::-webkit-scrollbar {
-	width: 8px;
-	height: 8px;
-}
-
-::-webkit-scrollbar-track {
-	background: #03101b;
-}
-
-::-webkit-scrollbar-thumb {
-	background: linear-gradient(#125d50, #38b978);
-	border-radius: 20px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-	background: #45d98a;
-}
-
-/* ========================= TEXT ========================= */
-body {
-	color: var(--vesqor-text);
-}
-
-.text-gray-400,
-.text-gray-500,
-.text-gray-600 {
-	color: var(--vesqor-muted) !important;
-}
-
-/* ========================= SELECTION ========================= */
-::selection {
-	background: rgba(84, 232, 139, 0.3);
-	color: #ffffff;
-}
-
-/* ========================= LINKS ========================= */
-a {
-	transition: color 0.18s ease;
-}
-
-a:hover {
-	color: var(--vesqor-green) !important;
 }
