@@ -169,13 +169,20 @@
 			(function () {
 				var body = document.body;
 				var idleTimer = null;
-				// Idle timeout: after the last interaction, return to the
-				// living state (matrix resumes). Fixes the "stuck paused"
-				// bug: clicking Sign in fired 'pointerdown' → vesqor-interacting
-				// stuck forever across the SPA navigation, so the first screen
-				// after login was paused + tinted. Now any interaction only
-				// tints for IDLE_RESET_MS of inactivity, then the matrix lives.
+				// Idle timeout: after the last input interaction, return to the
+				// living state (matrix resumes). The tint applies ONLY while the
+				// user is actually focused in an input field — NOT on any click.
+				// Tapping a message, the background, or a button must not pause
+				// the matrix or tint glass (owner 2026-09-11: "click on anything
+				// and it looks broken" — a stray tap froze the whole UI matte).
 				var IDLE_RESET_MS = 6000;
+				function isRealInput(el) {
+					if (!el || el === document.body) return false;
+					if (el.isContentEditable) return true;
+					var t = el.tagName;
+					if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT') return true;
+					return false;
+				}
 				function setInteracting(on) {
 					if (on) {
 						body.classList.add('vesqor-interacting');
@@ -189,33 +196,29 @@
 						body.classList.remove('vesqor-interacting');
 					}
 				}
-				// Any interaction starts the tint; inactivity ends it.
-				// Pointer down anywhere counts ("anything touches the background").
-				document.addEventListener('pointerdown', function () {
-					setInteracting(true);
+				// Only real keyboard input (focus in a field / typing) tints the
+				// glass: the composer, search boxes, settings inputs. Random taps
+				// anywhere else keep the matrix alive and glass clear.
+				document.addEventListener('focusin', function (e) {
+					if (isRealInput(e.target)) setInteracting(true);
 				}, true);
-				document.addEventListener('focusin', function () {
-					setInteracting(true);
-				}, true);
-				document.addEventListener('keydown', function () {
-					setInteracting(true);
+				document.addEventListener('keydown', function (e) {
+					if (isRealInput(e.target)) setInteracting(true);
 				}, true);
 				// Focus moved outside the document root → back to idle (matrix
 				// resumes, glass clears). Blur with no replacement target.
 				window.addEventListener('blur', function () {
 					setInteracting(false);
 				});
-				// When the last focusable element inside the app loses focus,
-				// return to idle after a tick (allows focus jumps between
-				// fields). NOTE: after SPA navigation the activeElement can be
-				// <body> itself — body.contains(body) is true, so we must
-				// exclude the body element or the tint would stick forever.
+				// Leaving the last input → idle (allows focus jumps between
+				// fields). After SPA navigation activeElement can be <body>
+				// itself — exclude body, otherwise the tint would stick forever.
 				document.addEventListener('focusout', function (e) {
 					var next = e.relatedTarget;
 					if (!next) {
 						requestAnimationFrame(function () {
 							var active = document.activeElement;
-							if (!active || active === document.body || !body.contains(active)) {
+							if (!active || active === document.body || !body.contains(active) || !isRealInput(active)) {
 								setInteracting(false);
 							}
 						});
