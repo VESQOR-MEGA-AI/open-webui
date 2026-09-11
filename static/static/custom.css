@@ -169,6 +169,96 @@ body {
 		animation: none !important;
 	}
 }
+/* --vesqor-glass-bg: matte tinted glass on in-chat cards (owner: "glass
+   on the cards nothing changed ... stays"). 0.94 = almost can't see
+   through; interactive/report-open → 0.97 fully matte. */
+:root {
+	--vesqor-glass-bg: rgba(8, 22, 15, 0.94);
+}
+
+/* ========================= IN-CHAT CARDS — GLASS ========================= */
+/* Message bubbles, input container and action cards are MATTE GLASS — the
+   living matrix barely shows through them (owner 2026-09-11: glass on the
+   cards stays). Scoped to .vesqor-chat-root so admin/modals stay opaque.
+   Stock Open WebUI: menu buttons, checkboxes, input boxes (owner same day). */
+.vesqor-chat-root [role='dialog'],
+.vesqor-chat-root .rounded-xl,
+.vesqor-chat-root .rounded-2xl,
+.vesqor-chat-root .rounded-3xl,
+.vesqor-chat-root .bg-white,
+.vesqor-chat-root .bg-gray-50,
+.vesqor-chat-root .bg-gray-100,
+.vesqor-chat-root .bg-gray-800,
+.vesqor-chat-root .bg-gray-850,
+.vesqor-chat-root .bg-gray-900,
+.vesqor-chat-root .chat-assistant > div,
+.vesqor-chat-root .bg-black\/50,
+.vesqor-chat-root .bg-black\/60,
+.vesqor-chat-root .bg-black\/70,
+.vesqor-chat-root .bg-black\/80,
+.vesqor-chat-root .bg-black\/90 {
+	background-color: var(--vesqor-glass-bg) !important;
+	-webkit-backdrop-filter: blur(14px) saturate(1.2);
+	backdrop-filter: blur(14px) saturate(1.2);
+	border: 1px solid rgba(126, 240, 176, 0.16) !important;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+	/* Smooth tint: clear → matte must be gradual, not instant. */
+	transition: background-color 0.7s ease;
+}
+
+/* Interacting (focus/typing in a real input) or reading an open report →
+   fully matte + living background paused. Only REAL input focus triggers
+   this — random taps/clicks keep the matrix alive (owner 2026-09-11). */
+body.vesqor-interacting .vesqor-chat-root [role='dialog'],
+body.vesqor-interacting .vesqor-chat-root .rounded-xl,
+body.vesqor-interacting .vesqor-chat-root .rounded-2xl,
+body.vesqor-interacting .vesqor-chat-root .rounded-3xl,
+body.vesqor-interacting .vesqor-chat-root .bg-white,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-50,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-100,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-800,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-850,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-900,
+body.vesqor-interacting .vesqor-chat-root .chat-assistant > div,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/50,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/60,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/70,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/80,
+body.vesqor-interacting .vesqor-chat-root .bg-black\/90 {
+	background-color: rgba(8, 22, 15, 0.97) !important;
+}
+
+body.vesqor-report-open .vesqor-chat-root [role='dialog'],
+body.vesqor-report-open .vesqor-chat-root .rounded-xl,
+body.vesqor-report-open .vesqor-chat-root .rounded-2xl,
+body.vesqor-report-open .vesqor-chat-root .rounded-3xl,
+body.vesqor-report-open .vesqor-chat-root .bg-white,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-50,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-100,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-800,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-850,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-900,
+body.vesqor-report-open .vesqor-chat-root .chat-assistant > div,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/50,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/60,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/70,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/80,
+body.vesqor-report-open .vesqor-chat-root .bg-black\/90 {
+	background-color: rgba(8, 22, 15, 0.97) !important;
+}
+
+/* Pause the living matrix when interacting or reading an open report. */
+body.vesqor-interacting .ambient-bg,
+body.vesqor-report-open .ambient-bg {
+	animation: none !important;
+}
+body.vesqor-interacting .ambient-orb,
+body.vesqor-interacting .ambient-particle,
+body.vesqor-report-open .ambient-orb,
+body.vesqor-report-open .ambient-particle {
+	animation-play-state: paused !important;
+}
+
 /* ========================= AUTH PAGE ========================= */
 /* The auth route pins a solid bg-white/dark:bg-black overlay under the form;
    let the matrix show through instead. Match any direct child of #auth-page

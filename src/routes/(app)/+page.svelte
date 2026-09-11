@@ -12,7 +12,11 @@
 	});
 </script>
 
-<!-- VESQOR: chat page renders the stock Open WebUI Chat component directly.
-     The glass-scoped wrapper (vesqor-chat-root) was removed 2026-09-11 — the
-     chat UI is stock Open WebUI; only the living matrix background stays. -->
-<Chat />
+<!-- VESQOR: chat root wrapper — the matte glass styling in custom.css is
+     scoped to this container so admin pages, modals and dialogs keep their
+     normal opaque backgrounds. display:contents keeps it as a CSS-scoping
+     anchor WITHOUT creating a layout box, so Chat's h-full / flex height
+     chain from the parent h-screen stays intact. -->
+<div class="vesqor-chat-root" style="display: contents">
+	<Chat />
+</div>

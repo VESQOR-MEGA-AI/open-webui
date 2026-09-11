@@ -60,7 +60,7 @@
 		/>
 
 		<script src="/static/loader.js" defer crossorigin="use-credentials"></script>
-		<link rel="stylesheet" href="/static/custom.css?v=20260911-3" crossorigin="use-credentials" />
+		<link rel="stylesheet" href="/static/custom.css?v=20260911-4" crossorigin="use-credentials" />
 
 		<!-- Google Analytics 4 — Chat stream G-NRF1DRN448 (2026-09-05) -->
 		<script>
@@ -158,6 +158,58 @@
 			<div class="ambient-particle ambient-particle--7"></div>
 			<div class="ambient-particle ambient-particle--8"></div>
 			</div>
+		<script>
+		// VESQOR living-background states: idle = matrix alive + matte glass
+		// clear; interacting (REAL input focus/typing — composer, search,
+		// settings) = matrix paused + glass fully matte (~0.97). Random taps
+		// anywhere else keep the matrix alive (owner 2026-09-11: "click on
+		// anything and it looks broken"). focusout/blur → back to idle.
+		(function () {
+			var body = document.body;
+			var idleTimer = null;
+			var IDLE_RESET_MS = 6000;
+			function isRealInput(el) {
+				if (!el || el === document.body) return false;
+				if (el.isContentEditable) return true;
+				var t = el.tagName;
+				if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT') return true;
+				return false;
+			}
+			function setInteracting(on) {
+				if (on) {
+					body.classList.add('vesqor-interacting');
+					clearTimeout(idleTimer);
+					idleTimer = setTimeout(function () {
+						setInteracting(false);
+					}, IDLE_RESET_MS);
+				} else {
+					clearTimeout(idleTimer);
+					idleTimer = null;
+					body.classList.remove('vesqor-interacting');
+				}
+			}
+			document.addEventListener('focusin', function (e) {
+				if (isRealInput(e.target)) setInteracting(true);
+			}, true);
+			document.addEventListener('keydown', function (e) {
+				if (isRealInput(e.target)) setInteracting(true);
+			}, true);
+			window.addEventListener('blur', function () {
+				setInteracting(false);
+			});
+			document.addEventListener('focusout', function (e) {
+				var next = e.relatedTarget;
+				if (!next) {
+					requestAnimationFrame(function () {
+						var active = document.activeElement;
+						if (!active || active === document.body || !body.contains(active) || !isRealInput(active)) {
+							setInteracting(false);
+						}
+					});
+				}
+			});
+		})();
+		</script>
 
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>

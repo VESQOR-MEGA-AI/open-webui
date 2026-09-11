@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
@@ -74,9 +74,21 @@
 	let preferredFormat: ExportFormat = 'pdf';
 	let showFormatMenu = false;
 
-	// VESQOR (owner 2026-09-11): report tint behavior retired — the chat UI
-	// is stock Open WebUI; only the living matrix background stays. No body
-	// class toggling needed.
+	// VESQOR (owner 2026-09-10): a fully rendered report pauses the living
+	// background and tints the glass to ~95% matte (body.vesqor-report-open).
+	// While the report is LOADING (done=false) the matrix stays alive and the
+	// glass is clear — the tint applies only once content is ready.
+	$: reportReady = done === true;
+	$: {
+		if (reportReady) {
+			document.body.classList.add('vesqor-report-open');
+		} else {
+			document.body.classList.remove('vesqor-report-open');
+		}
+	}
+	onDestroy(() => {
+		document.body.classList.remove('vesqor-report-open');
+	});
 
 	onMount(async () => {
 		try {
