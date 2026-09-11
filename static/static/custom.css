@@ -251,6 +251,18 @@ main {
 	background: transparent !important;
 }
 
+/* ROOT APP SHELL — the div that makes post-login UI flat black.
+   (app)/+layout.svelte renders <div class="... bg-white dark:bg-gray-900
+   h-screen ..."> around everything; that opaque fill hides the ambient
+   matrix layer. Auth page has no such shell (matrix visible there). */
+.app.relative > div {
+	background: transparent !important;
+}
+.app.relative > div,
+.app.relative {
+	background-color: transparent !important;
+}
+
 /* Content must sit ABOVE the fixed ambient layer (z-index 0). The SvelteKit
    root is a plain static div (no id) — target it as the non-ambient child. */
 #app,
