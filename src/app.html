@@ -60,7 +60,7 @@
 		/>
 
 		<script src="/static/loader.js" defer crossorigin="use-credentials"></script>
-		<link rel="stylesheet" href="/static/custom.css?v=20260911-1" crossorigin="use-credentials" />
+		<link rel="stylesheet" href="/static/custom.css?v=20260911-2" crossorigin="use-credentials" />
 
 		<!-- Google Analytics 4 — Chat stream G-NRF1DRN448 (2026-09-05) -->
 		<script>
@@ -158,74 +158,7 @@
 			<div class="ambient-particle ambient-particle--7"></div>
 			<div class="ambient-particle ambient-particle--8"></div>
 			</div>
-			<script>
-			// VESQOR living-background states (owner 2026-09-10):
-			//   idle            — matrix alive, glass clear (0.45)
-			//   interacting     — user focused/typing/clicked → matrix paused,
-			//                     glass matte (~95%). Removed when focus leaves
-			//                     the app (blur) or input blur fires.
-			//   report-open     — set by ReportView.svelte when a report is fully
-			//                     rendered (done=true): matrix paused + matte.
-			(function () {
-				var body = document.body;
-				var idleTimer = null;
-				// Idle timeout: after the last input interaction, return to the
-				// living state (matrix resumes). The tint applies ONLY while the
-				// user is actually focused in an input field — NOT on any click.
-				// Tapping a message, the background, or a button must not pause
-				// the matrix or tint glass (owner 2026-09-11: "click on anything
-				// and it looks broken" — a stray tap froze the whole UI matte).
-				var IDLE_RESET_MS = 6000;
-				function isRealInput(el) {
-					if (!el || el === document.body) return false;
-					if (el.isContentEditable) return true;
-					var t = el.tagName;
-					if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT') return true;
-					return false;
-				}
-				function setInteracting(on) {
-					if (on) {
-						body.classList.add('vesqor-interacting');
-						clearTimeout(idleTimer);
-						idleTimer = setTimeout(function () {
-							setInteracting(false);
-						}, IDLE_RESET_MS);
-					} else {
-						clearTimeout(idleTimer);
-						idleTimer = null;
-						body.classList.remove('vesqor-interacting');
-					}
-				}
-				// Only real keyboard input (focus in a field / typing) tints the
-				// glass: the composer, search boxes, settings inputs. Random taps
-				// anywhere else keep the matrix alive and glass clear.
-				document.addEventListener('focusin', function (e) {
-					if (isRealInput(e.target)) setInteracting(true);
-				}, true);
-				document.addEventListener('keydown', function (e) {
-					if (isRealInput(e.target)) setInteracting(true);
-				}, true);
-				// Focus moved outside the document root → back to idle (matrix
-				// resumes, glass clears). Blur with no replacement target.
-				window.addEventListener('blur', function () {
-					setInteracting(false);
-				});
-				// Leaving the last input → idle (allows focus jumps between
-				// fields). After SPA navigation activeElement can be <body>
-				// itself — exclude body, otherwise the tint would stick forever.
-				document.addEventListener('focusout', function (e) {
-					var next = e.relatedTarget;
-					if (!next) {
-						requestAnimationFrame(function () {
-							var active = document.activeElement;
-							if (!active || active === document.body || !body.contains(active) || !isRealInput(active)) {
-								setInteracting(false);
-							}
-						});
-					}
-				});
-			})();
-			</script>
-			<div style="display: contents">%sveltekit.body%</div>
+
+		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

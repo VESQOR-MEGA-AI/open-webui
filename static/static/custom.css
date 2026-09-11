@@ -15,11 +15,6 @@
 	--vesqor-text: #f5f7f9;
 	--vesqor-muted: #9aa8b5;
 	--vesqor-border: rgba(126, 240, 176, 0.16);
-	/* Glass opacity: 0.94 = "almost can't see through" (owner 2026-09-11).
-	   Interactive/report-open states flip to 0.97 (fully matte) via
-	   body.vesqor-interacting / body.vesqor-report-open and pause the
-	   living background. */
-	--vesqor-glass-bg: rgba(8, 22, 15, 0.94);
 }
 
 /* ========================= LIVING BACKGROUND — MATRIX + ORBS ========================= */
@@ -184,92 +179,17 @@ body {
 		animation: none !important;
 	}
 }
-/* In-chat cards are GLASS (owner 2026-09-11: "almost can't see through"):
-   the living matrix background barely shows through them (like vesqorai.com).
-   Scoped to .vesqor-chat-root so admin pages, modals and dialogs keep their
-   normal opaque backgrounds. .bg-gray-850 + .chat-assistant>div are the
-   message bubbles (user bubble: bg-gray-50 dark:bg-gray-850; assistant
-   bubble container: .chat-assistant w-full). */
-.vesqor-chat-root [role='dialog'],
-.vesqor-chat-root .rounded-xl,
-.vesqor-chat-root .rounded-2xl,
-.vesqor-chat-root .rounded-3xl,
-.vesqor-chat-root .bg-white,
-.vesqor-chat-root .bg-gray-50,
-.vesqor-chat-root .bg-gray-100,
-.vesqor-chat-root .bg-gray-800,
-.vesqor-chat-root .bg-gray-850,
-.vesqor-chat-root .bg-gray-900,
-.vesqor-chat-root .chat-assistant > div,
-.vesqor-chat-root .bg-black\/50,
-.vesqor-chat-root .bg-black\/60,
-.vesqor-chat-root .bg-black\/70,
-.vesqor-chat-root .bg-black\/80,
-.vesqor-chat-root .bg-black\/90 {
-	background-color: var(--vesqor-glass-bg) !important;
-	-webkit-backdrop-filter: blur(14px) saturate(1.2);
-	backdrop-filter: blur(14px) saturate(1.2);
-	border: 1px solid var(--vesqor-border) !important;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
-	/* Smooth tint: clear → matte must be gradual, not instant (owner 2026-09-10). */
-	transition: background-color 0.7s ease;
-}
-
-/* Interacting (focus/typing) or reading an open report → matte ~95% glass
-   + living background paused. Reading mode (report open, no typing) keeps
-   the matrix visible until the report finishes; see app.html JS. */
-body.vesqor-interacting .vesqor-chat-root [role='dialog'],
-body.vesqor-interacting .vesqor-chat-root .rounded-xl,
-body.vesqor-interacting .vesqor-chat-root .rounded-2xl,
-body.vesqor-interacting .vesqor-chat-root .rounded-3xl,
-body.vesqor-interacting .vesqor-chat-root .bg-white,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-50,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-100,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-800,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-850,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-900,
-body.vesqor-interacting .vesqor-chat-root .chat-assistant > div,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/50,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/60,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/70,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/80,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/90 {
-	background-color: rgba(8, 22, 15, 0.97) !important;
-}
-
-/* Pause the living matrix when interacting or reading an open report —
-   orbs/particles freeze so the tinted glass reads stable (no motion). */
-body.vesqor-interacting .ambient-bg,
-body.vesqor-report-open .ambient-bg {
-	animation: none !important;
-}
-body.vesqor-interacting .ambient-orb,
-body.vesqor-interacting .ambient-particle,
-body.vesqor-report-open .ambient-orb,
-body.vesqor-report-open .ambient-particle {
-	animation-play-state: paused !important;
-}
-
-/* Opening an existing report: while it loads (report loading) the matrix
-   stays alive and glass is clear; once done, the whole app tints matte. */
-body.vesqor-report-open .vesqor-chat-root [role='dialog'],
-body.vesqor-report-open .vesqor-chat-root .rounded-xl,
-body.vesqor-report-open .vesqor-chat-root .rounded-2xl,
-body.vesqor-report-open .vesqor-chat-root .rounded-3xl,
-body.vesqor-report-open .vesqor-chat-root .bg-white,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-50,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-100,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-800,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-850,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-900,
-body.vesqor-report-open .vesqor-chat-root .chat-assistant > div,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/50,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/60,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/70,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/80,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/90 {
-	background-color: rgba(8, 22, 15, 0.97) !important;
-}
+/* ============ IN-CHAT CARDS ============
+   Owner directive (Anna, 2026-09-11) / previous session (user, 19:01 09-10):
+   remove the custom input box and custom glass card styling — chat UI must
+   look like the ORIGINAL Open WebUI: regular text box for questions, stock
+   message bubbles, stock action toolbar (thumbs up etc.). The ONLY
+   customization that stays is the VESQOR living matrix background behind the
+   app (ambient layer above) and the matte login card (AUTH PAGE block).
+   The .vesqor-chat-root glass rules and the body.vesqor-interacting tint
+   were DELETED on 2026-09-11 because tapping anywhere paused the matrix and
+   tinted everything matte ("click on anything and it looks broken"). The
+   background remains alive; cards are stock Open WebUI. */
 
 /* ========================= AUTH PAGE ========================= */
 /* The auth route pins a solid bg-white/dark:bg-black overlay under the form;
@@ -356,24 +276,6 @@ main > div {
 [class*='message'],
 [class*='chat'] {
 	border-color: rgba(126, 240, 176, 0.1);
-}
-
-/* ========================= MESSAGES ANCHORING ========================= */
-/* Mobile report: the response block "floated" mid-screen with a big empty
-   gap above the input. Open WebUI top-aligns short chats (Messages.svelte
-   root: className="h-full flex pt-18", a flex-ROW with one child
-   div.w-full.pt-2). Make it a column and margin-top:auto on that child —
-   short chats flush messages directly ABOVE the composer (messenger style);
-   when content overflows, auto margins collapse and #messages-container
-   scrolling is untouched. ChatPlaceholder (empty chat) has no div.w-full
-   child, so it is unaffected. */
-#messages-container .h-full.flex.pt-18,
-#messages-container .h-full.flex.pt-4 {
-	flex-direction: column;
-}
-#messages-container .h-full.flex.pt-18 > div.w-full,
-#messages-container .h-full.flex.pt-4 > div.w-full {
-	margin-top: auto;
 }
 
 /* ========================= INPUT / PROMPT BOX ========================= */
