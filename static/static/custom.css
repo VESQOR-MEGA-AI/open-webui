@@ -367,24 +367,17 @@ main > div {
 }
 
 /* ========================= INPUT / PROMPT BOX ========================= */
-textarea,
-input[type='text'],
-input[type='email'],
-input[type='password'],
-input[type='search'] {
-	background: rgba(8, 22, 15, 0.97) !important;
-	color: var(--vesqor-text) !important;
-	border: 1px solid rgba(126, 240, 176, 0.18) !important;
-	box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22), 0 0 22px rgba(37, 190, 122, 0.035);
-	backdrop-filter: blur(14px);
-}
-
-textarea:focus,
-input:focus {
-	border-color: rgba(126, 240, 176, 0.48) !important;
-	box-shadow: 0 0 0 1px rgba(126, 240, 176, 0.16), 0 0 28px rgba(38, 189, 120, 0.08) !important;
-	outline: none !important;
-}
+/*
+	Owner 2026-09-11: restore ORIGINAL Open WebUI field look — both the chat
+	composer and the auth/login inputs must look stock. The old rule below hit
+	EVERY text/email/password/textarea with a dark green box + border + blur,
+	turning login fields into "custom-made text boxes" (taller, framed). Deleting
+	it lets the stock Open WebUI field styles (bg-transparent, no border) show.
+	Keep: the matte glass #auth-login-card, the living matrix background, and
+	the glass scoping — those are separate rules above. The focus rule below
+	was removed for the same reason: a green focus ring on EVERY field is part
+	of the custom look being reverted. Stock Open WebUI focus states restored.
+*/
 
 /* ========================= BUTTONS ========================= */
 button {
