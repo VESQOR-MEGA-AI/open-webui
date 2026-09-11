@@ -143,10 +143,9 @@
 	</head>
 
 	<body data-sveltekit-preload-data="hover">
-		<!-- VESQOR ambient living background — same as vesqorai.com landing:
+		<!-- VESQOR ambient living background — identical to vesqorai.com landing:
 		     matrix rain + 3 drifting orbs + rising particles. Purely decorative. -->
 		<div class="ambient-bg" aria-hidden>
-			<canvas id="vesqor-matrix-canvas" aria-hidden></canvas>
 			<div class="ambient-orb ambient-orb--a"></div>
 			<div class="ambient-orb ambient-orb--b"></div>
 			<div class="ambient-orb ambient-orb--c"></div>
@@ -159,56 +158,6 @@
 			<div class="ambient-particle ambient-particle--7"></div>
 			<div class="ambient-particle ambient-particle--8"></div>
 		</div>
-		<script>
-			// VESQOR crystal-clear living matrix rain (canvas). Bright, sharp,
-			// animated — the same "alive" signal as the vesqorai.com hero.
-			// Purely decorative; honours prefers-reduced-motion.
-			(function () {
-				if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-				var canvas = document.getElementById('vesqor-matrix-canvas');
-				if (!canvas) return;
-				var ctx = canvas.getContext('2d');
-				var chars = 'VESQOR MEGA AI 01 02 03 TRYON アカサタナハマヤラワ0123456789';
-				var fontSize = 14;
-				var columns, drops, w, h;
-				function resize() {
-					w = canvas.width = window.innerWidth;
-					h = canvas.height = window.innerHeight;
-					columns = Math.floor(w / fontSize);
-					drops = [];
-					// Start drops at random positions across the FULL height so the
-					// rain is visible immediately (not after ~1.5s of falling).
-					for (var i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * h / fontSize);
-				}
-				resize();
-				window.addEventListener('resize', resize);
-				var last = 0;
-				function draw(ts) {
-					// ~30fps cap keeps CPU low.
-					if (ts - last < 33) { requestAnimationFrame(draw); return; }
-					last = ts;
-					ctx.font = fontSize + 'px monospace';
-					for (var i = 0; i < columns; i++) {
-						var y = drops[i] * fontSize;
-						if (y > h + 40) { drops[i] = Math.floor(Math.random() * -40); continue; }
-						// Trail: 4 glyphs with fading brightness (no bg fill —
-						// keeps the base crystal-clear dark).
-						for (var t = 0; t < 4; t++) {
-							var ch = chars[Math.floor(Math.random() * chars.length)];
-							var alpha = t === 0 ? 0.95 : 0.55 - t * 0.12;
-							ctx.fillStyle = t === 0
-								? 'rgba(126, 240, 176, ' + alpha + ')'
-								: 'rgba(57, 181, 74, ' + alpha + ')';
-							ctx.fillText(ch, i * fontSize, y - t * fontSize);
-						}
-						if (Math.random() > 0.975) drops[i] = Math.floor(Math.random() * -40);
-						drops[i]++;
-					}
-					requestAnimationFrame(draw);
-				}
-				requestAnimationFrame(draw);
-			})();
-		</script>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

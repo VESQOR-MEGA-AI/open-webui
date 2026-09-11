@@ -31,6 +31,25 @@
 		toast.success($i18n.t('Default model updated'));
 	};
 
+	// VESQOR: persist any explicit picker selection to user settings so it
+	// survives reload / new session / new conversation (last-write-wins).
+	// Only writes when the selection actually changed — avoids a write on
+	// every mount and keeps the first-use default intact.
+	// NOTE: bind:values already updated selectedModels before this fires, so
+	// compare against the persisted settings value instead.
+	const persistSelection = async (modelId: string) => {
+		if (!modelId || $settings?.models?.[0] === modelId) {
+			return;
+		}
+		settings.set({ ...$settings, models: [modelId] });
+		try {
+			await updateUserSettings(localStorage.token, { ui: $settings });
+		} catch (e) {
+			console.error('Failed to persist model selection', e);
+			toast.error(i18n.t('Could not save model selection'));
+		}
+	};
+
 	const pinModelHandler = async (modelId) => {
 		let pinnedModels = $settings?.pinnedModels ?? [];
 
@@ -104,6 +123,7 @@
 					{align}
 					{showSetDefault}
 					onSetDefault={saveDefaultModel}
+					on:select={(e) => persistSelection(e.detail.value)}
 					vesqorTierMenu
 					multipleEnabled={$user?.role === 'admin' ||
 						($user?.permissions?.chat?.multiple_models ?? true)}

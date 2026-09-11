@@ -18,16 +18,17 @@
 }
 
 /* ========================= LIVING BACKGROUND — MATRIX + ORBS ========================= */
-/* Same as vesqorai.com landing: fixed matrix rain layer + 3 drifting orbs
-   (bubbles) + rising particles. DOM injected in app.html. */
+/* EXACT copy of vesqorai.com landing ambient layer (globals.css lines 57-193):
+   fixed matrix rain + 3 drifting orbs + rising particles. Same images, same
+   overlay, same animations. DOM injected in app.html. */
 html {
 	min-height: 100%;
 	background-color: #020914;
 	color: var(--vesqor-text);
 }
 
-/* The matrix layer must be crystal-clear: no dark base bleeding through. */
 body {
+	min-height: 100%;
 	background: transparent !important;
 }
 
@@ -37,38 +38,20 @@ body {
 	z-index: 0;
 	overflow: hidden;
 	pointer-events: none;
-	/* Crystal-clear base: bright green matrix image (guaranteed visible in
-	   every browser) + canvas rain on top for the living animation. */
-	background-image: url('/static/vesqor-matrix-crystal.webp');
-	background-size: cover;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-attachment: scroll;
+	/* Force its own compositing layer — iOS Safari otherwise drops fixed
+	   layers that sit behind backdrop-filter or animated siblings. */
+	-webkit-transform: translateZ(0);
+	transform: translateZ(0);
+	background-image: linear-gradient(rgba(2, 9, 20, 0.82), rgba(2, 9, 20, 0.82)),
+		url('/static/vesqor-matrix.webp');
+	background-size: auto, cover;
+	background-position: center, center;
+	background-repeat: repeat, no-repeat;
+	background-attachment: fixed, fixed;
+	/* Animate background-position, NOT filter: filter animation on a fixed
+	   element is a known iOS Safari no-render. background-position is
+	   compositor-friendly and safe everywhere. */
 	animation: ambient-shift 34s ease-in-out infinite alternate;
-}
-
-/* Crystal-clear living matrix rain (canvas) — sits above the static image,
-   below the orbs/particles. */
-#vesqor-matrix-canvas {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	z-index: 0;
-	display: block;
-}
-
-/* Mobile: the original matrix webp is very dark (mean RGB ~[10,22,37]) and
-   reads as pure black on phone screens. Use the green-boosted variant. */
-@media (max-width: 768px) {
-	.ambient-bg {
-		background-image: url('/static/vesqor-matrix-green.webp');
-	}
-	.ambient-orb--a,
-	.ambient-orb--b,
-	.ambient-orb--c {
-		background-image: url('/static/vesqor-matrix-rain-green.webp');
-	}
 }
 @keyframes ambient-shift {
 	0%   { background-position: 0% 0%, center; }
@@ -78,14 +61,13 @@ body {
 .ambient-orb {
 	position: absolute;
 	border-radius: 50%;
+	/* Soft feathered edge so the rain reads as a "bubble", not a hard sticker
+	   (blur is avoided on purpose — large blur radii no-render on iOS Safari). */
 	-webkit-mask-image: radial-gradient(circle, #000 62%, transparent 88%);
 	mask-image: radial-gradient(circle, #000 62%, transparent 88%);
 	border: 1.5px solid rgba(84, 232, 139, 0.45);
 	box-shadow: 0 0 70px rgba(57, 181, 74, 0.35), inset 0 0 40px rgba(2, 9, 20, 0.25);
 	opacity: 0.85;
-	/* VESQOR: orbs are transparent — the crystal-clear canvas rain shows
-	   through them. The dark rain image made the background muddy. */
-	background: transparent !important;
 }
 .ambient-orb--a {
 	width: 46vw;
@@ -135,7 +117,8 @@ body {
 	100% { transform: translate3d(3vw, -3vh, 0) scale(1.1); }
 }
 
-/* Mobile: shrink the orbs so they stay on-screen. */
+/* Mobile: shrink the orbs so they stay on-screen (a 420px+ orb on a 390px
+   iPhone viewport is pushed off the edges and reads as "no background"). */
 @media (max-width: 640px) {
 	.ambient-orb--a {
 		width: 70vw;
@@ -163,7 +146,8 @@ body {
 	}
 }
 
-/* Floating particles — small glowing motes drifting upward. */
+/* Floating particles — small glowing motes drifting upward, the "living
+   energy" of the interface. Pure decoration, aria-hidden, no interaction. */
 .ambient-particle {
 	position: absolute;
 	bottom: -12px;
@@ -180,11 +164,12 @@ body {
 .ambient-particle--6 { left: 84%; width: 5px;  height: 5px;  animation-duration: 15s; animation-delay: 3.8s; }
 .ambient-particle--7 { left: 93%; width: 7px;  height: 7px;  animation-duration: 12.5s; animation-delay: 9s; }
 .ambient-particle--8 { left: 14%; width: 4px;  height: 4px;  animation-duration: 17s; animation-delay: 6.2s; }
+
 @keyframes particle-rise {
-	0%   { transform: translateY(0) scale(0.6); opacity: 0; }
-	12%  { opacity: 0.85; }
-	85%  { opacity: 0.5; }
-	100% { transform: translateY(-105vh) scale(1.15); opacity: 0; }
+	0%   { transform: translateY(0) scale(1); opacity: 0; }
+	10%  { opacity: 0.9; }
+	90%  { opacity: 0.6; }
+	100% { transform: translateY(-110vh) scale(0.4); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -194,26 +179,23 @@ body {
 		animation: none !important;
 	}
 }
-
-/* ========================= GLASS CARDS (APP) ========================= */
-/* In-app cards are CLEAR see-through glass: the living matrix background
-   shows through them (like vesqorai.com). Text stays readable thanks to
-   blur + dark tint. Inputs/buttons/sidebar keep their own opaque styles
-   (defined below, they override these broad selectors). */
-[role='dialog'],
-.rounded-xl,
-.rounded-2xl,
-.rounded-3xl,
-.bg-white,
-.bg-gray-50,
-.bg-gray-100,
-.bg-gray-800,
-.bg-gray-900,
-.bg-black\/50,
-.bg-black\/60,
-.bg-black\/70,
-.bg-black\/80,
-.bg-black\/90 {
+/* In-chat cards are CLEAR see-through glass: the living matrix background
+   shows through them (like vesqorai.com). Scoped to .vesqor-chat-root so
+   admin pages, modals and dialogs keep their normal opaque backgrounds. */
+.vesqor-chat-root [role='dialog'],
+.vesqor-chat-root .rounded-xl,
+.vesqor-chat-root .rounded-2xl,
+.vesqor-chat-root .rounded-3xl,
+.vesqor-chat-root .bg-white,
+.vesqor-chat-root .bg-gray-50,
+.vesqor-chat-root .bg-gray-100,
+.vesqor-chat-root .bg-gray-800,
+.vesqor-chat-root .bg-gray-900,
+.vesqor-chat-root .bg-black\/50,
+.vesqor-chat-root .bg-black\/60,
+.vesqor-chat-root .bg-black\/70,
+.vesqor-chat-root .bg-black\/80,
+.vesqor-chat-root .bg-black\/90 {
 	background-color: rgba(8, 22, 15, 0.45) !important;
 	-webkit-backdrop-filter: blur(14px) saturate(1.2);
 	backdrop-filter: blur(14px) saturate(1.2);

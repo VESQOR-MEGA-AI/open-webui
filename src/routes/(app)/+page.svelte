@@ -12,4 +12,9 @@
 	});
 </script>
 
-<Chat />
+<!-- VESQOR: chat root wrapper — the clear see-through glass styling in
+     custom.css is scoped to this container so admin pages, modals and
+     dialogs keep their normal opaque backgrounds. -->
+<div class="vesqor-chat-root">
+	<Chat />
+</div>

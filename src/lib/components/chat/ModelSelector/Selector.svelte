@@ -80,6 +80,8 @@
 
 	let show = false;
 	let view: 'root' | 'effort' = 'root';
+	// VESQOR: expandable "More models" accordion state (Claude Code-style picker).
+	let moreModelsOpen = false;
 	let triggerElement: HTMLElement | null = null;
 	let contentElement: HTMLElement | null = null;
 	let panelElement: HTMLElement | null = null;
@@ -443,11 +445,17 @@
 			values = [item.value];
 			value = item.value;
 			show = false;
+			// VESQOR: notify parent so the selection can be persisted to user
+			// settings (survives reload / new session / new conversation).
+			dispatch('select', { value: item.value });
 			return;
 		}
 
 		value = item.value;
 		show = false;
+		// VESQOR: notify parent so the selection can be persisted to user
+		// settings (survives reload / new session / new conversation).
+		dispatch('select', { value: item.value });
 	};
 
 	const setDefaultHandler = async () => {
@@ -873,43 +881,88 @@
 						{#if vesqorTierMenu}
 							{#if view === 'root'}
 								<div class="overflow-y-auto scrollbar-thin" style="max-height: 380px;">
-									{#if defaultItem && (!searchValue || defaultItem.label.toLowerCase().includes(searchValue.toLowerCase()))}
-										<button
-											type="button"
-											class="mb-1.5 flex w-full flex-col items-start rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60 {primaryValue ===
-											defaultItem.value
-												? 'ring-1 ring-emerald-500/60'
-												: ''}"
-											on:click={() => selectItem(defaultItem, 0)}
+									<!-- Primary selection row: current model + effort level -->
+									{#if selectedModel}
+										<div
+											class="mb-1.5 flex w-full items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5"
 										>
-											<div class="flex w-full items-center justify-between">
-												<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-													{$i18n.t('DEFAULT')}
+											<div class="flex min-w-0 flex-col">
+												<span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+													{selectedModel.label}
 												</span>
-												{#if primaryValue === defaultItem.value}
-													<Check className="size-4 text-emerald-500" />
+												{#if selectedModel.effortTier}
+													<span class="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+														Effort: {selectedModel.effortTier.toLowerCase()}
+													</span>
 												{/if}
 											</div>
-											<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-												{defaultItem.label}
-											</span>
-										</button>
+											<Check className="size-4 shrink-0 text-emerald-500" />
+										</div>
+									{:else if defaultItem}
+										<div
+											class="mb-1.5 flex w-full items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5"
+										>
+											<div class="flex min-w-0 flex-col">
+												<span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+													{defaultItem.label}
+												</span>
+												{#if defaultItem.effortTier}
+													<span class="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+														Effort: {defaultItem.effortTier.toLowerCase()}
+													</span>
+												{/if}
+											</div>
+											<Check className="size-4 shrink-0 text-emerald-500" />
+										</div>
 									{/if}
 
-									{#if effortItems.length > 0 && (!searchValue || 'effort'.includes(searchValue.toLowerCase()))}
+									<!-- Expandable "More models" accordion -->
+									{#if effortItems.length > 0}
 										<button
 											type="button"
 											class="flex w-full items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60"
+											aria-expanded={moreModelsOpen}
+											aria-controls="vesqor-more-models"
 											on:click={() => {
-												view = 'effort';
-												searchValue = '';
+												moreModelsOpen = !moreModelsOpen;
 											}}
 										>
 											<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-												{$i18n.t('Effort')}
+												{$i18n.t('More models')}
 											</span>
-											<ChevronRight className="size-4 text-gray-400" />
+											<ChevronDown
+												className="size-4 text-gray-400 transition-transform duration-150 {moreModelsOpen ? 'rotate-180' : ''}"
+											/>
 										</button>
+
+										{#if moreModelsOpen}
+											<div id="vesqor-more-models" class="mt-1.5 flex flex-col gap-1.5">
+												{#each effortItems as item}
+													<button
+														type="button"
+														class="flex w-full flex-col items-start rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left transition-colors duration-75 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800/60 {selectedEffortTier ===
+														item.effortTier
+															? 'ring-1 ring-emerald-500/60'
+															: ''}"
+														on:click={() => selectItem(item, 0)}
+													>
+														<div class="flex w-full items-center justify-between">
+															<span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+																{item.effortTier.toLowerCase()}
+															</span>
+															{#if selectedEffortTier === item.effortTier}
+																<Check className="size-4 text-emerald-500" />
+															{/if}
+														</div>
+														{#if item.effortDesc}
+															<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+																{item.effortDesc}
+															</span>
+														{/if}
+													</button>
+												{/each}
+											</div>
+										{/if}
 									{/if}
 
 									{#if !defaultItem && effortItems.length === 0}
