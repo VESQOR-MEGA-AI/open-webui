@@ -168,10 +168,28 @@
 			//                     rendered (done=true): matrix paused + matte.
 			(function () {
 				var body = document.body;
+				var idleTimer = null;
+				// Idle timeout: after the last interaction, return to the
+				// living state (matrix resumes). Fixes the "stuck paused"
+				// bug: clicking Sign in fired 'pointerdown' → vesqor-interacting
+				// stuck forever across the SPA navigation, so the first screen
+				// after login was paused + tinted. Now any interaction only
+				// tints for IDLE_RESET_MS of inactivity, then the matrix lives.
+				var IDLE_RESET_MS = 6000;
 				function setInteracting(on) {
-					body.classList.toggle('vesqor-interacting', !!on);
+					if (on) {
+						body.classList.add('vesqor-interacting');
+						clearTimeout(idleTimer);
+						idleTimer = setTimeout(function () {
+							setInteracting(false);
+						}, IDLE_RESET_MS);
+					} else {
+						clearTimeout(idleTimer);
+						idleTimer = null;
+						body.classList.remove('vesqor-interacting');
+					}
 				}
-				// Any interaction starts the tint; leaving everything ends it.
+				// Any interaction starts the tint; inactivity ends it.
 				// Pointer down anywhere counts ("anything touches the background").
 				document.addEventListener('pointerdown', function () {
 					setInteracting(true);
@@ -188,12 +206,16 @@
 					setInteracting(false);
 				});
 				// When the last focusable element inside the app loses focus,
-				// return to idle after a tick (allows focus jumps between fields).
+				// return to idle after a tick (allows focus jumps between
+				// fields). NOTE: after SPA navigation the activeElement can be
+				// <body> itself — body.contains(body) is true, so we must
+				// exclude the body element or the tint would stick forever.
 				document.addEventListener('focusout', function (e) {
 					var next = e.relatedTarget;
 					if (!next) {
 						requestAnimationFrame(function () {
-							if (!body.contains(document.activeElement)) {
+							var active = document.activeElement;
+							if (!active || active === document.body || !body.contains(active)) {
 								setInteracting(false);
 							}
 						});

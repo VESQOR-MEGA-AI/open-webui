@@ -15,10 +15,11 @@
 	--vesqor-text: #f5f7f9;
 	--vesqor-muted: #9aa8b5;
 	--vesqor-border: rgba(126, 240, 176, 0.16);
-	/* Glass opacity: 0.45 = clear see-through (idle), 0.97 = matte (~95%).
-	   body.vesqor-interacting / body.vesqor-report-open flip it to matte
-	   and pause the living background (owner 2026-09-10). */
-	--vesqor-glass-bg: rgba(8, 22, 15, 0.45);
+	/* Glass opacity: 0.94 = "almost can't see through" (owner 2026-09-11).
+	   Interactive/report-open states flip to 0.97 (fully matte) via
+	   body.vesqor-interacting / body.vesqor-report-open and pause the
+	   living background. */
+	--vesqor-glass-bg: rgba(8, 22, 15, 0.94);
 }
 
 /* ========================= LIVING BACKGROUND — MATRIX + ORBS ========================= */
@@ -183,9 +184,12 @@ body {
 		animation: none !important;
 	}
 }
-/* In-chat cards are CLEAR see-through glass: the living matrix background
-   shows through them (like vesqorai.com). Scoped to .vesqor-chat-root so
-   admin pages, modals and dialogs keep their normal opaque backgrounds. */
+/* In-chat cards are GLASS (owner 2026-09-11: "almost can't see through"):
+   the living matrix background barely shows through them (like vesqorai.com).
+   Scoped to .vesqor-chat-root so admin pages, modals and dialogs keep their
+   normal opaque backgrounds. .bg-gray-850 + .chat-assistant>div are the
+   message bubbles (user bubble: bg-gray-50 dark:bg-gray-850; assistant
+   bubble container: .chat-assistant w-full). */
 .vesqor-chat-root [role='dialog'],
 .vesqor-chat-root .rounded-xl,
 .vesqor-chat-root .rounded-2xl,
@@ -194,7 +198,9 @@ body {
 .vesqor-chat-root .bg-gray-50,
 .vesqor-chat-root .bg-gray-100,
 .vesqor-chat-root .bg-gray-800,
+.vesqor-chat-root .bg-gray-850,
 .vesqor-chat-root .bg-gray-900,
+.vesqor-chat-root .chat-assistant > div,
 .vesqor-chat-root .bg-black\/50,
 .vesqor-chat-root .bg-black\/60,
 .vesqor-chat-root .bg-black\/70,
@@ -220,7 +226,9 @@ body.vesqor-interacting .vesqor-chat-root .bg-white,
 body.vesqor-interacting .vesqor-chat-root .bg-gray-50,
 body.vesqor-interacting .vesqor-chat-root .bg-gray-100,
 body.vesqor-interacting .vesqor-chat-root .bg-gray-800,
+body.vesqor-interacting .vesqor-chat-root .bg-gray-850,
 body.vesqor-interacting .vesqor-chat-root .bg-gray-900,
+body.vesqor-interacting .vesqor-chat-root .chat-assistant > div,
 body.vesqor-interacting .vesqor-chat-root .bg-black\/50,
 body.vesqor-interacting .vesqor-chat-root .bg-black\/60,
 body.vesqor-interacting .vesqor-chat-root .bg-black\/70,
@@ -252,7 +260,9 @@ body.vesqor-report-open .vesqor-chat-root .bg-white,
 body.vesqor-report-open .vesqor-chat-root .bg-gray-50,
 body.vesqor-report-open .vesqor-chat-root .bg-gray-100,
 body.vesqor-report-open .vesqor-chat-root .bg-gray-800,
+body.vesqor-report-open .vesqor-chat-root .bg-gray-850,
 body.vesqor-report-open .vesqor-chat-root .bg-gray-900,
+body.vesqor-report-open .vesqor-chat-root .chat-assistant > div,
 body.vesqor-report-open .vesqor-chat-root .bg-black\/50,
 body.vesqor-report-open .vesqor-chat-root .bg-black\/60,
 body.vesqor-report-open .vesqor-chat-root .bg-black\/70,
