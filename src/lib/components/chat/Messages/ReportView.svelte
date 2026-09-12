@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, onMount, onDestroy } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
@@ -74,21 +74,12 @@
 	let preferredFormat: ExportFormat = 'pdf';
 	let showFormatMenu = false;
 
-	// VESQOR (owner 2026-09-10): a fully rendered report pauses the living
-	// background and tints the glass to ~95% matte (body.vesqor-report-open).
-	// While the report is LOADING (done=false) the matrix stays alive and the
-	// glass is clear — the tint applies only once content is ready.
-	$: reportReady = done === true;
-	$: {
-		if (reportReady) {
-			document.body.classList.add('vesqor-report-open');
-		} else {
-			document.body.classList.remove('vesqor-report-open');
-		}
-	}
-	onDestroy(() => {
-		document.body.classList.remove('vesqor-report-open');
-	});
+	// VESQOR (owner spec 2026-09-12): the background frost is handled centrally
+	// by src/lib/utils/ambient-frost.ts, armed once in the root layout. Opening
+	// an existing report is an SPA navigation, so `afterNavigate` there resets
+	// the state to clear glass and re-arms the one-shot trigger — no per-report
+	// body-class toggling here (the old per-report tint re-ran on every render
+	// and used `animation: none`, which restarted the matrix).
 
 	onMount(async () => {
 		try {
