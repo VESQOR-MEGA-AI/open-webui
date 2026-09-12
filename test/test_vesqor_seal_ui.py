@@ -207,7 +207,7 @@ def test_i18n_keys_present_empty() -> None:
     import json
 
     data = json.loads(read(TRANSLATION))
-    for key in ('Standard', 'Private', 'Confidential', 'Confidentiality confirmed'):
+    for key in ('Standard', 'Private', 'Confidential', 'Confidentiality', 'Confidentiality confirmed'):
         check(key in data, f'"{key}" key exists in en-US/translation.json')
         if key in data:
             check(data[key] == '', f'"{key}" value is "" (the key IS the display text)')
