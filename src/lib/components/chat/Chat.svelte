@@ -44,6 +44,8 @@
 		showEmbeds,
 		selectedTerminalId,
 		selectedPersona,
+		selectedSeal,
+		sealConfirmed,
 		showFileNavPath,
 		showFileNavDir,
 		chatRequestQueues,
@@ -2808,6 +2810,9 @@
 			scrollToBottom();
 		}
 
+		// SEAL-1: a new send starts, so any prior server confirmation is stale.
+		sealConfirmed.set(null);
+
 		let _chatId = JSON.parse(JSON.stringify($chatId));
 		_history = structuredClone(_history);
 
@@ -3149,6 +3154,9 @@
 				// PERSONA-1 (2026-08-22): the persona selector forces the report
 				// register via vq_audience; null = auto-detect (brain classifies).
 				...($selectedPersona ? { vq_audience: $selectedPersona } : {}),
+				// SEAL-1 (2026-09-12): STANDARD is the default and is never sent;
+				// PRIVATE/CONFIDENTIAL are forwarded for the backend to validate.
+				...($selectedSeal !== 'STANDARD' ? { vq_seal: $selectedSeal } : {}),
 				params: {
 					...$settings?.params,
 					...params,

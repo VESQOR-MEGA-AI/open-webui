@@ -135,6 +135,15 @@ export const selectedTerminalId: Writable<string | null> = writable(null);
 // register via vq_audience in the chat.completions payload.
 export const selectedPersona: Writable<string | null> = writable(null);
 
+// SEAL-1 (2026-09-12): the chat UI's confidentiality selector.
+// selectedSeal is client intent only, sent to the backend as vq_seal; the
+// backend validates it against its own allowlist before setting the
+// upstream X-VESQOR-Security-Seal header. sealConfirmed is SERVER
+// confirmation only (read from the response) — never assign it from
+// selectedSeal, and never display selectedSeal as if it were confirmed.
+export const selectedSeal: Writable<'STANDARD' | 'PRIVATE' | 'CONFIDENTIAL'> = writable('STANDARD');
+export const sealConfirmed: Writable<string | null> = writable(null);
+
 export const artifactCode = writable(null);
 export const artifactContents = writable(null);
 

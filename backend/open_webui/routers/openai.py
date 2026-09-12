@@ -78,6 +78,13 @@ log = logging.getLogger(__name__)
 # clients to attempt decompression of an already-decoded payload, resulting
 # in ZlibError.  See https://github.com/aio-libs/aiohttp/issues/4462.
 _STRIP_PROXY_HEADERS = frozenset({'Content-Encoding', 'Content-Length', 'Transfer-Encoding'})
+# SEAL-1 (2026-09-12): the only values the chat backend will ever turn into
+# an upstream X-VESQOR-Security-Seal header. The seal is client INTENT
+# carried in the body (vq_seal) — never an inbound request header, which
+# would let a client forge it directly. Anything outside this set (missing,
+# unknown, malformed) is dropped: absent/invalid must resolve to STANDARD,
+# never a stronger seal.
+_ALLOWED_SECURITY_SEALS = frozenset({'STANDARD', 'PRIVATE', 'CONFIDENTIAL'})
 _MODEL_LIST_TIMEOUT = aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST)
 _UNSUPPORTED_OPENAI_MODEL_KEYWORDS = ('babbage', 'dall-e', 'davinci', 'embedding', 'tts', 'whisper')
 
@@ -1291,6 +1298,15 @@ async def generate_chat_completion(
 
     headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
 
+    # SEAL-1 (2026-09-12): vq_seal is a structured body field set by the chat
+    # backend from the browser's stated intent — it is validated against the
+    # allowlist here and only THEN turned into the upstream header. An
+    # inbound X-VESQOR-Security-Seal request header is never read or
+    # forwarded; only this validated body field can set it.
+    seal = str(payload.pop('vq_seal', '') or '').strip().upper()
+    if seal in _ALLOWED_SECURITY_SEALS:
+        headers['X-VESQOR-Security-Seal'] = seal
+
     is_responses = api_config.get('api_type') == 'responses'
 
     if api_config.get('azure') or api_config.get('provider') == 'azure':
@@ -1431,6 +1447,18 @@ async def generate_chat_completion(
             # Convert Responses API result to simple format
             if is_responses and isinstance(response, dict):
                 response = convert_responses_result(response)
+
+            # SEAL-1 (2026-09-12): the streaming path already proxies upstream
+            # headers via _clean_proxy_headers, so the confirmation rides
+            # along for free. This non-streaming path returns a bare dict by
+            # default, which would silently drop it — wrap it in a
+            # JSONResponse instead, but only when upstream actually confirmed.
+            confirmed_seal = r.headers.get('X-VESQOR-Security-Seal-Confirmed')
+            if confirmed_seal:
+                return JSONResponse(
+                    content=response,
+                    headers={'X-VESQOR-Security-Seal-Confirmed': confirmed_seal},
+                )
 
             return response
     except Exception as e:
