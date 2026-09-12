@@ -87,6 +87,33 @@ class SignupForm(BaseModel):
     # VESQOR: optional company name collected at signup (stored in user.info)
     company_name: str | None = None
 
+    @field_validator('name')
+    @classmethod
+    def check_name(cls, v: str) -> str:
+        """Require a full name — first AND last name (owner rule, 2026-09-12).
+
+        A single token ("Basil", "Yuliya") is not a person: it degrades the
+        sanctions screen (a bare first name matches hundreds of unrelated
+        people → false positives, and a bare handle hides the real identity)
+        and it is unverifiable for KYC purposes. Require at least two
+        whitespace-separated tokens, each containing a letter, and cap the
+        length so a wall of text cannot be smuggled in.
+
+        Hyphenated/apostrophe names ("Anne-Marie", "O'Brien") stay valid
+        because the hyphen/apostrophe is inside a token, not a separator.
+        """
+        if v is None:
+            raise ValueError('Name is required (first and last name).')
+        v = ' '.join(v.split())  # collapse runs of whitespace
+        if len(v) > 100:
+            raise ValueError('Name must be at most 100 characters.')
+        if len(v) < 3:
+            raise ValueError('Name must be at least 3 characters (first and last name).')
+        tokens = [t for t in v.split(' ') if any(c.isalpha() for c in t)]
+        if len(tokens) < 2:
+            raise ValueError('Enter your full name: first name AND last name.')
+        return v
+
     @field_validator('company_name')
     @classmethod
     def check_company_name(cls, v: str | None) -> str | None:

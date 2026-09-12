@@ -17,6 +17,7 @@ import ast
 import os
 import re
 import sys
+import textwrap
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUTHS = os.path.join(REPO, 'backend', 'open_webui', 'routers', 'auths.py')
@@ -226,6 +227,70 @@ def test_alembic_single_head() -> None:
     check(not broken, f'no broken down_revision links (broken: {broken})')
 
 
+def test_full_name_required() -> None:
+    """Owner rule 2026-09-12: a signup name must be first AND last name.
+
+    Executes the real pydantic validator from models/auths.py (loaded by file
+    path, with a stub `field_validator` so pydantic itself is not required) —
+    a grep-only test would pass even if the rule stopped being enforced.
+    """
+    print('\n[full-name rule: first AND last name required]')
+    src_path = os.path.join(REPO, 'backend', 'open_webui', 'models', 'auths.py')
+    src = read(src_path)
+    check('@field_validator(\'name\')' in src, 'SignupForm declares a name validator')
+
+    # Extract the validator body and execute it standalone.
+    m = re.search(
+        r"@field_validator\('name'\)\s*\n\s*@classmethod\s*\n\s*def check_name\(cls, v: str\) -> str:(.*?)(?=\n    @|\nclass |\Z)",
+        src,
+        re.S,
+    )
+    check(m is not None, 'name validator body is extractable')
+    if not m:
+        return
+
+    body = m.group(1)
+    # Dedent the method body (8 spaces) and re-indent as a module-level function.
+    fn_src = 'def check_name(v):\n' + textwrap.indent(textwrap.dedent(body), '    ') + '\n'
+    ns: dict = {}
+    exec(compile(fn_src, '<check_name>', 'exec'), ns)  # noqa: S102 - test-only
+    check_name = ns['check_name']
+
+    def rejects(value, label):
+        try:
+            check_name(value)
+        except ValueError:
+            check(True, f'rejects {label}')
+            return
+        check(False, f'rejects {label}')
+
+    def accepts(value, label):
+        try:
+            out = check_name(value)
+        except ValueError as e:
+            check(False, f'accepts {label} (raised: {e})')
+            return
+        check(True, f'accepts {label} -> {out!r}')
+
+    # The regression: single-token names must NOT pass.
+    rejects('Basil', 'a first name only ("Basil")')
+    rejects('Berking', 'a last name only ("Berking")')
+    rejects('Yuliya', 'a first name only, non-ASCII ("Yuliya")')
+    rejects('Тигран', 'a single Cyrillic given name')
+    rejects('12345', 'digits only')
+    rejects('   ', 'whitespace only')
+    rejects('', 'an empty string')
+    rejects('B', 'a single character')
+    rejects('x' * 101, 'an over-long name')
+
+    # Real names keep working (including non-ASCII and hyphen/apostrophe).
+    accepts('Basil Berking', 'a plain two-token name')
+    accepts('Yuliya Veys', 'a first+last name')
+    accepts('Тигран Яхиев', 'a Cyrillic first+last name')
+    accepts('Anne-Marie O\'Brien', 'hyphen + apostrophe')
+    accepts('  Sergey   Veys  ', 'extra whitespace (collapsed)')
+
+
 def main() -> int:
     print('VESQOR signup gate regression tests')
     print('=' * 60)
@@ -235,6 +300,7 @@ def main() -> int:
     test_geo_fail_closed_semantics()
     test_boot_guard_for_unwired_gate()
     test_embryo_domain_screening()
+    test_full_name_required()
     test_alembic_single_head()
     print('\n' + '=' * 60)
     if failures:

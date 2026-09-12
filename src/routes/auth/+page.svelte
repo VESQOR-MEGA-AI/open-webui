@@ -98,6 +98,16 @@
 	};
 
 	const signUpHandler = async () => {
+		// VESQOR (owner rule, 2026-09-12): a full name (first AND last) is
+		// required — at least two word tokens, each with a letter. The server
+		// enforces the same rule (SignupForm.check_name), so this is only the
+		// fast, friendly path; it is never the security boundary.
+		const nameTokens = name.trim().split(/\s+/).filter((t) => /\p{L}/u.test(t));
+		if (nameTokens.length < 2) {
+			toast.error($i18n.t('Enter your full name: first name AND last name.'));
+			return;
+		}
+
 		if ($config?.features?.enable_signup_password_confirmation) {
 			if (password !== confirmPassword) {
 				toast.error($i18n.t('Passwords do not match.'));
