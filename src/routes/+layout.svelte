@@ -36,7 +36,7 @@
 	import { getFileContentById } from '$lib/apis/files';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { beforeNavigate } from '$app/navigation';
+	import { beforeNavigate, afterNavigate } from '$app/navigation';
 	import { updated } from '$app/state';
 
 	import i18n, { initI18n, getLanguages, changeLanguage } from '$lib/i18n';
@@ -66,6 +66,7 @@
 		removeAllDetails
 	} from '$lib/utils';
 	import { setTextScale } from '$lib/utils/text-scale';
+	import { initAmbientFrost, resetAmbientFrost } from '$lib/utils/ambient-frost';
 
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
@@ -1001,6 +1002,17 @@
 			showSyncStatsModal = true;
 		}
 	};
+
+	// VESQOR ambient frost (owner spec 2026-09-12): central arming of the
+	// living-Matrix background interaction state. Initial load and every SPA
+	// navigation reset it to clear glass and re-arm the one-shot trigger, so
+	// refreshing the page or opening another report replays the behaviour.
+	// The controller itself owns all triggers (click/tap/touch/scroll/wheel/
+	// key/focus), so no page or component wires up its own listeners.
+	initAmbientFrost();
+	afterNavigate(() => {
+		resetAmbientFrost();
+	});
 
 	onMount(async () => {
 		const originalFetch = window.fetch.bind(window);

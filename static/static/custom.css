@@ -206,57 +206,71 @@ body {
 	transition: background-color 0.7s ease;
 }
 
-/* Interacting (focus/typing in a real input) or reading an open report →
-   fully matte + living background paused. Only REAL input focus triggers
-   this — random taps/clicks keep the matrix alive (owner 2026-09-11). */
-body.vesqor-interacting .vesqor-chat-root [role='dialog'],
-body.vesqor-interacting .vesqor-chat-root .rounded-xl,
-body.vesqor-interacting .vesqor-chat-root .rounded-2xl,
-body.vesqor-interacting .vesqor-chat-root .rounded-3xl,
-body.vesqor-interacting .vesqor-chat-root .bg-white,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-50,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-100,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-800,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-850,
-body.vesqor-interacting .vesqor-chat-root .bg-gray-900,
-body.vesqor-interacting .vesqor-chat-root .chat-assistant > div,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/50,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/60,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/70,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/80,
-body.vesqor-interacting .vesqor-chat-root .bg-black\/90 {
-	background-color: rgba(8, 22, 15, 0.97) !important;
+/* Superseded 2026-09-12 by the AMBIENT FROST controller below. The old
+   per-input / per-report `vesqor-interacting` + `vesqor-report-open` states
+   used `animation: none`, which RESTARTS the matrix from frame zero instead
+   of pausing it, and re-ran on every focus/blur. The frost controller is a
+   single one-way activation per view and pauses in place. */
+
+/* ========================= AMBIENT FROST — interaction state ========================= */
+/* Owner spec 2026-09-12: on load the matrix is CLEAR GLASS and animating. On the
+   FIRST meaningful interaction the animation PAUSES (never restarts/destroys) and
+   the layer transitions gradually into dark, opaque sandblasted glass — the matrix
+   and the page behind it stop being visible through it. Driven centrally by
+   src/lib/utils/ambient-frost.ts, which adds `.ambient-frosted` to <html>/<body>
+   exactly once per view (idempotent). Layout/design outside this layer is stock
+   Open WebUI and untouched. */
+
+/* Transition surface: the dark sandblasted overlay lives on ::after so animating
+   it never touches the matrix image's own animation (pausing one property must
+   not restart the other). Idle = fully transparent, so nothing is visible until
+   the frost activates. */
+.ambient-bg::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	background-color: rgba(2, 9, 20, 0);
+	-webkit-backdrop-filter: blur(0px) saturate(1);
+	backdrop-filter: blur(0px) saturate(1);
+	transition:
+		background-color 1.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+		-webkit-backdrop-filter 1.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+		backdrop-filter 1.6s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-body.vesqor-report-open .vesqor-chat-root [role='dialog'],
-body.vesqor-report-open .vesqor-chat-root .rounded-xl,
-body.vesqor-report-open .vesqor-chat-root .rounded-2xl,
-body.vesqor-report-open .vesqor-chat-root .rounded-3xl,
-body.vesqor-report-open .vesqor-chat-root .bg-white,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-50,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-100,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-800,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-850,
-body.vesqor-report-open .vesqor-chat-root .bg-gray-900,
-body.vesqor-report-open .vesqor-chat-root .chat-assistant > div,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/50,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/60,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/70,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/80,
-body.vesqor-report-open .vesqor-chat-root .bg-black\/90 {
-	background-color: rgba(8, 22, 15, 0.97) !important;
-}
-
-/* Pause the living matrix when interacting or reading an open report. */
-body.vesqor-interacting .ambient-bg,
-body.vesqor-report-open .ambient-bg {
-	animation: none !important;
-}
-body.vesqor-interacting .ambient-orb,
-body.vesqor-interacting .ambient-particle,
-body.vesqor-report-open .ambient-orb,
-body.vesqor-report-open .ambient-particle {
+/* Frosted state: pause the living animations in place (play-state, NOT
+   `animation: none`, so the matrix holds its current frame instead of jumping
+   back to frame zero), then sandblast the layer dark and fully opaque. */
+.ambient-frosted .ambient-bg,
+.ambient-frosted .ambient-orb,
+.ambient-frosted .ambient-particle {
 	animation-play-state: paused !important;
+}
+
+.ambient-frosted .ambient-bg::after {
+	background-color: rgba(2, 9, 20, 0.985);
+	-webkit-backdrop-filter: blur(22px) saturate(0.9);
+	backdrop-filter: blur(22px) saturate(0.9);
+}
+
+/* Reduced motion: keep the final dark state, drop the gradual transition. */
+.ambient-frosted-instant .ambient-bg::after,
+.ambient-frosted-instant.ambient-frosted .ambient-bg::after {
+	transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ambient-bg::after {
+		transition: none !important;
+	}
+}
+
+/* While frosted the matrix is no longer part of the design — stop compositing
+   the (now invisible) decorative layer so pausing it costs nothing. */
+.ambient-frosted .ambient-orb,
+.ambient-frosted .ambient-particle {
+	opacity: 0 !important;
 }
 
 /* ========================= AUTH PAGE ========================= */
