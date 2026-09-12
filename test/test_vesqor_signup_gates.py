@@ -148,6 +148,45 @@ def test_boot_guard_for_unwired_gate() -> None:
     )
 
 
+def test_embryo_domain_screening() -> None:
+    """2026-09-11 regression: screening ONLY user.name let x@sberbank.com through."""
+    print('\n[embryo gate screens the email domain, fail-closed]')
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location('vesqor_compliance', COMPLIANCE)
+    if spec is None or spec.loader is None:
+        check(False, 'embryo gate module is loadable by path')
+        return
+    gate = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(gate)
+    except Exception as e:  # pragma: no cover
+        check(False, f'embryo gate loads without runtime deps: {e}')
+        return
+
+    cands = gate.email_domain_candidates('vberking@sberbank.com')
+    check('sberbank' in cands, "sberbank.com -> screens the 'sberbank' label")
+    check('sberbank.com' in cands, 'sberbank.com -> also screens the full domain')
+
+    check(
+        gate.email_domain_candidates('someone@gmail.com') == [],
+        'free mailbox providers are not screened as organisations',
+    )
+    check(gate.email_domain_candidates('') == [], 'empty email yields no candidates')
+    check(gate.email_domain_candidates('not-an-email') == [], 'malformed email yields no candidates')
+    check(
+        'sberbank' in gate.email_domain_candidates('a@mail.sberbank.com'),
+        'subdomain still surfaces the organisation label',
+    )
+
+    src = src_of(COMPLIANCE)
+    check('FAIL-CLOSED' in src or 'fail-closed' in src, 'embryo gate documents FAIL-CLOSED policy')
+    check(
+        'email=user.email' in read(AUTHS),
+        'auths.py passes the signup email into screen_embryo()',
+    )
+
+
 def test_alembic_single_head() -> None:
     """The force-push dropped migration files; a multi-head graph breaks every future migration."""
     print('\n[alembic graph has a single head and no broken links]')
@@ -195,6 +234,7 @@ def main() -> int:
     test_embryo_gate_wired_into_verification()
     test_geo_fail_closed_semantics()
     test_boot_guard_for_unwired_gate()
+    test_embryo_domain_screening()
     test_alembic_single_head()
     print('\n' + '=' * 60)
     if failures:

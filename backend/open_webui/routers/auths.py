@@ -1192,15 +1192,19 @@ async def verify_email(
             detail='Invalid or expired verification link. Please sign up again.',
         )
 
-    # ── VESQOR (2026-08-28): the embryo is born only after VESQOR Mega AI
-    # screens it against the sanctions engine (OFAC/UK/EU/UN). A critical
-    # match means the embryo is rejected — the account is never activated.
-    # Fail-open: brain unreachable → allow (never block on an outage).
+    # ── VESQOR (2026-08-28; domain screening + fail-closed 2026-09-11): the
+    # embryo is born only after VESQOR Mega AI screens it against the
+    # sanctions engine (OFAC/UK/EU/UN). Screened entities: display name,
+    # company, and the registrable email domain — screening only the display
+    # name let "vberking@sberbank.com" through as "Basil berking".
+    # Fail-closed: an unscreenable embryo is rejected, not born.
     user = await Users.get_user_by_id(user_id, db=db)
     if user:
         info = dict(user.info or {})
         company = info.get('company_name') if isinstance(info.get('company_name'), str) else None
-        allowed, level, matches = await screen_embryo(user.name or user.email, company)
+        allowed, level, matches = await screen_embryo(
+            user.name or user.email, company, email=user.email
+        )
         if not allowed:
             log.warning(
                 'Embryo %s rejected at birth: compliance level=%s matches=%s',
