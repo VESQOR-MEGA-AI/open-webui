@@ -32,14 +32,18 @@ export const FROST_CLASS = 'ambient-frosted';
 export const FROST_INSTANT_CLASS = 'ambient-frosted-instant';
 
 /**
- * Guard window after arming during which trigger events are ignored.
+ * Guard window after a PAGE LOAD during which trigger events are ignored.
  *
  * Browsers fire synthetic load-time events that are not user interactions:
  * restoring the scroll position (`scroll`), scroll-linked effects from
  * restored `:target` anchors, and auto-focused inputs (`focusin`). Without a
  * guard the page would frost during load, breaking the "on initial load the
- * background is in its normal clear-glass state" acceptance criterion. A
- * real user cannot reach and manipulate the UI within this window.
+ * background is in its normal clear-glass state" acceptance criterion. A real
+ * user cannot reach and manipulate the UI within this window.
+ *
+ * The guard applies ONLY to the initial page load. SPA navigation
+ * (`resetAmbientFrost`) re-arms with no guard, because the user is already
+ * mid-interaction and must not have their next click swallowed.
  */
 export const SETTLE_MS = 600;
 
@@ -124,11 +128,15 @@ const detach = (): void => {
 	bindings = [];
 };
 
-const attach = (): void => {
+const attach = (guardSettle = false): void => {
 	const current = env;
 	if (!current || bindings.length > 0) return;
 
-	armedAt = nowMs();
+	// Guarded arming = page load: ignore events until the settle window has
+	// passed. Unguarded arming = SPA navigation: the user is mid-interaction,
+	// so their very next action must count (no swallowed clicks). -Infinity
+	// (rather than 0) keeps this correct regardless of the clock's origin.
+	armedAt = guardSettle ? nowMs() : Number.NEGATIVE_INFINITY;
 
 	const handler: EventListener = () => {
 		// Ignore the synthetic events browsers emit while a page/view is still
@@ -165,7 +173,9 @@ export function initAmbientFrost(override?: Partial<AmbientFrostEnv>): () => voi
 	active = false;
 	reducedMotion = readReducedMotion(win);
 	clearActiveState(env);
-	attach();
+	// Page load → guarded arming, so synthetic load-time events (restored
+	// scroll, autofocus) don't frost the background before the user acts.
+	attach(true);
 
 	return () => {
 		teardownAmbientFrost();

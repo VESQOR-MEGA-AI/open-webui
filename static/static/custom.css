@@ -266,12 +266,9 @@ body {
 	}
 }
 
-/* While frosted the matrix is no longer part of the design — stop compositing
-   the (now invisible) decorative layer so pausing it costs nothing. */
-.ambient-frosted .ambient-orb,
-.ambient-frosted .ambient-particle {
-	opacity: 0 !important;
-}
+/* The ::after overlay paints last inside .ambient-bg, so it covers the orbs
+   and particles GRADUALLY as it fades in — no instant pop, no flash. The
+   paused animations cost nothing while the frame is held. */
 
 /* ========================= AUTH PAGE ========================= */
 /* The auth route pins a solid bg-white/dark:bg-black overlay under the form;
