@@ -3,6 +3,12 @@ name: vesqor-frontend-build
 on:
   push:
     branches: [vesqor]
+  # Run the gate regression tests on pull requests too: with the branch
+  # ruleset requiring a PR, the test must be able to FAIL the PR before the
+  # merge — otherwise a regression is only caught after it is already on the
+  # deploy branch. PRs only run the test job (no deploy).
+  pull_request:
+    branches: [vesqor, main]
   workflow_dispatch:
 
 jobs:
@@ -10,6 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # VESQOR: gate regression tests. These FAIL the build if the signup
+      # gates (US-only geo gate, embryo sanctions gate) or the alembic graph
+      # regress — the exact failure that silently shipped during the v0.11.1
+      # force-push. Runs before the build so a broken gate never deploys.
+      - name: Signup gate regression tests
+        run: python3 test/test_vesqor_signup_gates.py
 
       - uses: actions/setup-node@v4
         with:
@@ -36,16 +49,19 @@ jobs:
       # checkout from the build step above — fly deploy uses local files, so
       # the Dockerfile's `COPY build /app/build` picks it up directly.
       - name: Install flyctl
+        if: github.event_name == 'push'
         run: |
           curl -sL https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
 
       - name: Deploy to Fly.io (vesqor-chat)
+        if: github.event_name == 'push'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy -a vesqor-chat --remote-only
 
   deploy-gateway:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout vesqor-core
@@ -72,6 +88,7 @@ jobs:
         run: flyctl deploy --remote-only --strategy rolling
 
   deploy-brain:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout vesqor-core
@@ -105,6 +122,7 @@ jobs:
         run: flyctl deploy -a vesqor-brain --remote-only --strategy rolling
 
   gateway-logs:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Setup flyctl

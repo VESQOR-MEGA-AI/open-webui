@@ -325,8 +325,61 @@ https://github.com/open-webui/open-webui
         print(f'Open WebUI v{VERSION} - building the best AI user interface.\nhttps://github.com/open-webui/open-webui')
 
 
+def _assert_signup_gates() -> None:
+    """VESQOR: refuse to boot when a configured signup gate is not wired.
+
+    Guards against the silent-regression class of bug: env says signup is
+    restricted (SIGNUP_ALLOWED_COUNTRIES) but the code enforcing it is gone
+    from the tree (dropped by a force-push/rebase). A security control that
+    is believed-active but actually absent is worse than no control.
+
+    Raises RuntimeError, which aborts app startup (Fly keeps the previous
+    healthy machine alive instead of serving unprotected traffic).
+    """
+    from open_webui.env import SIGNUP_ALLOWED_COUNTRIES as _allowed
+
+    if not _allowed:
+        return
+
+    problems: list[str] = []
+    try:
+        from open_webui.utils.vesqor_geo_gate import check_signup_country  # noqa: F401
+    except Exception as e:
+        problems.append(f'geo gate module not importable ({e})')
+
+    auths_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'routers', 'auths.py')
+    auths_src = ''
+    try:
+        with open(auths_path, encoding='utf-8') as fh:
+            auths_src = fh.read()
+        if 'check_signup_country' not in auths_src:
+            problems.append('signup handler does not call check_signup_country()')
+    except OSError as e:
+        problems.append(f'signup handler unreadable ({e})')
+
+    # The embryo sanctions gate is unconditional: it must exist regardless of
+    # the geo allow-list, because it protects the whole signup funnel.
+    if 'screen_embryo' not in auths_src:
+        problems.append('activation handler does not call screen_embryo() (sanctions gate missing)')
+
+    if problems:
+        raise RuntimeError(
+            'VESQOR signup gates are configured but NOT wired: '
+            + '; '.join(problems)
+            + '. Refusing to start — an unenforced compliance gate must fail loudly.'
+        )
+    log.info('VESQOR signup gates verified: geo allow-list=%s, embryo sanctions gate present', _allowed)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── VESQOR boot guard (2026-09-11) ──────────────────────────────────
+    # A configured signup gate that is NOT actually wired into the signup
+    # path is worse than no gate: the operator believes signup is restricted
+    # while it is wide open. This happened once (the v0.11.1 force-push
+    # dropped both gates). Fail the boot loudly instead of silently.
+    _assert_signup_gates()
+
     # Store reference to main event loop for sync->async calls (e.g., embedding generation)
     # This allows sync functions to schedule work on the main loop without blocking health checks
     app.state.main_loop = asyncio.get_running_loop()
