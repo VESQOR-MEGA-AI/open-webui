@@ -95,6 +95,7 @@
 	import IntegrationsMenu from './MessageInput/IntegrationsMenu.svelte';
 	import TerminalMenu from './MessageInput/TerminalMenu.svelte';
 	import PersonaMenu from './MessageInput/PersonaMenu.svelte';
+	import SealMenu from './MessageInput/SealMenu.svelte';
 	import Component from '../icons/Component.svelte';
 	import PlusAlt from '../icons/PlusAlt.svelte';
 	import Dropdown from '../common/Dropdown.svelte';
@@ -2232,6 +2233,7 @@
 													<TerminalMenu bind:show={showTerminalMenu} />
 												{/if}
 												<PersonaMenu />
+												<SealMenu />
 											{/if}
 										</div>
 									</div>

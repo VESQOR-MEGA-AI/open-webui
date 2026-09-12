@@ -1,4 +1,5 @@
 import { OPENAI_API_BASE_URL, WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+import { sealConfirmed } from '$lib/stores';
 
 export const getOpenAIConfig = async (token: string = '') => {
 	let error = null;
@@ -242,6 +243,13 @@ export const generateOpenAIChatCompletion = async (
 		body: JSON.stringify(body)
 	})
 		.then(async (res) => {
+			// SEAL-1 (2026-09-12): the Response object is available before the
+			// body is read, so this captures the confirmation for both SSE and
+			// JSON responses. sealConfirmed is server confirmation ONLY — never
+			// set it from the client's selectedSeal intent.
+			const confirmed = res.headers.get('X-VESQOR-Security-Seal-Confirmed');
+			if (confirmed) sealConfirmed.set(confirmed);
+
 			if (!res.ok) throw await res.json();
 			return res.json();
 		})
