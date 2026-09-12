@@ -11,6 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # VESQOR: gate regression tests. These FAIL the build if the signup
+      # gates (US-only geo gate, embryo sanctions gate) or the alembic graph
+      # regress — the exact failure that silently shipped during the v0.11.1
+      # force-push. Runs before the build so a broken gate never deploys.
+      - name: Signup gate regression tests
+        run: python3 test/test_vesqor_signup_gates.py
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

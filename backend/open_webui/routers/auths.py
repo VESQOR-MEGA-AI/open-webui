@@ -91,6 +91,10 @@ from open_webui.utils.vesqor_authdb import (
     vesqor_authdb_verify,
 )
 from open_webui.utils.vesqor_compliance import screen_embryo
+from open_webui.utils.vesqor_geo_gate import (
+    DENY_OUT_OF_REGION,
+    check_signup_country,
+)
 from open_webui.utils.redis import get_redis_client
 from open_webui.utils.vesqor_mailer import (
     send_password_reset_email,
@@ -986,28 +990,17 @@ async def signup(
     if await Users.get_user_by_email(form_data.email.lower(), db=db):
         raise HTTPException(400, detail=ERROR_MESSAGES.EMAIL_TAKEN)
 
-    # ── VESQOR (2026-08-28, A.9): US-only signup gate ────────────────────
-    # When SIGNUP_ALLOWED_COUNTRIES is set, the signup IP must geolocate to
-    # an allowed country. Fail-open: if the lookup service is unreachable,
-    # allow (never block legitimate users on an outage). The first admin
-    # signup is exempt (no users yet — the admin is the operator).
+    # ── VESQOR (2026-08-28, A.9; fail-closed 2026-09-11): US-only signup gate ──
+    # When SIGNUP_ALLOWED_COUNTRIES is set, the signup IP must geolocate to an
+    # allowed country. FAIL-CLOSED (owner decision 2026-09-11): if the lookup
+    # service is unreachable, the signup is refused with 403 ("try later") —
+    # a jurisdictional control must not be bypassable by DoS-ing the lookup.
+    # The first admin signup is exempt (no users yet — the admin is the operator).
     if SIGNUP_ALLOWED_COUNTRIES and has_users:
-        allowed = {c.strip().upper() for c in SIGNUP_ALLOWED_COUNTRIES.split(',') if c.strip()}
-        if allowed:
-            client_ip = request.headers.get('fly-client-ip') or (request.client.host if request.client else '')
-            country = None
-            try:
-                async with ClientSession() as session:
-                    async with session.get(f'https://ipapi.co/{client_ip}/country/', timeout=5) as resp:
-                        if resp.status == 200:
-                            country = (await resp.text()).strip().upper()
-            except Exception:
-                log.warning(f'Geo lookup failed for signup IP {client_ip}; allowing (fail-open)')
-            if country and country not in allowed:
-                raise HTTPException(
-                    status.HTTP_403_FORBIDDEN,
-                    detail='Signup is currently available in the United States only.',
-                )
+        client_ip = request.headers.get('fly-client-ip') or (request.client.host if request.client else '')
+        allowed_geo, deny_reason = await check_signup_country(client_ip, SIGNUP_ALLOWED_COUNTRIES)
+        if not allowed_geo:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=deny_reason or DENY_OUT_OF_REGION)
 
     try:
         try:
