@@ -10,6 +10,10 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+# Internal agent working memory (repo wiki, weekly work reports, decisions).
+# This repo is PUBLIC; these files describe internal architecture, strategy and
+# people. They were briefly tracked (PR #8) and were reachable anonymously.
+memory/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
