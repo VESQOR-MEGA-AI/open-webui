@@ -1,0 +1,156 @@
+/* =========================================================
+   VQ-25 — отдельный слой стилей (не конфликтует с custom.css,
+   который параллельно правит Claude Code). Подключается в
+   app.html ПОСЛЕ custom.css.
+   Owner 2026-09-14: настройки пришиты к боковой панели,
+   поиск окном 570×450, матовое стекло при печати.
+   ========================================================= */
+
+/* ---- 1. Матовое стекло при печати (typing matte) ---- */
+.vesqor-typing-matte {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	opacity: 0;
+	background: rgba(2, 9, 20, 0.55);
+	-webkit-backdrop-filter: blur(14px) saturate(1.1);
+	backdrop-filter: blur(14px) saturate(1.1);
+	transition:
+		opacity 0.45s ease,
+		-webkit-backdrop-filter 0.45s ease,
+		backdrop-filter 0.45s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+	.vesqor-typing-matte {
+		transition: none;
+	}
+}
+body.vesqor-interacting .vesqor-typing-matte {
+	opacity: 1 !important;
+}
+
+/* ---- 2. Поиск — окно 570×450, непрозрачное, фон вокруг прозрачный,
+   ПОВЕРХ всего контента ---- */
+.modal.vq25-search-modal {
+	background: transparent !important;
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
+	z-index: 2147483000 !important;
+}
+.vq25-search-window {
+	position: fixed !important;
+	top: 50% !important;
+	left: 50% !important;
+	transform: translate(-50%, -50%) !important;
+	z-index: 2147483001 !important;
+	width: 570px !important;
+	max-width: calc(100vw - 2rem) !important;
+	height: 450px !important;
+	max-height: calc(100dvh - 2rem) !important;
+	margin: 0 !important;
+	background-color: rgba(8, 22, 15, 0.985) !important;
+	background-image: none !important;
+	border-radius: 1.25rem !important;
+	border: 1px solid rgba(126, 240, 176, 0.16) !important;
+	box-shadow: 0 24px 64px -24px rgba(0, 0, 0, 0.8) !important;
+	overflow: hidden !important;
+}
+
+/* ---- 3. Настройки — на весь экран ПРАВЕЕ боковой панели ----
+   Owner 2026-09-14: «пришить левую сторону настроек к боковой
+   панели, как в календаре/заметках» (--vq25-sb ставит Sidebar).
+   z-index максимальный — в светлой теме главная страница
+   рендерилась ПОВЕРХ настроек и перехватывала клики. */
+.modal.vq25-settings-modal {
+	background: transparent !important;
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
+	z-index: 2147483000 !important;
+}
+.vq25-settings-full {
+	position: fixed !important;
+	top: 0 !important;
+	left: var(--vq25-sb, var(--sidebar-width, 260px)) !important;
+	right: 0 !important;
+	bottom: 0 !important;
+	width: auto !important;
+	max-width: none !important;
+	height: 100dvh !important;
+	max-height: 100dvh !important;
+	border-radius: 0 !important;
+	margin: 0 !important;
+	transform: none !important;
+	z-index: 2147483001 !important;
+	background-color: #ffffff !important;
+}
+html.dark .vq25-settings-full {
+	background-color: rgba(8, 22, 15, 0.985) !important;
+}
+
+/* ---- 4. Светлая/тёмная темы: фон приложения и вуаль модалок.
+   В светлой теме стекло-градиент НЕ применяется (он делал
+   интерфейс тёмным и ломал настройки — owner 2026-09-14). ---- */
+html.light {
+	background-color: #eef0f3 !important;
+}
+html.light body {
+	background: #eef0f3 !important;
+}
+html.light .app.relative > div {
+	background: #ffffff !important;
+}
+html.dark body:not(.vesqor-matrix-live) {
+	background: linear-gradient(155deg, #0b1f15 0%, #04120c 45%, #020914 100%) fixed !important;
+}
+html.dark body:not(.vesqor-matrix-live) .app.relative > div {
+	background: rgba(8, 22, 15, 0.78) !important;
+	-webkit-backdrop-filter: blur(20px) saturate(1.15);
+	backdrop-filter: blur(20px) saturate(1.15);
+}
+html.dark .modal > div:last-child,
+html.dark .vq25-search-window {
+	background-color: rgba(8, 22, 15, 0.85) !important;
+	background-image: none !important;
+	-webkit-backdrop-filter: blur(18px) saturate(1.2);
+	backdrop-filter: blur(18px) saturate(1.2);
+	border: 1px solid rgba(126, 240, 176, 0.16) !important;
+}
+
+/* ---- 5. Шрифт: стандартный; чуть светлее серый текст на тёмной ---- */
+.dark {
+	--color-gray-400: #c3d0dd !important;
+	--color-gray-500: #b6c4d3 !important;
+	--color-gray-600: #d6e2ec !important;
+	--color-gray-700: #e2ebf3 !important;
+	--color-gray-300: #f0f5fa !important;
+}
+
+/* ---- 6. Живой дождь вытесняет старые орбы/частицы ---- */
+body.vesqor-matrix-live .ambient-orb,
+body.vesqor-matrix-live .ambient-particle {
+	display: none !important;
+}
+body.vesqor-matrix-live .ambient-bg {
+	background: none !important;
+	animation: none !important;
+}
+
+/* ---- 7. Compare: контент читается В ЛЮБОЙ теме (owner 2026-09-14:
+   «на compare не видно полей»). Контейнер — тёмный непрозрачный
+   «лист» поверх дождя + светлый текст; селектор безусловный. ---- */
+.vq25-compare-root {
+	position: relative;
+	z-index: 1;
+	background-color: #0b1f15 !important;
+	color: #e6f5ec !important;
+}
+.vq25-compare-root textarea {
+	background-color: rgba(13, 27, 21, 0.92) !important;
+	color: #e6f5ec !important;
+	border: 1px solid rgba(126, 240, 176, 0.28) !important;
+	border-radius: 0.625rem !important;
+}
+.vq25-compare-root textarea::placeholder {
+	color: #8fb8a2 !important;
+}

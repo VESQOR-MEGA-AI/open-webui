@@ -36,6 +36,13 @@ jobs:
       - name: Answer-comparison page wiring tests
         run: python3 test/test_vq25_page_wiring.py
 
+      # Guards the consent gate (GA4 must stay denied until the visitor
+      # accepts) and that every /static asset referenced by src/app.html
+      # actually ships in the image. vq25.css was referenced but absent from
+      # static/static, so the production image served 404 for it.
+      - name: Consent + static asset gate tests
+        run: python3 test/test_vesqor_consent_and_static.py
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
