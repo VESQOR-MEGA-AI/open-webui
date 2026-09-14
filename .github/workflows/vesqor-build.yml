@@ -43,6 +43,12 @@ jobs:
       - name: Consent + static asset gate tests
         run: python3 test/test_vesqor_consent_and_static.py
 
+      # Guards the three assistant presets: public read grants (a grantless
+      # workspace model is invisible to non-admin roles), a provider-served
+      # fallback base model id, and no vendor impersonation in the prompts.
+      - name: Three-assistant preset gate tests
+        run: python3 test/test_vesqor_three_assistants.py
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
