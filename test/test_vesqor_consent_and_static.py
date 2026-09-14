@@ -60,15 +60,28 @@ check(consent_idx != -1 and gtag_load_idx != -1 and consent_idx < gtag_load_idx,
       'src/app.html: consent default must be set BEFORE gtag.js is loaded')
 
 # --- 2. Static assets must ship ------------------------------------------
-# Every /static/<file> referenced by app.html must exist under the directory
-# the Dockerfile copies into the image (static/static).
-referenced = set(re.findall(r'/static/([A-Za-z0-9._-]+\.[A-Za-z0-9]+)', html))
+# Every /static/<file> referenced anywhere in the frontend must exist under
+# the directory the Dockerfile copies into the image (static/static).
+# Scanning only src/app.html is NOT enough: vesqor-mark.png is referenced from
+# src/lib/components/layout/Sidebar.svelte, so an app.html-only check let it
+# ship as a 404. Scan the whole src/ tree.
+referenced: set[str] = set()
+for path in (ROOT / 'src').rglob('*'):
+    if path.suffix not in {'.html', '.svelte', '.ts', '.js'}:
+        continue
+    try:
+        text = path.read_text(encoding='utf-8')
+    except (UnicodeDecodeError, OSError):
+        continue
+    for name in re.findall(r'/static/([A-Za-z0-9._-]+\.[A-Za-z0-9]+)', text):
+        referenced.add(name)
+
 for name in sorted(referenced):
     shipped = (SHIPPED_STATIC / name).exists()
     backend = (ROOT / 'backend' / 'open_webui' / 'static' / name).exists()
     if not shipped:
         failures.append(
-            f'src/app.html references /static/{name} but static/static/{name} is missing '
+            f'a frontend file references /static/{name} but static/static/{name} is missing '
             f'(backend copy present: {backend}) — the Docker image will 404 it')
 
 # --- 3. Dockerfile still copies static/static -----------------------------
