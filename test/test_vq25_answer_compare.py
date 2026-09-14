@@ -303,6 +303,86 @@ def test_blank_key_does_not_count_as_configured(clean_env):
 
 
 ####################
+# 3b — startup configuration logging (warn-only, never fatal)
+####################
+
+
+def test_startup_logging_warns_on_every_missing_var_when_nothing_configured(clean_env, caplog):
+    with caplog.at_level('WARNING', logger=providers.__name__):
+        providers.log_startup_configuration()  # must not raise
+
+    text = '\n'.join(record.getMessage() for record in caplog.records)
+    # chatgpt/gemini have default base URLs, so only their key+model vars are
+    # ever reported missing; vesqor has no default, so all three of its vars are.
+    expected_missing = (
+        providers.ENV_CHATGPT_API_KEY,
+        providers.ENV_CHATGPT_MODEL,
+        providers.ENV_GEMINI_API_KEY,
+        providers.ENV_GEMINI_MODEL,
+        providers.ENV_VESQOR_API_KEY,
+        providers.ENV_VESQOR_MODEL,
+        providers.ENV_VESQOR_BASE_URL,
+    )
+    for name in expected_missing:
+        assert name in text, name
+
+    assert '0/3' in text
+
+
+def test_startup_logging_reports_one_of_three_when_only_vesqor_is_configured(clean_env, caplog):
+    """Mirrors production: only the VESQOR door is configured."""
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', 'https://door.example/api/v1')
+
+    with caplog.at_level('INFO', logger=providers.__name__):
+        providers.log_startup_configuration()
+
+    text = '\n'.join(record.getMessage() for record in caplog.records)
+    assert '1/3' in text
+    # The still-unconfigured providers' missing vars are still named.
+    for name in (
+        providers.ENV_CHATGPT_API_KEY,
+        providers.ENV_CHATGPT_MODEL,
+        providers.ENV_GEMINI_API_KEY,
+        providers.ENV_GEMINI_MODEL,
+    ):
+        assert name in text, name
+
+
+def test_startup_logging_reports_three_of_three_when_all_configured(clean_env, caplog):
+    clean_env.setenv('ANSWER_COMPARE_CHATGPT_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_CHATGPT_MODEL', 'gpt-test-1')
+    clean_env.setenv('ANSWER_COMPARE_GEMINI_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_GEMINI_MODEL', 'gemini-test-1')
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', 'https://door.example/api/v1')
+
+    with caplog.at_level('INFO', logger=providers.__name__):
+        providers.log_startup_configuration()  # must not raise
+
+    text = '\n'.join(record.getMessage() for record in caplog.records)
+    assert '3/3' in text
+
+
+def test_startup_logging_never_leaks_a_configured_providers_key(clean_env, caplog):
+    """A distinctive sentinel key must not appear in any emitted record, even partially."""
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
+    clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', f'https://user:{DUMMY_KEY}@door.example.com/api/v1')
+
+    with caplog.at_level('INFO', logger=providers.__name__):
+        providers.log_startup_configuration()
+
+    text = '\n'.join(record.getMessage() for record in caplog.records)
+    assert DUMMY_KEY not in text
+    # The base URL must have been sanitised in the log line too, not just the field.
+    assert 'door.example.com' in text
+    assert 'user:' not in text
+
+
+####################
 # 4 — admin-only
 ####################
 
