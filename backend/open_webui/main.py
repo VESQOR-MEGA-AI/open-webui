@@ -263,6 +263,7 @@ from open_webui.utils.plugin import install_tool_and_function_dependencies
 from open_webui.utils.redis import get_redis_client
 from open_webui.utils.security_headers import SecurityHeadersMiddleware
 from open_webui.utils.session_pool import cleanup_response, get_session, stream_wrapper
+from open_webui.utils.three_assistants import seed_three_assistants
 from open_webui.utils.tools import set_terminal_servers, set_tool_servers
 
 if SAFE_MODE:
@@ -494,6 +495,18 @@ async def lifespan(app: FastAPI):
             log.warning('License data retrieval is still pending; continuing startup without it')
         except Exception as e:
             log.warning(f'License data retrieval failed during startup: {e}')
+
+    # Seed the three VESQOR style presets (Copilot / ChatGPT / VESQOR).
+    # Runs after the model pre-fetch above so it can pick a real base model id
+    # from the connected provider; falls back to a provider-served id.
+    # Bounded and non-fatal: a slow or failing seed must never delay or block
+    # startup, and it is idempotent so a retry on the next boot is harmless.
+    try:
+        await asyncio.wait_for(seed_three_assistants(app), timeout=25)
+    except asyncio.TimeoutError:
+        log.warning('seed_three_assistants timed out; continuing startup')
+    except Exception as e:
+        log.warning(f'seed_three_assistants failed at startup: {e}')
 
     app.state.startup_complete = True
     await publish_event(app, EVENTS.SYSTEM_STARTUP_COMPLETED, source='system')
