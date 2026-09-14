@@ -323,6 +323,61 @@ def test_page_writes_judge_state_only_through_the_module() -> None:
     )
 
 
+def test_judge_role_is_gated_by_can_judge() -> None:
+    """VESQOR must never be offered as a judge.
+
+    The VESQOR door only reads the user message and always wraps its output in
+    the report envelope, so it cannot return the judge's JSON schema at all
+    (live production probes, 2026-09-14). Judge-only loops therefore walk the
+    judge-CAPABLE set; answer loops still walk every provider, because VESQOR
+    is a first-class subject of the comparison.
+
+    This asserts the behaviour, not the existence of a test file: an earlier
+    version of this gate only checked that `judgeState.test.ts` existed, which
+    let a regression back to "every provider judges" pass CI unnoticed.
+    """
+    print('\n[judging: judge-only loops walk the capable set, answers walk all providers]')
+    component = code_only(read(COMPONENT))
+    judge_state = code_only(read(JUDGE_STATE))
+
+    # The capability concept must exist and be fed from the provider config.
+    check('capable' in judge_state, 'judgeState.ts models judge capability')
+    check(
+        'can_judge' in judge_state,
+        'judge capability is derived from ProviderConfig.can_judge, not hardcoded',
+    )
+    check(
+        'capableJudgeIds' in judge_state,
+        'judgeState.ts exposes capableJudgeIds as the single judge-set accessor',
+    )
+
+    # The judge-only loops must use it. These are the sites where a regression
+    # silently reintroduces a VESQOR judge card / judge button.
+    for label, pattern in (
+        ('judgeReasons', r'\$: judgeReasons = capableJudgeIds\('),
+        ('anyJudgeConfigured', r'\$: anyJudgeConfigured = capableJudgeIds\('),
+        ('anyJudgeInFlight', r'\$: anyJudgeInFlight = capableJudgeIds\('),
+    ):
+        check(re.search(pattern, component) is not None, f'{label} walks the capable judge set')
+
+    # No judge-only construct may iterate the full provider list.
+    offenders = [
+        line.strip()
+        for line in component.splitlines()
+        if 'PROVIDER_IDS' in line and re.search(r'\bjudge|judging', line, re.I)
+    ]
+    check(
+        not offenders,
+        f'no judge-only loop walks all providers (offenders: {offenders})',
+    )
+
+    # …while the answer side must still cover every provider, VESQOR included.
+    check(
+        re.search(r'\$: completeAnswers = PROVIDER_IDS\.filter', component) is not None,
+        'the answer-side loop still walks every provider (VESQOR stays a subject)',
+    )
+
+
 def test_judging_ui_wiring() -> None:
     print("\n[judging: buttons, copy, and the judge's text is never rewritten]")
     component = read(COMPONENT)
@@ -649,6 +704,7 @@ def main() -> int:
     test_card_state_logic_lives_in_a_tested_module()
     test_page_writes_card_state_only_through_the_module()
     test_page_writes_judge_state_only_through_the_module()
+    test_judge_role_is_gated_by_can_judge()
     test_judging_ui_wiring()
     test_tally_panel_wiring()
     test_summary_panel_wiring()
