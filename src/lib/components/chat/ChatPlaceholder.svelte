@@ -44,19 +44,35 @@
 			</Tooltip>
 		{/if}
 
-			<div class="mt-2 mb-4 text-3xl text-gray-800 dark:text-gray-100 text-left flex items-center gap-4">
+			<div class="mt-2 mb-4 text-3xl text-gray-800 dark:text-gray-100 text-left">
+				<!-- VESQOR orb-логотип: зелёный градиентный орб с мягким свечением —
+				     виден на тёмном фоне чата. Без тёмной подложки (она сливалась
+				     с фоном). aria-hidden, чисто декоративный. -->
+				<div class="mb-5 text-gray-800 dark:text-gray-100 flex justify-center" aria-hidden="true">
+					<svg viewBox="0 0 32 32" class="size-20 drop-shadow-[0_0_18px_rgba(57,181,74,0.45)]">
+						<defs>
+							<linearGradient id="vq25-orb-g" x1="0" y1="0" x2="1" y2="1">
+								<stop offset="0" stop-color="#006838" />
+								<stop offset="0.5" stop-color="#009444" />
+								<stop offset="1" stop-color="#39b54a" />
+							</linearGradient>
+						</defs>
+						<circle cx="16" cy="16" r="10" fill="url(#vq25-orb-g)" />
+						<circle cx="16" cy="16" r="4" fill="#0b1f15" opacity="0.5" />
+					</svg>
+				</div>
 				<div>
-					<div class="line-clamp-1 font-semibold" in:fade={{ duration: 200 }}>
+					<div class="line-clamp-1 font-semibold text-center" in:fade={{ duration: 200 }}>
 						VESQOR MEGA AI
 					</div>
 
-				<div in:fade={{ duration: 200, delay: 200 }}>
-					<div class=" text-gray-400 dark:text-gray-500 line-clamp-1 font-p">
-						{$i18n.t('How can I help you today?')}
+					<div in:fade={{ duration: 200, delay: 200 }}>
+						<div class=" text-gray-400 dark:text-gray-500 line-clamp-1 font-p text-center">
+							{$i18n.t('How can I help you today?')}
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
 
 		<div class=" w-full" in:fade={{ duration: 200, delay: 300 }}>
 			<Suggestions

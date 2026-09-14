@@ -24,6 +24,18 @@ jobs:
       - name: Signup gate regression tests
         run: python3 test/test_vesqor_signup_gates.py
 
+      # VESQOR: the other two dependency-free gate scripts. Like the one above
+      # they use only the standard library (they assert on source and on the
+      # alembic graph), so they need no Python setup and cost seconds.
+      # test_vq25_page_wiring.py guards the answer-comparison page's wiring:
+      # the admin tab, its i18n keys, that model output is never rendered as
+      # raw HTML, and that card state is only written through its module.
+      - name: Seal UI regression tests
+        run: python3 test/test_vesqor_seal_ui.py
+
+      - name: Answer-comparison page wiring tests
+        run: python3 test/test_vq25_page_wiring.py
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -513,6 +513,18 @@
 		item?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
 	};
 
+	const handleOutsidePointerDown = (e: PointerEvent) => {
+		// VQ-25 (owner 2026-09-14): клик ЗА РАМКАМИ окна поиска закрывает его.
+		// Слушаем на document (фаза capture), чтобы не зависеть от вложенности
+		// бэкдропа и CSS-перекрытий.
+		if (!show) return;
+		const target = e.target as HTMLElement | null;
+		if (!target) return;
+		if (target.closest('.vq25-search-window')) return;
+		show = false;
+		onClose();
+	};
+
 	onMount(() => {
 		actions = [
 			...actions,
@@ -535,12 +547,14 @@
 		document.addEventListener('keydown', onKeyDown);
 		document.addEventListener('keydown', onShiftKeyDown);
 		document.addEventListener('keyup', onShiftKeyUp);
+		document.addEventListener('pointerdown', handleOutsidePointerDown, true);
 	});
 
 	onDestroy(() => {
 		if (searchDebounceTimeout) {
 			clearTimeout(searchDebounceTimeout);
 		}
+		document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
 		document.removeEventListener('keydown', onKeyDown);
 		document.removeEventListener('keydown', onShiftKeyDown);
 		document.removeEventListener('keyup', onShiftKeyUp);
@@ -561,8 +575,8 @@
 	</div>
 </DeleteConfirmDialog>
 
-<Modal size="xl" bind:show>
-	<div class="py-2.5 dark:text-gray-300 text-gray-700">
+<Modal size="xl" bind:show position="center" containerClassName="vq25-search-modal p-0" className="vq25-search-window">
+	<div class="py-2.5 dark:text-gray-300 text-gray-700 h-full flex flex-col overflow-hidden">
 		<div class="px-3.5 pb-1">
 			<SearchInput
 				bind:value={query}
@@ -596,9 +610,9 @@
 			/>
 		</div>
 
-		<div class="flex px-3.5 pb-0.5">
+		<div class="flex px-3.5 pb-0.5 flex-1 min-h-0">
 			<div
-				class="flex flex-col overflow-y-auto h-96 md:h-[40rem] max-h-full scrollbar-hidden w-full flex-1 pr-2"
+				class="flex flex-col overflow-y-auto h-full max-h-[16rem] scrollbar-hidden w-full flex-1 pr-2"
 			>
 				<div class="w-full text-xs text-gray-500 dark:text-gray-500 font-normal pb-2 px-2">
 					{$i18n.t('Actions')}
@@ -873,7 +887,7 @@
 			<div
 				id={messagesContainerId}
 				bind:this={messagesContainerElement}
-				class="hidden md:flex md:flex-1 w-full overflow-y-auto h-96 md:h-[40rem] scrollbar-hidden @container"
+				class="hidden"
 			>
 				{#if messages === null}
 					<div

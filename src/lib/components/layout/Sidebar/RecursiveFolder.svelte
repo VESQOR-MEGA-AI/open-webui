@@ -602,9 +602,9 @@
 
 		await goto(`/folders/${folderId}`);
 
-		if ($mobile) {
-			showSidebar.set(!$showSidebar);
-		}
+		// VQ-25 (owner 2026-09-14): панель сама скрывается после перехода —
+		// на любой ширине экрана, не только на мобильном.
+		showSidebar.set(false);
 	};
 	$: if (!open && chats !== null) {
 		chats = null;

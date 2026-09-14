@@ -474,6 +474,21 @@
 		void openSettingsFromUrl();
 	}
 
+	// VQ-25 (owner 2026-09-14): переход на другой маршрут (чат, библиотека,
+	// заметки и т.п.) закрывает открытые модалки настроек и поиска — чтобы
+	// окно не оставалось висеть поверх следующей страницы. Следим именно за
+	// pathname: openSettingsFromUrl() тоже делает goto (replaceState) при том
+	// же пути — это не меняет pathname, поэтому открытие настроек по ссылке
+	// (?settings=...) не закрывает их тут же.
+	let lastClosePath = '';
+	$: if (loaded && $page.url?.pathname !== lastClosePath && $page.url?.pathname !== '') {
+		if (lastClosePath !== '') {
+			if ($showSettings) showSettings.set(false);
+			if ($showSearch) showSearch.set(false);
+		}
+		lastClosePath = $page.url.pathname;
+	}
+
 	$: if (loaded && ($user === undefined || $user === null)) {
 		void gotoAuth();
 	}
@@ -504,6 +519,9 @@
 {/if}
 
 {#if $user}
+	<!-- VESQOR: живой Matrix rain рендерится ТОЛЬКО на главной (/) и на
+	     /admin/compare — см. +page.svelte этих маршрутов. Здесь стекло-слой
+	     не нужен: матовый фон страниц задан в custom.css. -->
 	<div class="app relative">
 		<div
 			class=" text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-900 h-screen max-h-[100dvh] overflow-auto flex flex-row justify-end"

@@ -1,0 +1,84 @@
+OUTCOME
+
+No majority among 2 valid verdicts.
+
+Partial summary: 2 of 3 judges included.
+- Gemini: report is outdated (answers changed); latest re-judge could not be read.
+  Note: Gemini named its own answer the winner.
+
+VERDICTS
+
+ChatGPT: tie — ChatGPT (was A), VESQOR (was B).
+Answer A and Answer B are close.
+A is crisper; B is more complete.
+Note: ChatGPT included its own answer in a tie.
+
+VESQOR: winner — ChatGPT (was B).
+Answer B is the most accurate of the three.
+
+AGREEMENTS AND DISAGREEMENTS
+
+Judges disagreed: ChatGPT judged a tie between ChatGPT, VESQOR; VESQOR named ChatGPT.
+
+ERRORS AND UNSUPPORTED CLAIMS
+
+ChatGPT's answer:
+ChatGPT: "p99 is always 200ms" — Stated as fact with no source.
+VESQOR: "batching never helps latency" — Contradicted by its own next paragraph.
+
+Gemini's answer:
+ChatGPT: "caching removes latency" — Overstated; it moves it.
+
+VESQOR's answer:
+ChatGPT: "queues are always FIFO" — Not true of the scheduler described.
+
+WHAT EACH ANSWER MISSES
+
+ChatGPT's answer:
+ChatGPT: Says nothing about cold starts.
+
+Gemini's answer:
+ChatGPT: "trade off" — No mention of cache invalidation cost.
+VESQOR: "throughput trades off" — No numbers given.
+
+VESQOR's answer:
+ChatGPT: Never mentions queueing delay, which dominates at load.
+
+USEFUL EXTRAS
+
+ChatGPT's answer:
+ChatGPT: "a worked example" — The arithmetic is easy to follow.
+
+Gemini's answer:
+ChatGPT: "caching helps both" — A practical pointer.
+VESQOR: "a short glossary" — Helps a non-specialist reader.
+
+VESQOR's answer:
+ChatGPT: "measure before tuning" — Good discipline to state up front.
+
+UNNECESSARY CONTENT
+
+ChatGPT's answer:
+ChatGPT: "A long aside about GPUs" — Does not bear on the question.
+VESQOR: "a digression about hardware" — Off the question.
+
+Gemini's answer:
+ChatGPT: "a second summary paragraph" — Repeats the opening.
+
+VESQOR's answer:
+ChatGPT: "a restatement of the question" — Adds nothing.
+
+IMPROVEMENTS FOR THE VESQOR ANSWER
+
+ChatGPT: "Measure p99 first" — Say which percentile and over what window.
+ChatGPT: Give one concrete example of a queueing delay.
+VESQOR: Name the measurement window explicitly.
+
+CLAIMS THAT NEED VERIFICATION
+
+ChatGPT: the p99 figure in Answer A
+ChatGPT: the FIFO claim in Answer B
+VESQOR: the claim that batching never helps latency
+VESQOR: whether the scheduler is really FIFO
+
+Agreement between judges is not evidence of correctness.

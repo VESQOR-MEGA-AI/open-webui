@@ -3,6 +3,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import Chat from '$lib/components/chat/Chat.svelte';
+	import MatrixRainStage from '$lib/components/admin/MatrixRainStage.svelte';
 	import { page } from '$app/stores';
 
 	onMount(() => {
@@ -11,6 +12,10 @@
 		}
 	});
 </script>
+
+<!-- VESQOR: живой Matrix rain только на главной (owner 2026-09-14). -->
+<MatrixRainStage />
+<div class="vesqor-typing-matte" aria-hidden="true"></div>
 
 <!-- VESQOR: chat root wrapper — the matte glass styling in custom.css is
      scoped to this container so admin pages, modals and dialogs keep their

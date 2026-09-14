@@ -106,12 +106,23 @@
 					}}
 				/>
 			{:else}
+				<!-- VESQOR официальное лого (owner 2026-09-14): значок-галочка +
+				     белые буквы ESQR, PNG 2560x484 с прозрачным фоном. Полный
+				     логотип НЕ дублирует слово «VESQOR» текстом — буквы уже в
+				     лого. Макет скопирован в static/vesqor-logo.png заранее. -->
+				<div class="flex justify-center mb-4" aria-hidden="true">
+					<img
+						src="/static/vesqor-logo.png"
+						alt=""
+						class="max-w-[min(34rem,85vw)] w-full h-auto drop-shadow-[0_0_24px_rgba(57,181,74,0.35)]"
+					/>
+				</div>
 				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
 					<div
 						class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
 						in:fade={{ duration: 100 }}
 					>
-						<span class="line-clamp-1 font-semibold">VESQOR MEGA AI</span>
+						<span class="line-clamp-1 font-semibold">MEGA AI</span>
 					</div>
 				</div>
 
