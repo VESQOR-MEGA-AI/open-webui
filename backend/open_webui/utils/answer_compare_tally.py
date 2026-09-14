@@ -18,6 +18,12 @@ implementation of that transform, so the page and this tally cannot disagree.
 Agreement between judges is not evidence of correctness. This module exposes
 counts and kinds only: there is no confidence or consensus figure, and nothing
 here should be read as one.
+
+The judge panel is the judge-capable providers (``resolve_judge_ids()``), not
+every compared provider: a generator-only provider is never part of the
+denominator, so its absence never makes an otherwise-complete tally read as
+partial. Votes, by contrast, are per ANSWER provider — every compared provider
+can win, tie, or be named unreliable, whether or not it can judge.
 """
 
 import logging
@@ -30,14 +36,10 @@ from open_webui.utils.answer_compare_judge import (
     UnmappedLabel,
     map_report,
 )
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS
+from open_webui.utils.answer_compare_providers import PROVIDER_IDS, resolve_judge_ids
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
-
-# The benchmark is three systems: fewer than three included verdicts is partial,
-# whether the missing one is unconfigured, outdated or simply not run yet.
-FULL_JUDGE_COUNT = len(PROVIDER_IDS)
 
 REASON_NO_REPORT = 'no_report'
 REASON_OUTDATED = 'outdated'
@@ -145,8 +147,13 @@ def _mapped_verdict(report: TallyReport) -> Optional[dict[str, Any]]:
 
 def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudge]) -> dict[str, Any]:
     """The tally, in the shape stage 5 persists. Every list is in the fixed provider order."""
+    # A JUDGES walk, not an answers one: only judge-capable providers are ever
+    # tallied as judges, regardless of what the caller passed in — this is the
+    # one place that decides who counts, so a provider that cannot judge (e.g.
+    # a generator-only door) can never appear here even by a caller's mistake.
+    judge_ids = resolve_judge_ids()
     by_judge = {entry.judge: entry for entry in judges}
-    ordered = [by_judge[judge] for judge in PROVIDER_IDS if judge in by_judge]
+    ordered = [by_judge[judge] for judge in judge_ids if judge in by_judge]
 
     included_reports: list[dict[str, Any]] = []
     included_judges: list[str] = []
@@ -216,7 +223,7 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
         'included_reports': included_reports,
         'included_judges': included_judges,
         'excluded': excluded,
-        'partial': n_included < FULL_JUDGE_COUNT,
+        'partial': n_included < len(judge_ids),
         'verdicts': verdicts,
         'votes': votes,
         'n_included': n_included,

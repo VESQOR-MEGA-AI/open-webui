@@ -34,6 +34,8 @@ export interface ProviderConfig {
 	missing: string[];
 	base_url: string | null;
 	model: string | null;
+	/** Whether this provider may be offered as a judge — every provider can be an answer, not every one can score. */
+	can_judge: boolean;
 }
 
 export interface AnswerError {

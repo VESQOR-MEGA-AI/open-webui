@@ -21,6 +21,14 @@ misapply.
 they authenticate the billing/admin proxy in ``routers/vesqor.py``, a different
 surface from the engine's chat door.
 
+A fourth, optional variable per provider — ``ANSWER_COMPARE_<PROVIDER>_CAN_JUDGE``
+— is deliberately not part of that credential trio: it has a built-in default
+and is never reported as missing. It answers a different question than the
+trio does. The trio asks "is this provider reachable"; this asks "may this
+provider be offered as a judge, given how it is reachable" — an answer
+generator and a judge are different roles, and a provider can be one without
+being the other.
+
 Every value is read from ``os.environ`` **at call time**, not at import time:
 ``config.py`` reads ``OPENAI_API_KEY``/``GEMINI_API_KEY`` into plain module
 constants while the module is being imported, which makes that style impossible
@@ -75,6 +83,38 @@ DEFAULT_VESQOR_BASE_URL = None
 DEFAULT_MAX_INPUT_CHARS = 100_000
 ENV_MAX_INPUT_CHARS_TEMPLATE = 'ANSWER_COMPARE_{provider}_MAX_INPUT_CHARS'
 
+# Whether a provider may act as a JUDGE, as opposed to an answer generator —
+# every provider can be compared as an answer, not every provider can score one.
+ENV_CAN_JUDGE_TEMPLATE = 'ANSWER_COMPARE_{provider}_CAN_JUDGE'
+
+# Built-in judge-capability defaults, overridable per deployment via
+# ANSWER_COMPARE_<PROVIDER>_CAN_JUDGE. ChatGPT and Gemini are reached through
+# plain OpenAI-compatible chat completions that honour a system message and can
+# be made to answer with nothing but the requested JSON, so both default to
+# judge-capable.
+#
+# ``vesqor`` defaults to NOT judge-capable. This is not a policy preference —
+# it is a proven incapability (live production probes, 2026-09-14):
+#   1. The VESQOR door only ever reads the user message
+#      (``extractUserInput(req.messages)``); the entire judging contract —
+#      criteria, JSON shape, "return a single JSON object and nothing else" —
+#      lives in the system message ``build_system_message()`` writes, and the
+#      door ignores system messages entirely.
+#   2. The door always wraps its output in the VESQOR report envelope with no
+#      raw/JSON passthrough mode, so a JSON-schema response cannot be obtained
+#      through it at all, regardless of what the prompt asks for.
+#   3. VESQOR's own constitution explicitly refuses the judge role.
+# It is env-overridable, not hardcoded, so a door that later grows a raw-JSON
+# passthrough mode can be re-enabled for judging without a code change.
+DEFAULT_CAN_JUDGE: dict[str, bool] = {
+    PROVIDER_CHATGPT: True,
+    PROVIDER_GEMINI: True,
+    PROVIDER_VESQOR: False,
+}
+
+_TRUE_STRINGS = {'true', '1', 'yes'}
+_FALSE_STRINGS = {'false', '0', 'no'}
+
 # A judge reads the prompt, the reference and up to three answers plus the
 # scaffolding, so the generation limit — sized for one prompt — would refuse
 # judging exactly where generation succeeded. Its own limit defaults to a
@@ -91,6 +131,7 @@ class ProviderConfig(BaseModel):
     missing: list[str]
     base_url: Optional[str] = None
     model: Optional[str] = None
+    can_judge: bool = False
 
 
 def _env(name: str) -> str:
@@ -165,6 +206,44 @@ _PROVIDER_ENV: dict[str, _ProviderEnv] = {
 }
 
 
+def can_judge_env(provider_id: str) -> str:
+    return ENV_CAN_JUDGE_TEMPLATE.format(provider=provider_id.upper())
+
+
+def resolve_can_judge(provider_id: str) -> bool:
+    """Whether this provider may be offered as a judge, read at call time.
+
+    Case-insensitive ``true/false``, ``1/0``, ``yes/no``. Anything else — a
+    typo, an empty override left as a stray equals sign — logs a warning and
+    falls back to the built-in default rather than raising: this gate must
+    fail toward the safe default, never take down the config endpoint.
+    """
+    if provider_id not in _PROVIDER_ENV:
+        raise ValueError(f'Unknown answer-compare provider: {provider_id}')
+
+    default = DEFAULT_CAN_JUDGE[provider_id]
+    raw = _env(can_judge_env(provider_id)).lower()
+    if not raw:
+        return default
+    if raw in _TRUE_STRINGS:
+        return True
+    if raw in _FALSE_STRINGS:
+        return False
+
+    log.warning(
+        '%s=%r is not a recognised boolean (true/false/1/0/yes/no) — using the default (%s)',
+        can_judge_env(provider_id),
+        raw,
+        default,
+    )
+    return default
+
+
+def resolve_judge_ids() -> tuple[str, ...]:
+    """The provider ids currently allowed to judge, in ``PROVIDER_IDS`` order."""
+    return tuple(provider_id for provider_id in PROVIDER_IDS if resolve_can_judge(provider_id))
+
+
 def resolve_provider(provider_id: str) -> ProviderConfig:
     spec = _PROVIDER_ENV.get(provider_id)
     if spec is None:
@@ -191,6 +270,7 @@ def resolve_provider(provider_id: str) -> ProviderConfig:
         missing=missing,
         base_url=base_url,
         model=model or None,
+        can_judge=resolve_can_judge(provider_id),
     )
 
 

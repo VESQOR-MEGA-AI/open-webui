@@ -22,7 +22,7 @@ import logging
 from typing import Any, Optional
 
 from open_webui.utils.answer_compare_judge import UnmappedLabel, map_report
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS
+from open_webui.utils.answer_compare_providers import PROVIDER_IDS, resolve_judge_ids
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -141,14 +141,19 @@ def _section_outcome(tally: dict[str, Any], extra_excluded: list[str]) -> list[s
 
     excluded = list(tally['excluded']) + [{'judge': judge, 'reason': 'unmappable'} for judge in extra_excluded]
     included_count = tally['n_included'] - len(extra_excluded)
-    partial = included_count < len(PROVIDER_IDS)
+    # A JUDGES walk: the denominator and the per-judge exclusion list below are
+    # both the judge-capable providers, never every compared provider — a
+    # provider that can only generate answers is not part of the panel and must
+    # not read as a permanently missing judge.
+    judge_ids = resolve_judge_ids()
+    partial = included_count < len(judge_ids)
 
     if partial:
         lines.append('')
-        lines.append(f'Partial summary: {included_count} of {len(PROVIDER_IDS)} judges included.')
+        lines.append(f'Partial summary: {included_count} of {len(judge_ids)} judges included.')
         self_voted = {item['judge']: item['kind'] for item in tally['self_votes_excluded']}
         by_judge = {item['judge']: item for item in excluded}
-        for judge in PROVIDER_IDS:
+        for judge in judge_ids:
             item = by_judge.get(judge)
             if item is None:
                 continue
@@ -333,6 +338,6 @@ def build_summary(tally: dict[str, Any], reports: list[SummaryReport]) -> Summar
         narrative=build_narrative(tally, reports),
         tally=tally,
         judged_versions=tally['current_versions'],
-        partial=len(included) < len(PROVIDER_IDS),
+        partial=len(included) < len(resolve_judge_ids()),
         included_judges=included,
     )

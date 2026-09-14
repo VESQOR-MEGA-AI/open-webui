@@ -45,7 +45,8 @@ const config = (id: ProviderConfig['id'], configured: boolean): ProviderConfig =
 	configured,
 	missing: configured ? [] : [`ANSWER_COMPARE_${id.toUpperCase()}_API_KEY`],
 	base_url: 'https://x',
-	model: configured ? 'm' : null
+	model: configured ? 'm' : null,
+	can_judge: id !== 'vesqor'
 });
 
 describe('the panel renders the narrative and never rewrites it', () => {
