@@ -59,6 +59,21 @@ gtag_load_idx = html.find("s.src = 'https://www.googletagmanager.com/gtag/js?id=
 check(consent_idx != -1 and gtag_load_idx != -1 and consent_idx < gtag_load_idx,
       'src/app.html: consent default must be set BEFORE gtag.js is loaded')
 
+# --- 1b. the consent UPDATE must use the gtag command form ---------------
+# Regression (found live on chat.vesqorai.com 2026-09-14): the banner pushed a
+# bare {event:'consent_update', consent:{...}} object onto dataLayer. Google Tag
+# ignores that — 'consent' is a gtag.js command, not a dataLayer event — so
+# analytics_storage stayed denied even after the visitor clicked Accept
+# (google_tag_data.ics.usedUpdate === false). The documented form is
+# gtag('consent','update',{...}) and requires window.gtag to exist.
+check("window.gtag = function" in html or 'window.gtag =' in html,
+      'src/app.html: gtag must be exposed on window so the banner can call it')
+check(re.search(r"gtag\(\s*'consent'\s*,\s*'update'", html) is not None,
+      "src/app.html: consent update must call gtag('consent','update',{...}) — "
+      "a flat dataLayer object is ignored by Consent Mode")
+check("event: 'consent_update'" not in html,
+      'src/app.html: flat {event:consent_update} push does not reach Consent Mode')
+
 # --- 2. Static assets must ship ------------------------------------------
 # Every /static/<file> referenced anywhere in the frontend must exist under
 # the directory the Dockerfile copies into the image (static/static).
