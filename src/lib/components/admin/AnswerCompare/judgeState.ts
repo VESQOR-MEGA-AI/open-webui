@@ -360,3 +360,85 @@ export const judgesToRun = (cards: JudgeCardsState): ProviderId[] =>
 		if (card.missing !== null || card.inFlight) return false;
 		return !(card.failure !== null && JUDGE_RETRY_DISABLED_CODES.includes(card.failure.code));
 	});
+/**
+ * Header line for a copied report: which judge wrote it and which model ran.
+ * Kept beside the body so a pasted report carries its provenance.
+ */
+const reportHeading = (judge: ProviderId, report: ReportRow): string =>
+	[PROVIDER_LABELS[judge], report.model ?? report.requested_model].filter(Boolean).join(' · ');
+
+const verdictLine = (mapped: MappedReport, labelMap: Record<string, ProviderId> | null): string => {
+	const { kind, providers } = verdictHeadline(mapped, labelMap);
+	const names = providers.map((provider) =>
+		provider.label ? `${provider.name} (was ${provider.label})` : provider.name
+	);
+
+	if (kind === 'winner') return `Winner: ${names.join(', ')}`;
+	if (kind === 'tie') return `Tie: ${names.join(', ')}`;
+	return 'No reliable winner';
+};
+
+const findingLines = (list: RenderedList): string[] =>
+	list.items.flatMap((item) => {
+		// The judge's own text goes in verbatim — a passage keeps its internal
+		// newlines and is never re-wrapped or split.
+		const lines: string[] = [];
+		if (item.passage) lines.push(`  > ${item.passage}`);
+		if (item.note) lines.push(`  - ${item.note}`);
+		return lines;
+	});
+
+/**
+ * The rendered report as plain text, for the card's Copy button.
+ *
+ * This mirrors what `ReportBody.svelte` shows, with the same label substitution
+ * ("(was B)") and the same section order — a pasted report reads like the one on
+ * screen. It is a *reader* of `mapped`, not a second mapping implementation: the
+ * label → provider transform stays on the server, and no judge text is rewritten
+ * (`rationale`, `note` and `passage` are copied verbatim, newlines included).
+ */
+export const reportToText = (
+	judge: ProviderId,
+	report: ReportRow,
+	labelMap: Record<string, ProviderId> | null
+): string => {
+	const lines: string[] = [reportHeading(judge, report), ''];
+
+	if (!report.mapped) {
+		// Unmappable report: the raw report is what was kept, so that is what copies.
+		lines.push(JUDGE_ERROR_COPY.label_not_in_map);
+		if (report.mapping_error) lines.push(report.mapping_error);
+		return lines.join('\n');
+	}
+
+	const mapped = report.mapped;
+	lines.push(verdictLine(mapped, labelMap));
+
+	if (mapped.rationale) {
+		lines.push('', mapped.rationale);
+	}
+
+	for (const section of answerSections(mapped, labelMap)) {
+		lines.push(
+			'',
+			section.named.label
+				? `${section.named.name} (was ${section.named.label})`
+				: section.named.name
+		);
+		if (section.lists.length === 0) {
+			lines.push('  (no observations recorded)');
+			continue;
+		}
+		for (const list of section.lists) {
+			lines.push(`  ${list.title}:`);
+			lines.push(...findingLines(list));
+		}
+	}
+
+	if (mapped.needs_verification.length > 0) {
+		lines.push('', 'Claims that need verification:');
+		lines.push(...mapped.needs_verification.map((claim) => `  - ${claim}`));
+	}
+
+	return lines.join('\n');
+};

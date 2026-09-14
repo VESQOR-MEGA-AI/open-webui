@@ -3,9 +3,11 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { fade } from 'svelte/transition';
+	import { toast } from 'svelte-sonner';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import { copyToClipboard } from '$lib/utils';
 
 	import ReportBody from './ReportBody.svelte';
 	import { PROVIDER_LABELS, SLOW_GENERATION_AFTER_SECONDS } from './state';
@@ -15,6 +17,7 @@
 		judgeElapsedSeconds,
 		judgePhase,
 		nameWithLabel,
+		reportToText,
 		type JudgeCardState
 	} from './judgeState';
 
@@ -78,6 +81,17 @@
 		motionQuery?.removeEventListener('change', readMotionPreference);
 	});
 	$: fadeParams = reducedMotion ? { duration: 0 } : { duration: 150 };
+
+	// A report is copyable as plain text, matching what the card shows. Only
+	// offered when there is a report: copying "Not judged yet." helps nobody, and
+	// the header control stays absent until there is something to copy.
+	$: canCopy = card.report !== null;
+
+	const copy = async () => {
+		if (!card.report) return;
+		await copyToClipboard(reportToText(card.judge, card.report, labelMap));
+		toast.success($i18n.t('Copying to clipboard was successful!'));
+	};
 </script>
 
 <div
@@ -90,17 +104,30 @@
 			{$i18n.t('Judge: {{name}}', { name: PROVIDER_LABELS[card.judge] })}
 		</div>
 
-		{#if phase !== 'requires_configuration' && phase !== 'empty'}
-			<Tooltip content={retryDisabledReason}>
-				<button
-					class="px-2 py-1 text-xs rounded-lg bg-transparent hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
-					disabled={retryDisabled}
-					on:click={onRetry}
-				>
-					{retryLabel}
-				</button>
-			</Tooltip>
-		{/if}
+		<div class="flex items-center gap-1.5 shrink-0">
+			{#if canCopy}
+				<Tooltip content={$i18n.t('Copy report')}>
+					<button
+						class="px-2 py-1 text-xs rounded-lg bg-transparent hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+						on:click={copy}
+					>
+						{$i18n.t('Copy')}
+					</button>
+				</Tooltip>
+			{/if}
+
+			{#if phase !== 'requires_configuration' && phase !== 'empty'}
+				<Tooltip content={retryDisabledReason}>
+					<button
+						class="px-2 py-1 text-xs rounded-lg bg-transparent hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
+						disabled={retryDisabled}
+						on:click={onRetry}
+					>
+						{retryLabel}
+					</button>
+				</Tooltip>
+			{/if}
+		</div>
 	</div>
 
 	<div class="flex flex-col gap-2 px-3.5 py-3 min-w-0">
