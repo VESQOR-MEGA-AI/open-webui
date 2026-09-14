@@ -198,6 +198,48 @@ def resolve_providers() -> list[ProviderConfig]:
     return [resolve_provider(provider_id) for provider_id in PROVIDER_IDS]
 
 
+def log_startup_configuration() -> None:
+    """Log the answer-compare provider configuration once, at application start.
+
+    This is a report, not a gate: it must never raise and never prevent boot.
+    Production today runs with only the ``vesqor`` provider configured —
+    ``chatgpt`` and ``gemini`` are intentionally unset — so a fail-closed check
+    here would refuse to start the whole chat application over a benchmark
+    page most requests never touch. Unlike ``_assert_signup_gates()`` in
+    ``main.py``, a misconfigured or partially-configured comparison provider
+    degrades one admin feature; it is not a compliance control silently gone
+    missing, so it only ever warns.
+
+    Only variable *names*, the sanitised base URL, and the model id are ever
+    logged — never key material — same rule as ``ProviderConfig`` itself.
+    """
+    configured_count = 0
+    for provider in resolve_providers():
+        if provider.configured:
+            configured_count += 1
+            log.info(
+                'Answer-compare provider %r is configured (model=%s, base_url=%s)',
+                provider.id,
+                provider.model,
+                provider.base_url,
+            )
+        else:
+            log.warning(
+                'Answer-compare provider %r is not configured — missing env var(s): %s',
+                provider.id,
+                ', '.join(provider.missing),
+            )
+
+    total = len(PROVIDER_IDS)
+    if configured_count == 0:
+        log.warning(
+            'Answer-compare: 0/%d providers configured — the comparison benchmark has no usable provider yet.',
+            total,
+        )
+    else:
+        log.info('Answer-compare: %d/%d providers configured.', configured_count, total)
+
+
 def resolve_api_key(provider_id: str) -> str:
     """The provider's key, read at call time.
 

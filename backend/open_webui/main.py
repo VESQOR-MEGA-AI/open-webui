@@ -202,6 +202,7 @@ from open_webui.tasks import (
 from open_webui.utils import logger
 from open_webui.utils.access_control import has_permission
 from open_webui.utils.actions import chat_action as chat_action_handler
+from open_webui.utils.answer_compare_providers import log_startup_configuration
 from open_webui.utils.asgi_middleware import (
     AuthTokenMiddleware,
     CommitSessionMiddleware,
@@ -381,6 +382,13 @@ async def lifespan(app: FastAPI):
     # while it is wide open. This happened once (the v0.11.1 force-push
     # dropped both gates). Fail the boot loudly instead of silently.
     _assert_signup_gates()
+
+    # ── VQ-25 answer-compare config check (warn-only, by design) ───────────
+    # Unlike the signup gate above, this must never block boot: production
+    # today only configures the `vesqor` provider (`chatgpt`/`gemini` are
+    # intentionally unset), so a fail-closed check here would take down the
+    # whole chat app over one admin benchmark page. It only logs.
+    log_startup_configuration()
 
     # Store reference to main event loop for sync->async calls (e.g., embedding generation)
     # This allows sync functions to schedule work on the main loop without blocking health checks
