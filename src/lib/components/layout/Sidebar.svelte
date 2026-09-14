@@ -14,6 +14,7 @@
 		folders as _folders,
 		showSidebar,
 		showSearch,
+		showSettings,
 		mobile,
 		pinnedChats,
 		pinnedNotes,
@@ -666,6 +667,14 @@
 			showSidebar.subscribe(async (value) => {
 				localStorage.sidebar = value;
 
+				// VQ-25 (owner 2026-09-14): настройки «пришиты» к боковой
+				// панели — передаём реальный offset: ширину панели, либо
+				// 42px когда остаётся только рельс с иконками.
+				document.documentElement.style.setProperty(
+					'--vq25-sb',
+					value ? 'var(--sidebar-width)' : '42px'
+				);
+
 				// nav element is not available on the first render
 				const navElement = document.getElementsByTagName('nav')[0];
 
@@ -820,10 +829,15 @@
 			await temporaryChatEnabled.set(false);
 		}
 
+		// VQ-25 (owner 2026-09-14): начать новый чат — закрываем модалки
+		// настроек и поиска (URL не меняется, подписка на pathname не сработает).
+		showSettings.set(false);
+		showSearch.set(false);
+
+		// VQ-25 (owner 2026-09-14): панель сама скрывается после выбора
+		// действия — на любой ширине экрана, не только на мобильном.
 		setTimeout(() => {
-			if ($mobile) {
-				showSidebar.set(false);
-			}
+			showSidebar.set(false);
 		}, 0);
 	};
 
@@ -831,9 +845,13 @@
 		selectedChatId = null;
 		chatId.set('');
 
-		if ($mobile) {
-			showSidebar.set(false);
-		}
+		// VQ-25 (owner 2026-09-14): выбор действия в панели закрывает модалки.
+		showSettings.set(false);
+		showSearch.set(false);
+
+		// VQ-25 (owner 2026-09-14): панель сама скрывается после выбора
+		// действия — на любой ширине экрана, не только на мобильном.
+		showSidebar.set(false);
 
 		await tick();
 	};
@@ -958,8 +976,8 @@
 							class=" self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 						>
 							<img
-								src="{WEBUI_BASE_URL}/static/favicon.png"
-								class="sidebar-new-chat-icon size-5 rounded-full group-hover:hidden"
+								src="{WEBUI_BASE_URL}/static/vesqor-mark.png"
+								class="sidebar-new-chat-icon size-5 group-hover:hidden"
 								alt=""
 							/>
 
@@ -1003,6 +1021,9 @@
 								e.preventDefault();
 
 								showSearch.set(true);
+								// VQ-25 (owner 2026-09-14): при открытии поиска
+								// боковая панель уходит.
+								showSidebar.set(false);
 							}}
 							draggable="false"
 							aria-label={$i18n.t('Search')}
@@ -1164,8 +1185,8 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon.png"
-						class="sidebar-new-chat-icon size-5 rounded-full"
+						src="{WEBUI_BASE_URL}/static/vesqor-mark.png"
+						class="sidebar-new-chat-icon size-5"
 						alt=""
 					/>
 				</a>
@@ -1247,6 +1268,9 @@
 							class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900 transition outline-none"
 							on:click={() => {
 								showSearch.set(true);
+								// VQ-25 (owner 2026-09-14): при открытии поиска
+								// боковая панель уходит.
+								showSidebar.set(false);
 							}}
 							draggable="false"
 							aria-label={$i18n.t('Search')}

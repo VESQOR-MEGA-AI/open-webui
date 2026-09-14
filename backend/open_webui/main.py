@@ -138,6 +138,7 @@ from open_webui.models.models import Models
 from open_webui.models.users import Users
 from open_webui.routers import (
     analytics,
+    answer_compare,
     audio,
     auths,
     automations,
@@ -880,6 +881,7 @@ app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminal
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
 app.include_router(vesqor.router, prefix='/api/v1/vesqor', tags=['vesqor'])
+app.include_router(answer_compare.router, prefix='/api/v1/compare', tags=['compare'])
 
 # SCIM 2.0 API for identity management
 if ENABLE_SCIM:

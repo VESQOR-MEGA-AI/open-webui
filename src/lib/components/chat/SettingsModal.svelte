@@ -911,8 +911,8 @@
 
 <Modal
 	size="full"
-	containerClassName="p-4 sm:p-6 lg:p-8"
-	className="!w-[calc(100vw-2rem)] sm:!w-[calc(100vw-3rem)] lg:!w-[calc(100vw-4rem)] !max-w-[80rem] h-[min(54rem,calc(100dvh-4rem))] max-h-[calc(100dvh-4rem)] flex flex-col md:flex-row bg-white dark:bg-gray-900 rounded-4xl"
+	containerClassName="vq25-settings-modal p-0"
+	className="vq25-settings-full flex flex-col md:flex-row bg-white dark:bg-gray-900"
 	bind:show={modalShow}
 >
 	<nav

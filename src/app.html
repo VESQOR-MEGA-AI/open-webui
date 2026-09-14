@@ -60,7 +60,8 @@
 		/>
 
 		<script src="/static/loader.js" defer crossorigin="use-credentials"></script>
-		<link rel="stylesheet" href="/static/custom.css?v=20260911-4" crossorigin="use-credentials" />
+		<link rel="stylesheet" href="/static/custom.css?v=20260914-5" crossorigin="use-credentials" />
+		<link rel="stylesheet" href="/static/vq25.css?v=20260914-4" crossorigin="use-credentials" />
 
 		<!-- Google Analytics 4 — Chat stream G-NRF1DRN448 (2026-09-05) -->
 		<script>
@@ -143,31 +144,23 @@
 	</head>
 
 	<body data-sveltekit-preload-data="hover">
-		<!-- VESQOR ambient living background — identical to vesqorai.com landing:
-		     matrix rain + 3 drifting orbs + rising particles. Purely decorative. -->
-		<div class="ambient-bg" aria-hidden>
-			<div class="ambient-orb ambient-orb--a"></div>
-			<div class="ambient-orb ambient-orb--b"></div>
-			<div class="ambient-orb ambient-orb--c"></div>
-			<div class="ambient-particle ambient-particle--1"></div>
-			<div class="ambient-particle ambient-particle--2"></div>
-			<div class="ambient-particle ambient-particle--3"></div>
-			<div class="ambient-particle ambient-particle--4"></div>
-			<div class="ambient-particle ambient-particle--5"></div>
-			<div class="ambient-particle ambient-particle--6"></div>
-			<div class="ambient-particle ambient-particle--7"></div>
-			<div class="ambient-particle ambient-particle--8"></div>
-			</div>
 		<script>
-		// VESQOR living-background states: idle = matrix alive + matte glass
-		// clear; interacting (REAL input focus/typing — composer, search,
-		// settings) = matrix paused + glass fully matte (~0.97). Random taps
-		// anywhere else keep the matrix alive (owner 2026-09-11: "click on
-		// anything and it looks broken"). focusout/blur → back to idle.
+		// VESQOR living-background states.
+		// TWO independent flags (owner 2026-09-14: дождь стоит на паузе, пока
+		// работаем с чатом; после 2 минут бездействия рейн продолжает):
+		//   body.vesqor-active       — ЛЮБАЯ активность (клик, скролл, клавиша,
+		//                               фокус во ввод). Ставит дождь на паузу.
+		//                               Снимается через 2 минуты бездействия.
+		//   body.vesqor-interacting  — реальный ввод (печать/фокус в input,
+		//                               textarea, contenteditable). Включает
+		//                               матовое стекло. Снимается через 6с.
 		(function () {
 			var body = document.body;
-			var idleTimer = null;
-			var IDLE_RESET_MS = 6000;
+			var activeTimer = null;
+			var glassTimer = null;
+			var ACTIVE_RESET_MS = 120000; // 2 мин без активности → рейн оживает
+			var GLASS_RESET_MS = 6000; // матовое стекло гаснет через 6с после ввода
+
 			function isRealInput(el) {
 				if (!el || el === document.body) return false;
 				if (el.isContentEditable) return true;
@@ -175,27 +168,40 @@
 				if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT') return true;
 				return false;
 			}
+			function setActive(on) {
+				if (on) {
+					body.classList.add('vesqor-active');
+					clearTimeout(activeTimer);
+					activeTimer = setTimeout(function () { setActive(false); }, ACTIVE_RESET_MS);
+				} else {
+					body.classList.remove('vesqor-active');
+				}
+			}
 			function setInteracting(on) {
 				if (on) {
 					body.classList.add('vesqor-interacting');
-					clearTimeout(idleTimer);
-					idleTimer = setTimeout(function () {
-						setInteracting(false);
-					}, IDLE_RESET_MS);
+					clearTimeout(glassTimer);
+					glassTimer = setTimeout(function () { setInteracting(false); }, GLASS_RESET_MS);
 				} else {
-					clearTimeout(idleTimer);
-					idleTimer = null;
 					body.classList.remove('vesqor-interacting');
 				}
 			}
-			document.addEventListener('focusin', function (e) {
+			function onActivity(e) {
+				setActive(true);
 				if (isRealInput(e.target)) setInteracting(true);
-			}, true);
-			document.addEventListener('keydown', function (e) {
+			}
+			// ЛЮБАЯ физическая активность ставит дождь на паузу (active).
+			document.addEventListener('pointerdown', onActivity, true);
+			document.addEventListener('keydown', onActivity, true);
+			document.addEventListener('wheel', function () { setActive(true); }, { passive: true, capture: true });
+			document.addEventListener('touchstart', onActivity, { passive: true, capture: true });
+			// Реальный ввод (фокус в поле) — матовое стекло (interacting).
+			document.addEventListener('focusin', function (e) {
 				if (isRealInput(e.target)) setInteracting(true);
 			}, true);
 			window.addEventListener('blur', function () {
 				setInteracting(false);
+				setActive(false);
 			});
 			document.addEventListener('focusout', function (e) {
 				var next = e.relatedTarget;

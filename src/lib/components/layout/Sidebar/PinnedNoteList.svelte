@@ -72,9 +72,9 @@
 				on:click={() => {
 					selectedChatId = null;
 					chatId.set('');
-					if ($mobile) {
-						showSidebar.set(false);
-					}
+					// VQ-25 (owner 2026-09-14): панель сама скрывается после
+					// выбора — на любой ширине экрана.
+					showSidebar.set(false);
 				}}
 				draggable="false"
 			>
