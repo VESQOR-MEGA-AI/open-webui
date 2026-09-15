@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { JudgeReports, ReportRow, Tally } from '$lib/apis/answer-compare';
-import { AGREEMENT_LINE, applyTally, clearTally, EXCLUSION_COPY, SINGLE_JUDGE_COPY, tallyView } from './tallyState';
+import type { JudgeReports, ProviderId, ReportRow, Tally } from '$lib/apis/answer-compare';
+import { AGREEMENT_LINE, applyTally, clearTally, EXCLUSION_COPY, tallyView } from './tallyState';
 
 const baseTally = (overrides: Partial<Tally> = {}): Tally => ({
 	current_versions: [
@@ -23,6 +23,7 @@ const baseTally = (overrides: Partial<Tally> = {}): Tally => ({
 	],
 	votes: { chatgpt: 1, gemini: 0, vesqor: 2 },
 	n_included: 3,
+	n_judges: 3,
 	outcome: { kind: 'preferred', provider: 'vesqor' },
 	ties: [],
 	inconclusive: [],
@@ -32,7 +33,7 @@ const baseTally = (overrides: Partial<Tally> = {}): Tally => ({
 });
 
 /** A complete report row whose mapped verdict names `winner`. */
-const reportRow = (judge: ReportRow['judge'], winner: ReportRow['judge']): ReportRow => ({
+const reportRow = (judge: ReportRow['judge'], winner: ProviderId): ReportRow => ({
 	id: `${judge}-1`,
 	run_id: 'run-1',
 	judge,
@@ -65,7 +66,8 @@ describe('the panel never counts', () => {
 			judge,
 			current: reportRow(judge, 'vesqor'),
 			latest_attempt: reportRow(judge, 'vesqor'),
-			outdated: false
+			outdated: false,
+			capable: true
 		}));
 		const disagreeing = baseTally({
 			votes: { chatgpt: 2, gemini: 0, vesqor: 0 },
@@ -110,29 +112,51 @@ describe('headline', () => {
 		expect(tallyView(one).headline.params).toEqual({ provider: 'VESQOR', votes: 1, nIncluded: 1 });
 	});
 
-	it('explains why a single verdict yields no preferred answer', () => {
+	it('a single independent verdict is a preferred answer, "1 of 1", with no two-judge sentence (DECISIONS.md#016)', () => {
+		// Inverted from #014: the server now returns `preferred` for one verdict, and
+		// the panel has no sentence explaining a floor that no longer exists.
 		const lone = baseTally({
 			n_included: 1,
-			partial: true,
-			included_judges: ['chatgpt'],
+			n_judges: 1,
+			partial: false,
+			included_judges: ['sonnet'],
+			included_reports: [{ judge: 'sonnet', revision: 1 }],
 			votes: { chatgpt: 0, gemini: 0, vesqor: 1 },
-			verdicts: [{ judge: 'chatgpt', kind: 'winner', providers: ['vesqor'] }],
+			verdicts: [{ judge: 'sonnet', kind: 'winner', providers: ['vesqor'] }],
+			outcome: { kind: 'preferred', provider: 'vesqor' }
+		});
+		const view = tallyView(lone);
+		expect(view.headline.key).toBe(
+			'Preferred answer: {{provider}} ({{votes}} of {{nIncluded}} judges)'
+		);
+		expect(view.headline.params).toEqual({ provider: 'VESQOR', votes: 1, nIncluded: 1 });
+		expect(view.partial).toBeNull();
+		expect(JSON.stringify(view)).not.toContain('requires at least two');
+
+		// A lone tie is honestly "No majority", with the same plain wording as for many.
+		const loneTie = baseTally({
+			n_included: 1,
+			n_judges: 1,
+			votes: { chatgpt: 0, gemini: 0, vesqor: 0 },
+			verdicts: [{ judge: 'sonnet', kind: 'tie', providers: ['chatgpt', 'vesqor'] }],
+			ties: [{ judge: 'sonnet', providers: ['chatgpt', 'vesqor'] }],
 			outcome: { kind: 'no_majority', provider: null }
 		});
-		expect(tallyView(lone).headline.key).toBe(SINGLE_JUDGE_COPY);
-		expect(SINGLE_JUDGE_COPY).toBe(
-			'Only one judge has a valid verdict — a preferred answer requires at least two.'
-		);
-		// Two or more keeps the plain wording.
-		expect(tallyView(baseTally({ n_included: 2, outcome: { kind: 'no_majority', provider: null } })).headline.key).toBe(
-			'No majority'
-		);
+		expect(tallyView(loneTie).headline.key).toBe('No majority');
+		expect(tallyView(loneTie).verdicts[0].text?.params).toEqual({
+			judge: 'Sonnet',
+			providers: 'ChatGPT, VESQOR'
+		});
 	});
 
 	it('names the two other outcomes plainly', () => {
-		expect(tallyView(baseTally({ outcome: { kind: 'no_majority', provider: null } })).headline.key).toBe('No majority');
 		expect(
-			tallyView(baseTally({ outcome: { kind: 'no_valid_verdicts', provider: null }, n_included: 0 })).headline.key
+			tallyView(baseTally({ outcome: { kind: 'no_majority', provider: null } })).headline.key
+		).toBe('No majority');
+		expect(
+			tallyView(
+				baseTally({ outcome: { kind: 'no_valid_verdicts', provider: null }, n_included: 0 })
+			).headline.key
 		).toBe('No valid verdicts yet');
 	});
 });
@@ -156,6 +180,7 @@ describe('partial, excluded, ties, inconclusive, self-votes', () => {
 			})
 		);
 		expect(view.partial?.key).toBe('Partial: {{nIncluded}} of {{total}} judges included');
+		expect(view.partial?.params).toEqual({ nIncluded: 0, total: 3 });
 		expect(view.excluded.map((e) => [e.name, e.reason.key])).toEqual([
 			['ChatGPT', 'report is outdated (answers changed)'],
 			['Gemini', 'requires configuration'],
@@ -167,9 +192,55 @@ describe('partial, excluded, ties, inconclusive, self-votes', () => {
 	});
 
 	it('every backend exclusion reason has copy', () => {
-		for (const reason of ['no_report', 'outdated', 'failed', 'malformed', 'not_configured', 'unmappable']) {
+		for (const reason of [
+			'no_report',
+			'outdated',
+			'failed',
+			'malformed',
+			'not_configured',
+			'not_capable',
+			'unmappable'
+		]) {
 			expect(EXCLUSION_COPY[reason], reason).toBeTruthy();
 		}
+	});
+
+	it("the partial denominator is the server's judge count, never the number of answer providers", () => {
+		const view = tallyView(
+			baseTally({
+				partial: true,
+				n_included: 0,
+				n_judges: 1,
+				included_judges: [],
+				verdicts: [],
+				votes: { chatgpt: 0, gemini: 0, vesqor: 0 },
+				outcome: { kind: 'no_valid_verdicts', provider: null },
+				excluded: [{ judge: 'sonnet', reason: 'no_report' }]
+			})
+		);
+		expect(view.partial?.params).toEqual({ nIncluded: 0, total: 1 });
+		expect(view.excluded.map((e) => [e.name, e.reason.key])).toEqual([['Sonnet', 'not judged']]);
+	});
+
+	it('a legacy participant judge is listed as excluded with its own words, beside the independent judge', () => {
+		const view = tallyView(
+			baseTally({
+				partial: false,
+				n_included: 1,
+				n_judges: 1,
+				included_judges: ['sonnet'],
+				verdicts: [{ judge: 'sonnet', kind: 'winner', providers: ['gemini'] }],
+				votes: { chatgpt: 0, gemini: 1, vesqor: 0 },
+				outcome: { kind: 'preferred', provider: 'gemini' },
+				excluded: [{ judge: 'chatgpt', reason: 'not_capable' }]
+			})
+		);
+		expect(view.partial).toBeNull();
+		expect(view.excluded.map((e) => [e.name, e.reason.key])).toEqual([
+			['ChatGPT', 'participant judge, no longer used']
+		]);
+		// Votes stay per answer provider: the judge is never a column.
+		expect(view.votes.map((v) => v.provider)).toEqual(['chatgpt', 'gemini', 'vesqor']);
 	});
 
 	it('says ties and no-reliable-winner in plain words, per judge', () => {
@@ -192,7 +263,10 @@ describe('partial, excluded, ties, inconclusive, self-votes', () => {
 			key: '{{judge}} judged a tie between {{providers}}.',
 			params: { judge: 'ChatGPT', providers: 'ChatGPT, VESQOR' }
 		});
-		expect(byJudge.gemini.text).toEqual({ key: '{{judge}} found no reliable winner.', params: { judge: 'Gemini' } });
+		expect(byJudge.gemini.text).toEqual({
+			key: '{{judge}} found no reliable winner.',
+			params: { judge: 'Gemini' }
+		});
 		expect(byJudge.vesqor.text).toBeNull();
 		// The self-vote is an annotation beside the verdict, not a change to the count.
 		expect(byJudge.chatgpt.selfVote?.key).toBe('{{judge}} included its own answer in a tie');

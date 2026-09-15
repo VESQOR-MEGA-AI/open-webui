@@ -1,9 +1,21 @@
-"""VQ-25: environment-driven configuration for the three compared providers.
+"""VQ-25: environment-driven configuration for the compared providers and the judge.
 
-Three providers, one shape: each is configured by exactly three explicit
-variables — ``ANSWER_COMPARE_<PROVIDER>_BASE_URL``, ``_API_KEY``, ``_MODEL`` —
-and **nothing falls back to anything**. All three endpoints are OpenAI-compatible,
-including the VESQOR engine's door, so there is no provider special case here.
+Three compared providers plus one independent judge, one shape: each is
+configured by exactly three explicit variables —
+``ANSWER_COMPARE_<PROVIDER>_BASE_URL``, ``_API_KEY``, ``_MODEL`` — and **nothing
+falls back to anything**. The three answer providers speak OpenAI-compatible
+chat completions (including the VESQOR engine's door); the judge, ``sonnet``,
+speaks the Anthropic Messages format. Which is which is a single fact per
+provider, ``PROVIDER_API_FORMAT``, and nothing else in this module cares.
+
+**Two registries, not one.** ``PROVIDER_IDS`` is the fixed triple of answer
+subjects — the columns of the comparison, the keys of ``votes``, the things a
+judge is shown. ``JUDGE_CANDIDATE_IDS`` is who may judge: the triple plus
+``sonnet``. Sonnet is never an answer column; a participant is by default never a
+judge (owner, 2026-09-15: a model that judges the answers it also wrote
+recognises its own style and votes for itself). Every loop over *answers* walks
+``PROVIDER_IDS``; every loop over *judges* walks ``JUDGE_CANDIDATE_IDS`` or the
+ids actually present — mixing the two drops the Sonnet report without an error.
 
 The no-fallback rule is load-bearing, not tidiness. ``OPENAI_API_KEY`` may hold
 the VESQOR agent token on this deployment (``docs/spec-vesqor-integration.md``
@@ -53,7 +65,28 @@ PROVIDER_GEMINI = 'gemini'
 PROVIDER_VESQOR = 'vesqor'
 
 # Fixed order — the frontend and later stages rely on these literals.
+# These are the ANSWER SUBJECTS: the comparison columns, the keys of `votes`,
+# what a judge is shown. Never extended by a judge.
 PROVIDER_IDS: tuple[str, ...] = (PROVIDER_CHATGPT, PROVIDER_GEMINI, PROVIDER_VESQOR)
+
+# The independent judge. Not an answer provider: it appears in no answer grid,
+# no vote count and no generation path.
+PROVIDER_SONNET = 'sonnet'
+
+# Who MAY judge, in fixed order: the three participants (off by default, see
+# DEFAULT_CAN_JUDGE) and the independent judge. Every judge loop walks this.
+JUDGE_CANDIDATE_IDS: tuple[str, ...] = PROVIDER_IDS + (PROVIDER_SONNET,)
+
+# The wire format each provider speaks — the single fact that routes a call to
+# the right client. Exposed through api_format().
+API_FORMAT_OPENAI = 'openai'
+API_FORMAT_ANTHROPIC = 'anthropic'
+PROVIDER_API_FORMAT: dict[str, str] = {
+    PROVIDER_CHATGPT: API_FORMAT_OPENAI,
+    PROVIDER_GEMINI: API_FORMAT_OPENAI,
+    PROVIDER_VESQOR: API_FORMAT_OPENAI,
+    PROVIDER_SONNET: API_FORMAT_ANTHROPIC,
+}
 
 ENV_CHATGPT_BASE_URL = 'ANSWER_COMPARE_CHATGPT_BASE_URL'
 ENV_CHATGPT_API_KEY = 'ANSWER_COMPARE_CHATGPT_API_KEY'
@@ -67,12 +100,20 @@ ENV_VESQOR_BASE_URL = 'ANSWER_COMPARE_VESQOR_BASE_URL'
 ENV_VESQOR_API_KEY = 'ANSWER_COMPARE_VESQOR_API_KEY'
 ENV_VESQOR_MODEL = 'ANSWER_COMPARE_VESQOR_MODEL'
 
+ENV_SONNET_BASE_URL = 'ANSWER_COMPARE_SONNET_BASE_URL'
+ENV_SONNET_API_KEY = 'ANSWER_COMPARE_SONNET_API_KEY'
+ENV_SONNET_MODEL = 'ANSWER_COMPARE_SONNET_MODEL'
+
 DEFAULT_CHATGPT_BASE_URL = 'https://api.openai.com/v1'
 # Gemini's OpenAI-compatible endpoint.
 DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai'
 # No default for the VESQOR door: its URL differs per deployment, and guessing
 # one would point the engine column at whatever happens to answer there.
 DEFAULT_VESQOR_BASE_URL = None
+# The Kie.ai Anthropic-format door the owner named as the target; a deployment
+# talking to Anthropic directly overrides it. The path is a base: the client
+# appends /v1/messages.
+DEFAULT_SONNET_BASE_URL = 'https://api.kie.ai/claude'
 
 # A cheap pre-flight guard, in CHARACTERS, not a context window. It is ours, not
 # the provider's: exceeding it is refused before anything is sent, while the real
@@ -88,13 +129,19 @@ ENV_MAX_INPUT_CHARS_TEMPLATE = 'ANSWER_COMPARE_{provider}_MAX_INPUT_CHARS'
 ENV_CAN_JUDGE_TEMPLATE = 'ANSWER_COMPARE_{provider}_CAN_JUDGE'
 
 # Built-in judge-capability defaults, overridable per deployment via
-# ANSWER_COMPARE_<PROVIDER>_CAN_JUDGE. ChatGPT and Gemini are reached through
-# plain OpenAI-compatible chat completions that honour a system message and can
-# be made to answer with nothing but the requested JSON, so both default to
-# judge-capable.
+# ANSWER_COMPARE_<PROVIDER>_CAN_JUDGE.
 #
-# ``vesqor`` defaults to NOT judge-capable. This is not a policy preference —
-# it is a proven incapability (live production probes, 2026-09-14):
+# **The three participants default to NOT judge-capable** (owner decision,
+# 2026-09-15, DECISIONS.md#016): a model that judges a set of answers it also
+# wrote recognises its own style and votes for itself, and the result is biased
+# by construction. Judging is done by an independent judge — ``sonnet`` — that
+# never generates an answer. The override is kept exactly as it was, so a
+# deployment that wants a participant judge back sets
+# ``ANSWER_COMPARE_CHATGPT_CAN_JUDGE=true`` and gets it; that is how the
+# mechanism survives rather than being replaced.
+#
+# ``vesqor`` additionally is a proven incapability, not only a policy default
+# (live production probes, 2026-09-14):
 #   1. The VESQOR door only ever reads the user message
 #      (``extractUserInput(req.messages)``); the entire judging contract —
 #      criteria, JSON shape, "return a single JSON object and nothing else" —
@@ -107,9 +154,10 @@ ENV_CAN_JUDGE_TEMPLATE = 'ANSWER_COMPARE_{provider}_CAN_JUDGE'
 # It is env-overridable, not hardcoded, so a door that later grows a raw-JSON
 # passthrough mode can be re-enabled for judging without a code change.
 DEFAULT_CAN_JUDGE: dict[str, bool] = {
-    PROVIDER_CHATGPT: True,
-    PROVIDER_GEMINI: True,
+    PROVIDER_CHATGPT: False,
+    PROVIDER_GEMINI: False,
     PROVIDER_VESQOR: False,
+    PROVIDER_SONNET: True,
 }
 
 _TRUE_STRINGS = {'true', '1', 'yes'}
@@ -203,7 +251,20 @@ _PROVIDER_ENV: dict[str, _ProviderEnv] = {
         ENV_VESQOR_API_KEY,
         ENV_VESQOR_MODEL,
     ),
+    PROVIDER_SONNET: _ProviderEnv(
+        ENV_SONNET_BASE_URL,
+        DEFAULT_SONNET_BASE_URL,
+        ENV_SONNET_API_KEY,
+        ENV_SONNET_MODEL,
+    ),
 }
+
+
+def api_format(provider_id: str) -> str:
+    """'openai' or 'anthropic' — which client a call to this provider goes through."""
+    if provider_id not in PROVIDER_API_FORMAT:
+        raise ValueError(f'Unknown answer-compare provider: {provider_id}')
+    return PROVIDER_API_FORMAT[provider_id]
 
 
 def can_judge_env(provider_id: str) -> str:
@@ -240,8 +301,12 @@ def resolve_can_judge(provider_id: str) -> bool:
 
 
 def resolve_judge_ids() -> tuple[str, ...]:
-    """The provider ids currently allowed to judge, in ``PROVIDER_IDS`` order."""
-    return tuple(provider_id for provider_id in PROVIDER_IDS if resolve_can_judge(provider_id))
+    """The ids currently allowed to judge, in ``JUDGE_CANDIDATE_IDS`` order.
+
+    Walks the judge registry, not ``PROVIDER_IDS``: the independent judge is not
+    an answer provider and would otherwise never be found.
+    """
+    return tuple(judge_id for judge_id in JUDGE_CANDIDATE_IDS if resolve_can_judge(judge_id))
 
 
 def resolve_provider(provider_id: str) -> ProviderConfig:
@@ -275,7 +340,13 @@ def resolve_provider(provider_id: str) -> ProviderConfig:
 
 
 def resolve_providers() -> list[ProviderConfig]:
+    """The ANSWER providers — the comparison columns. Never includes the judge."""
     return [resolve_provider(provider_id) for provider_id in PROVIDER_IDS]
+
+
+def resolve_judges() -> list[ProviderConfig]:
+    """Every judge candidate, with ``can_judge`` saying whether it currently may judge."""
+    return [resolve_provider(judge_id) for judge_id in JUDGE_CANDIDATE_IDS]
 
 
 def log_startup_configuration() -> None:
@@ -308,6 +379,16 @@ def log_startup_configuration() -> None:
                 'Answer-compare provider %r is not configured — missing env var(s): %s',
                 provider.id,
                 ', '.join(provider.missing),
+            )
+
+    # The judge registry, separately: a judge-capable id that is not configured
+    # means the benchmark can generate but never judge. Warn-only, like the rest.
+    for judge in resolve_judges():
+        if judge.can_judge and not judge.configured and judge.id not in PROVIDER_IDS:
+            log.warning(
+                'Answer-compare judge %r is judge-capable but not configured — missing env var(s): %s',
+                judge.id,
+                ', '.join(judge.missing),
             )
 
     total = len(PROVIDER_IDS)
@@ -372,5 +453,11 @@ def resolve_judge_max_input_chars(provider_id: str) -> int:
     """
     if provider_id not in _PROVIDER_ENV:
         raise ValueError(f'Unknown answer-compare provider: {provider_id}')
-    default = resolve_max_input_chars(provider_id) * JUDGE_MAX_INPUT_CHARS_MULTIPLIER
+    if provider_id in PROVIDER_IDS:
+        generation_limit = resolve_max_input_chars(provider_id)
+    else:
+        # A judge-only id generates nothing, so it has no generation variable to
+        # follow: ANSWER_COMPARE_SONNET_MAX_INPUT_CHARS is never read.
+        generation_limit = DEFAULT_MAX_INPUT_CHARS
+    default = generation_limit * JUDGE_MAX_INPUT_CHARS_MULTIPLIER
     return _positive_int_env(judge_max_input_chars_env(provider_id), default)

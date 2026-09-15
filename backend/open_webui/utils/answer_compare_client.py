@@ -136,6 +136,26 @@ class MalformedResponseError(ProviderCallError):
     code = 'malformed_response'
 
 
+class TruncatedError(ProviderCallError):
+    """The provider stopped at its output limit before finishing.
+
+    Its own code on purpose: a report cut off by ``max_tokens`` would otherwise
+    reach the parser as broken JSON and be filed as ``malformed_report``, which
+    reads as "the model cannot follow the schema" when the truth is "we gave it
+    too few tokens". Retryable.
+
+    ``params`` carries what the call recorded before it was cut off — in
+    particular ``output_tokens`` — so the failed row still answers "was the
+    limit the problem?".
+    """
+
+    code = 'truncated'
+
+    def __init__(self, message: str, params: Optional[dict[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.params = params
+
+
 class ProviderAnswer(BaseModel):
     """What one successful call produced."""
 

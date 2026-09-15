@@ -76,13 +76,15 @@ JUDGE_ERROR_CODES = (
     'upstream_error',
     'network',
     'malformed_response',
+    'truncated',
+    'judge_not_capable',
 )
 
 # The judge's own words are never rewritten: no .replace( over these fields.
 REPORT_TEXT_FIELDS = ('rationale', 'note', 'passage')
 
 # Every exclusion reason the tally can emit needs plain-words copy on the page.
-EXCLUSION_REASONS = ('no_report', 'outdated', 'failed', 'malformed', 'not_configured', 'unmappable')
+EXCLUSION_REASONS = ('no_report', 'outdated', 'failed', 'malformed', 'not_configured', 'not_capable', 'unmappable')
 
 I18N_CALL = re.compile(r"""\$i18n\.t\(\s*(['"])((?:(?!\1).)*)\1""", re.S)
 
@@ -324,31 +326,90 @@ def test_page_writes_judge_state_only_through_the_module() -> None:
 
 
 def test_judge_role_is_gated_by_can_judge() -> None:
-    """VESQOR must never be offered as a judge.
+    """The compared providers are subjects; the judge is Sonnet (DECISIONS.md#016).
 
-    The VESQOR door only reads the user message and always wraps its output in
-    the report envelope, so it cannot return the judge's JSON schema at all
-    (live production probes, 2026-09-14). Judge-only loops therefore walk the
-    judge-CAPABLE set; answer loops still walk every provider, because VESQOR
-    is a first-class subject of the comparison.
+    Two registries: PROVIDER_IDS is the answer trio, JUDGE_IDS is the trio plus
+    the independent judge. Judge-only loops walk the judge-CAPABLE subset of the
+    judge registry (VESQOR never judges — its door cannot return the schema,
+    live probes 2026-09-14 — and since #016 neither do ChatGPT and Gemini by
+    default); answer loops still walk every provider, because all three are
+    first-class subjects of the comparison and the judge is none of them.
 
     This asserts the behaviour, not the existence of a test file: an earlier
     version of this gate only checked that `judgeState.test.ts` existed, which
     let a regression back to "every provider judges" pass CI unnoticed.
     """
-    print('\n[judging: judge-only loops walk the capable set, answers walk all providers]')
+    print('\n[judging: judge-only loops walk the capable judge set, answers walk all providers]')
     component = code_only(read(COMPONENT))
     judge_state = code_only(read(JUDGE_STATE))
+    api = code_only(read(CLIENT))
 
-    # The capability concept must exist and be fed from the provider config.
+    # Two registries, typed apart: the judge id space contains sonnet, the provider one does not.
+    check("export type JudgeId = ProviderId | 'sonnet'" in api, 'the API types sonnet as a JudgeId, never a ProviderId')
+    check("export type ProviderId = 'chatgpt' | 'gemini' | 'vesqor'" in api, 'ProviderId stays the answer trio')
+    check('judges: JudgeConfig[]' in api, 'the config/run responses carry a separate judges list')
+    check(
+        re.search(r"export const JUDGE_IDS: JudgeId\[\] = \[\.\.\.PROVIDER_IDS, 'sonnet'\]", judge_state) is not None,
+        'judgeState.ts owns the judge registry as PROVIDER_IDS plus sonnet',
+    )
+    check("sonnet: 'Sonnet'" in judge_state, "the independent judge is labelled 'Sonnet'")
+
+    # The capability concept must exist and be fed from the judge config.
     check('capable' in judge_state, 'judgeState.ts models judge capability')
     check(
         'can_judge' in judge_state,
-        'judge capability is derived from ProviderConfig.can_judge, not hardcoded',
+        'judge capability is derived from JudgeConfig.can_judge, not hardcoded',
     )
     check(
         'capableJudgeIds' in judge_state,
         'judgeState.ts exposes capableJudgeIds as the single judge-set accessor',
+    )
+    check(
+        re.search(
+            r'export const capableJudgeIds = \(cards: JudgeCardsState\): JudgeId\[\] =>\s*JUDGE_IDS\.filter',
+            judge_state,
+        )
+        is not None,
+        'capableJudgeIds walks the judge registry, not the provider list',
+    )
+    check(
+        re.search(
+            r'export const visibleJudgeIds = \(cards: JudgeCardsState\): JudgeId\[\] =>\s*JUDGE_IDS\.filter',
+            judge_state,
+        )
+        is not None,
+        'visibleJudgeIds (cards) walks the judge registry too',
+    )
+    check(
+        re.search(
+            r'export const initialJudgeCards = \(configs\?: JudgeConfig\[\]\).*?JUDGE_IDS\.reduce', judge_state, re.S
+        )
+        is not None,
+        'the judge cards are keyed by the judge registry and read the judges config',
+    )
+    # No judge-only construct in the module may iterate the provider list.
+    module_offenders = [
+        line.strip()
+        for line in judge_state.splitlines()
+        if 'PROVIDER_IDS' in line
+        and re.search(r'\bjudge', line, re.I)
+        and 'JUDGE_IDS' not in line
+        and 'answer' not in line
+    ]
+    check(not module_offenders, f'no judge loop in judgeState.ts walks PROVIDER_IDS (offenders: {module_offenders})')
+
+    # The page reads the judges list for judge cards, never the providers list.
+    for call in ('initialJudgeCards(', 'applyJudgeConfigs(', 'applyJudgeRunState('):
+        wrong = [line.strip() for line in component.splitlines() if call in line and 'providers' in line]
+        check(not wrong, f'{call}…) is fed the judges list, not providers (offenders: {wrong})')
+    check(
+        re.search(r'\{#each visibleJudgeIds\(judgeCards\) as judge', component) is not None,
+        'judge cards are rendered from visibleJudgeIds (capable plus legacy with a report)',
+    )
+    check(
+        re.search(r'for \(const judge of JUDGE_IDS\)\s*\{\s*if \(judgeCards\[judge\]\.inFlight\)', component)
+        is not None,
+        'connection-loss recovery for reports walks the judge registry (sonnet recovers too)',
     )
 
     # The judge-only loops must use it. These are the sites where a regression
@@ -364,7 +425,7 @@ def test_judge_role_is_gated_by_can_judge() -> None:
     offenders = [
         line.strip()
         for line in component.splitlines()
-        if 'PROVIDER_IDS' in line and re.search(r'\bjudge|judging', line, re.I)
+        if 'PROVIDER_IDS' in line and re.search(r'\bjudge|judging', line, re.I) and 'JUDGE_IDS' not in line
     ]
     check(
         not offenders,
@@ -386,9 +447,25 @@ def test_judging_ui_wiring() -> None:
     judge_state = read(JUDGE_STATE)
     state = read(STATE)
 
-    check("'Judge with {{name}}'" in component, 'the page renders the three judge buttons through one i18n key')
+    check("'Judge with {{name}}'" in component, 'the page renders the judge buttons through one i18n key')
+    check('JUDGE_LABELS[item.judge]' in component, 'judge buttons are named from the judge registry labels')
+    check('PROVIDER_LABELS[item.judge]' not in component, 'no judge is named through the provider labels')
     check('<JudgeCard' in component, 'the page renders a JudgeCard per judge')
     check(os.path.exists(JUDGE_STATE_TEST), 'judgeState.ts has vitest tests')
+
+    # The card says what kind of judge this is, and a legacy judge is read-only.
+    check('judgeRole(card)' in judge_card, 'the card derives its subtitle through judgeRole')
+    check("'Independent judge'" in judge_state, 'the independent judge subtitle exists as an i18n key')
+    check("'Participant judge (no longer used)'" in judge_state, 'the legacy judge subtitle exists as an i18n key')
+    check(
+        re.search(
+            r'\{#if card\.capable && phase !== .requires_configuration. && phase !== .empty.\}\s*<Tooltip[^>]*>\s*<button',
+            judge_card,
+        )
+        is not None,
+        'the Judge again / Retry button is rendered only for a capable judge',
+    )
+    check('JUDGE_LABELS[card.judge]' in judge_card, 'the card header is named from the judge registry labels')
 
     judge_copy = object_literal_keys(judge_state, 'JUDGE_ERROR_COPY')
     shared_copy = object_literal_keys(state, 'ERROR_COPY')
@@ -443,7 +520,8 @@ def test_tally_panel_wiring() -> None:
     panel = read(TALLY_PANEL)
     tally_state = read(TALLY_STATE)
 
-    check("'Run all three judges'" in component, 'the page has the Run all three judges button')
+    check("'Run all judges'" in component, 'the page has the Run all judges button')
+    check("'Run all three judges'" not in component, 'the button no longer promises three judges')
     check('runAllJudges(' in component, 'the button calls the run-all endpoint')
     check('<TallyPanel' in component, 'the page renders the tally panel')
     check(os.path.exists(TALLY_STATE_TEST), 'tallyState.ts has vitest tests')
@@ -481,9 +559,25 @@ def test_tally_panel_wiring() -> None:
         '{{judge}} included its own answer in a tie',
         '{{judge}} judged a tie between {{providers}}.',
         '{{judge}} found no reliable winner.',
-        'Run all three judges',
+        'Run all judges',
+        'Independent judge',
+        'Participant judge (no longer used)',
+        'participant judge, no longer used',
     ):
         check(key in translations, f'i18n carries: {key[:48]}')
+    for key in (
+        'Only one judge has a valid verdict — a preferred answer requires at least two.',
+        'Run all three judges',
+    ):
+        check(key not in translations, f'i18n no longer carries the retired copy: {key[:40]}')
+    check(
+        'SINGLE_JUDGE_COPY' not in tally_state, 'the single-judge sentence is gone from tallyState (DECISIONS.md#016)'
+    )
+    check(
+        'total: tally.n_judges' in tally_state and 'PROVIDER_IDS.length' not in tally_state,
+        "the partial denominator is the server's n_judges, never the provider count",
+    )
+    check("not_capable: 'participant judge, no longer used'" in tally_state, 'not_capable has its plain-words copy')
 
     # The fixed last line is rendered by the panel itself, not merely present in i18n.
     check('view.footer' in panel, 'the panel renders the agreement footer from the view')
@@ -527,7 +621,6 @@ def test_summary_panel_wiring() -> None:
     for key in (
         'Built on earlier answers or earlier reports. Build again to summarise the current state.',
         'Summary needs at least one valid verdict.',
-        'Only one judge has a valid verdict — a preferred answer requires at least two.',
         'Build summary',
     ):
         check(key in translations, f'i18n carries: {key[:52]}')

@@ -163,19 +163,22 @@ def test_three_of_three_is_preferred():
     assert t['self_votes'] == [{'judge': 'gemini', 'kind': 'winner'}]
 
 
-def test_one_of_one_is_not_preferred_owner_decision_014():
-    """A strict majority of one is not a preference (DECISIONS.md#014).
+def test_one_of_one_is_preferred_owner_decision_016():
+    """One independent judge's verdict is a preference (DECISIONS.md#016).
 
-    This test was inverted when the owner raised the threshold: before, a single
-    included verdict naming a winner produced ``preferred``. The vote is still
-    counted and still visible — only the outcome changed.
+    Inverted twice on the record: #014 raised the floor to two while the judges
+    were the participants themselves; #016 (owner, 2026-09-15) lowers it back to
+    one because judging moved to an independent judge that wrote none of the
+    answers. The vote was always counted; only the outcome word changed.
     """
     t = tally.compute_tally(V1, judges(chatgpt=winner('vesqor')))
-    assert t['outcome'] == {'kind': 'no_majority', 'provider': None}
+    assert t['outcome'] == {'kind': 'preferred', 'provider': 'vesqor'}
     assert t['n_included'] == 1
     assert t['votes'] == {'chatgpt': 0, 'gemini': 0, 'vesqor': 1}
     assert t['verdicts'] == [{'judge': 'chatgpt', 'kind': 'winner', 'providers': ['vesqor']}]
+    # Still partial here: this suite runs the three participants as the panel.
     assert t['partial'] is True
+    assert t['n_judges'] == 3
     assert t['excluded'] == [{'judge': 'gemini', 'reason': 'no_report'}, {'judge': 'vesqor', 'reason': 'no_report'}]
 
 
@@ -448,6 +451,20 @@ PROVIDER_HOST = {
 }
 PROVIDER_MODEL = {'chatgpt': 'gpt-test-1', 'gemini': 'gemini-test-1', 'vesqor': 'vesqor-reasoning'}
 ANSWER_TEXT = {'chatgpt': 'chatgpt answer text', 'gemini': 'gemini answer text', 'vesqor': 'vesqor answer text'}
+
+
+@pytest.fixture(autouse=True)
+def participant_judges(monkeypatch):
+    """This suite exercises the judging mechanics with the three participants as
+    judges, through the supported override. Since DECISIONS.md#016 the default is
+    the independent judge alone; the override is exactly how a deployment brings
+    a participant judge back, so these tests stay valid — and the default itself
+    is covered in test_vq25_sonnet.py.
+    """
+    for provider_id in ('chatgpt', 'gemini', 'vesqor'):
+        monkeypatch.setenv(f'ANSWER_COMPARE_{provider_id.upper()}_CAN_JUDGE', 'true')
+    monkeypatch.setenv('ANSWER_COMPARE_SONNET_CAN_JUDGE', 'false')
+    return monkeypatch
 
 
 @pytest.fixture(autouse=True)

@@ -1,4 +1,5 @@
-import type { JudgeReports, ProviderId, Tally } from '$lib/apis/answer-compare';
+import type { JudgeId, JudgeReports, ProviderId, Tally } from '$lib/apis/answer-compare';
+import { JUDGE_LABELS } from './judgeState';
 import { PROVIDER_IDS, PROVIDER_LABELS } from './state';
 
 /**
@@ -26,8 +27,10 @@ const withTally = (tally: Tally | null): TallyPanelState => ({ tally });
  * Adopt the server's tally from a response that carries one. The reports in the
  * same response are deliberately NOT consulted: the tally is authoritative.
  */
-export const applyTally = (response: { tally?: Tally | null; reports?: JudgeReports[] }): TallyPanelState =>
-	withTally(response.tally ?? null);
+export const applyTally = (response: {
+	tally?: Tally | null;
+	reports?: JudgeReports[];
+}): TallyPanelState => withTally(response.tally ?? null);
 
 export const clearTally = (): TallyPanelState => withTally(null);
 
@@ -38,13 +41,11 @@ export const EXCLUSION_COPY: Record<string, string> = {
 	failed: 'report failed',
 	malformed: 'report could not be read',
 	not_configured: 'requires configuration',
+	not_capable: 'participant judge, no longer used',
 	unmappable: 'report could not be mapped to provider names'
 };
 
 export const AGREEMENT_LINE = 'Agreement between judges is not evidence of correctness.';
-
-/** Why a lone verdict yields no preferred answer (DECISIONS.md#014). */
-export const SINGLE_JUDGE_COPY = 'Only one judge has a valid verdict — a preferred answer requires at least two.';
 
 export interface Copy {
 	key: string;
@@ -58,7 +59,7 @@ export interface VoteLine {
 }
 
 export interface ExcludedLine {
-	judge: ProviderId;
+	judge: JudgeId;
 	name: string;
 	reason: Copy;
 	/** The failed re-judge riding on an outdated entry, when present. */
@@ -68,7 +69,7 @@ export interface ExcludedLine {
 }
 
 export interface VerdictLine {
-	judge: ProviderId;
+	judge: JudgeId;
 	/** A tie or an inconclusive verdict, in plain words. Null for a sole winner. */
 	text: Copy | null;
 	/** The self-vote annotation, visibly a note beside the verdict. */
@@ -84,8 +85,10 @@ export interface TallyView {
 	footer: Copy;
 }
 
+/** Answer columns are providers; verdict lines are judges. Two registries, two name maps. */
 const name = (provider: ProviderId): string => PROVIDER_LABELS[provider];
 const names = (providers: ProviderId[]): string => providers.map(name).join(', ');
+const judgeName = (judge: JudgeId): string => JUDGE_LABELS[judge];
 
 const headlineOf = (tally: Tally): Copy => {
 	const outcome = tally.outcome;
@@ -102,25 +105,25 @@ const headlineOf = (tally: Tally): Copy => {
 		};
 	}
 	if (outcome.kind === 'no_majority') {
-		// One judge naming a winner but no preferred answer reads as a bug unless
-		// the reason is stated (owner decision, DECISIONS.md#014).
-		if (tally.n_included === 1) {
-			return { key: SINGLE_JUDGE_COPY, params: {} };
-		}
+		// One independent judge's winner verdict IS a preferred answer
+		// (DECISIONS.md#016); a lone "no majority" is only ever a tie or an
+		// inconclusive verdict, which the verdict lines below spell out.
 		return { key: 'No majority', params: {} };
 	}
 	return { key: 'No valid verdicts yet', params: {} };
 };
 
-const selfVoteCopy = (kind: string, judge: ProviderId): Copy =>
+const selfVoteCopy = (kind: string, judge: JudgeId): Copy =>
 	kind === 'tie'
-		? { key: '{{judge}} included its own answer in a tie', params: { judge: name(judge) } }
-		: { key: '{{judge}} judged its own answer the winner', params: { judge: name(judge) } };
+		? { key: '{{judge}} included its own answer in a tie', params: { judge: judgeName(judge) } }
+		: { key: '{{judge}} judged its own answer the winner', params: { judge: judgeName(judge) } };
 
 /** Everything the panel shows, derived from the tally alone. */
 export const tallyView = (tally: Tally): TallyView => {
 	const selfVotes = new Map(tally.self_votes.map((item) => [item.judge, item.kind]));
-	const selfVotesExcluded = new Map(tally.self_votes_excluded.map((item) => [item.judge, item.kind]));
+	const selfVotesExcluded = new Map(
+		tally.self_votes_excluded.map((item) => [item.judge, item.kind])
+	);
 	const ties = new Map(tally.ties.map((item) => [item.judge, item.providers]));
 	const inconclusive = new Set(tally.inconclusive);
 
@@ -131,19 +134,24 @@ export const tallyView = (tally: Tally): TallyView => {
 			name: name(provider),
 			votes: tally.votes[provider] ?? 0
 		})),
+		// The denominator is the server's capable-judge count, never the number
+		// of answer providers: the judge panel is not the answer grid.
 		partial: tally.partial
 			? {
 					key: 'Partial: {{nIncluded}} of {{total}} judges included',
-					params: { nIncluded: tally.n_included, total: PROVIDER_IDS.length }
+					params: { nIncluded: tally.n_included, total: tally.n_judges }
 				}
 			: null,
 		excluded: tally.excluded.map((entry) => ({
 			judge: entry.judge,
-			name: name(entry.judge),
+			name: judgeName(entry.judge),
 			reason: { key: EXCLUSION_COPY[entry.reason] ?? entry.reason, params: {} },
 			latestAttempt: entry.latest_attempt
 				? {
-						key: entry.latest_attempt === 'malformed' ? 'latest re-judge could not be read' : 'latest re-judge failed',
+						key:
+							entry.latest_attempt === 'malformed'
+								? 'latest re-judge could not be read'
+								: 'latest re-judge failed',
 						params: {}
 					}
 				: null,
@@ -156,15 +164,23 @@ export const tallyView = (tally: Tally): TallyView => {
 			if (ties.has(verdict.judge)) {
 				text = {
 					key: '{{judge}} judged a tie between {{providers}}.',
-					params: { judge: name(verdict.judge), providers: names(ties.get(verdict.judge) ?? []) }
+					params: {
+						judge: judgeName(verdict.judge),
+						providers: names(ties.get(verdict.judge) ?? [])
+					}
 				};
 			} else if (inconclusive.has(verdict.judge)) {
-				text = { key: '{{judge}} found no reliable winner.', params: { judge: name(verdict.judge) } };
+				text = {
+					key: '{{judge}} found no reliable winner.',
+					params: { judge: judgeName(verdict.judge) }
+				};
 			}
 			return {
 				judge: verdict.judge,
 				text,
-				selfVote: selfVotes.has(verdict.judge) ? selfVoteCopy(selfVotes.get(verdict.judge) as string, verdict.judge) : null
+				selfVote: selfVotes.has(verdict.judge)
+					? selfVoteCopy(selfVotes.get(verdict.judge) as string, verdict.judge)
+					: null
 			};
 		}),
 		footer: { key: AGREEMENT_LINE, params: {} }

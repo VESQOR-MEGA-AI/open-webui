@@ -20,6 +20,8 @@
 		runAllJudges,
 		type CreateRunResponse,
 		type GetRunResponse,
+		type JudgeConfig,
+		type JudgeId,
 		type ProviderConfig,
 		type ApiErrorDetail,
 		type ProviderId,
@@ -32,7 +34,12 @@
 	import AnswerCard from './AnswerCompare/AnswerCard.svelte';
 	import JudgeCard from './AnswerCompare/JudgeCard.svelte';
 	import TallyPanel from './AnswerCompare/TallyPanel.svelte';
-	import { applyTally, clearTally, initialTallyState, type TallyPanelState } from './AnswerCompare/tallyState';
+	import {
+		applyTally,
+		clearTally,
+		initialTallyState,
+		type TallyPanelState
+	} from './AnswerCompare/tallyState';
 	import SummaryPanel from './AnswerCompare/SummaryPanel.svelte';
 	import HistoryList from './AnswerCompare/HistoryList.svelte';
 	import {
@@ -62,8 +69,11 @@
 		applyJudgeRunState,
 		capableJudgeIds,
 		initialJudgeCards,
+		JUDGE_IDS,
+		JUDGE_LABELS,
 		judgeButtonDisabledReason,
 		judgesToRun,
+		visibleJudgeIds,
 		startJudging,
 		type JudgeCardsState
 	} from './AnswerCompare/judgeState';
@@ -76,7 +86,6 @@
 		applyRunState,
 		initialCards,
 		PROVIDER_IDS,
-		PROVIDER_LABELS,
 		providersToGenerate,
 		RECOVERY_DELAYS_MS,
 		startGeneration,
@@ -91,6 +100,8 @@
 
 	let runId: string | null = null;
 	let providers: ProviderConfig[] = [];
+	/** The judge registry — judge cards come from here, never from `providers`. */
+	let judges: JudgeConfig[] = [];
 	let cards: CardsState = initialCards();
 	let judgeCards: JudgeCardsState = initialJudgeCards();
 	let tallyState: TallyPanelState = initialTallyState();
@@ -131,24 +142,30 @@
 
 	/** Recovery timers, one per provider, so a cleanup can never miss one. */
 	const recoveryTimers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
-	const judgeRecoveryTimers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
+	const judgeRecoveryTimers = new Map<JudgeId, ReturnType<typeof setTimeout>>();
 
 	// Answers: every provider can generate one, so this walks PROVIDER_IDS.
 	$: completeAnswers = PROVIDER_IDS.filter((provider) => cards[provider].answer !== null).length;
-	// Judges: only the judge-capable providers get a button/card — VESQOR generates
-	// an answer but never judges, so this walks capableJudgeIds, not PROVIDER_IDS.
+	// Judges: only the judge-capable judges get a button — the trio generates
+	// answers and never judges by default, the independent judge never generates,
+	// so this walks capableJudgeIds (over the judge registry), not PROVIDER_IDS.
 	$: judgeReasons = capableJudgeIds(judgeCards).map((judge) => ({
 		judge,
 		reason: judgeButtonDisabledReason(judgeCards[judge], completeAnswers)
 	}));
-	$: anyJudgeConfigured = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].missing === null);
+	$: anyJudgeConfigured = capableJudgeIds(judgeCards).some(
+		(judge) => judgeCards[judge].missing === null
+	);
 	$: anyJudgeInFlight = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].inFlight);
 	$: lineage = currentRun ? lineageLines(currentRun) : { parent: null, children: null };
 	// A rerun generates nothing on purpose (the cost dialog owns that); say so, or
 	// the empty cards after "Run again" read as a failure. It goes as soon as an
 	// answer exists.
 	$: showRerunNotice =
-		currentRun !== null && currentRun.rerun_of_run_id !== null && completeAnswers === 0 && !anyInFlight;
+		currentRun !== null &&
+		currentRun.rerun_of_run_id !== null &&
+		completeAnswers === 0 &&
+		!anyInFlight;
 	$: includedVerdicts = tallyState.tally?.n_included ?? 0;
 	$: summaryReason = !runId
 		? $i18n.t('Enter a prompt and generate three answers to compare.')
@@ -192,7 +209,7 @@
 		}
 	};
 
-	const clearJudgeRecovery = (judge: ProviderId) => {
+	const clearJudgeRecovery = (judge: JudgeId) => {
 		const timer = judgeRecoveryTimers.get(judge);
 		if (timer !== undefined) {
 			clearTimeout(timer);
@@ -216,8 +233,9 @@
 	const adoptRun = (stored: GetRunResponse) => {
 		currentRun = stored.run;
 		providers = stored.providers;
+		judges = stored.judges;
 		cards = applyRunState(cards, stored.answers, stored.providers);
-		judgeCards = applyJudgeRunState(judgeCards, stored.reports, stored.providers);
+		judgeCards = applyJudgeRunState(judgeCards, stored.reports, stored.judges);
 		// The tally re-renders from every GET: a regeneration shrinks it and marks
 		// it partial with no separate refresh action.
 		tallyState = applyTally(stored);
@@ -351,10 +369,11 @@
 		return runProvider(provider, id);
 	};
 
-	const reportJudgeApiError = (judge: ProviderId, err: CompareApiError) => applyJudgeDetail(judge, err.detail);
+	const reportJudgeApiError = (judge: JudgeId, err: CompareApiError) =>
+		applyJudgeDetail(judge, err.detail);
 
 	/** A typed detail — from an HTTP error or a run-all `skipped` entry — onto the judge's card. */
-	const applyJudgeDetail = (judge: ProviderId, detail: ApiErrorDetail) => {
+	const applyJudgeDetail = (judge: JudgeId, detail: ApiErrorDetail) => {
 		if (detail.code === 'not_configured') {
 			judgeCards = applyJudgeNotConfigured(judgeCards, judge, (detail.missing as string[]) ?? []);
 			return;
@@ -369,14 +388,18 @@
 			return;
 		}
 		if (detail.code === 'not_enough_answers') {
-			judgeCards = applyJudgeNotEnoughAnswers(judgeCards, judge, (detail.complete as ProviderId[]) ?? []);
+			judgeCards = applyJudgeNotEnoughAnswers(
+				judgeCards,
+				judge,
+				(detail.complete as ProviderId[]) ?? []
+			);
 			return;
 		}
 		judgeCards = applyJudgeFailure(judgeCards, judge, { code: detail.code });
 	};
 
 	/** Same rule as answers: the backend wrote the pending row first, so ask before guessing. */
-	const recoverJudgeFromConnectionLoss = (judge: ProviderId, attempt = 0) => {
+	const recoverJudgeFromConnectionLoss = (judge: JudgeId, attempt = 0) => {
 		clearJudgeRecovery(judge);
 
 		if (!runId || attempt >= RECOVERY_DELAYS_MS.length) {
@@ -407,7 +430,7 @@
 	};
 
 	/** One judge's lifecycle, in its own function with its own try/catch. */
-	const runJudge = async (judge: ProviderId) => {
+	const runJudge = async (judge: JudgeId) => {
 		if (!runId) return;
 		clearJudgeRecovery(judge);
 		judgeCards = startJudging(judgeCards, judge, Date.now());
@@ -473,7 +496,11 @@
 				for (const judge of capableJudgeIds(judgeCards)) {
 					if (judgeCards[judge].inFlight) {
 						if (err.code === 'not_enough_answers') {
-							judgeCards = applyJudgeNotEnoughAnswers(judgeCards, judge, (err.detail.complete as ProviderId[]) ?? []);
+							judgeCards = applyJudgeNotEnoughAnswers(
+								judgeCards,
+								judge,
+								(err.detail.complete as ProviderId[]) ?? []
+							);
 						} else {
 							judgeCards = applyJudgeFailure(judgeCards, judge, { code: err.code });
 						}
@@ -599,8 +626,9 @@
 
 		runId = created.run.id;
 		providers = created.providers;
+		judges = created.judges;
 		cards = applyProviderConfigs(initialCards(), created.providers);
-		judgeCards = applyJudgeConfigs(initialJudgeCards(created.providers), created.providers);
+		judgeCards = applyJudgeConfigs(initialJudgeCards(created.judges), created.judges);
 		tallyState = clearTally();
 		summaryState = clearSummary();
 		// The run id lives in the URL so a reload reopens the run being looked at
@@ -642,22 +670,30 @@
 			prompt = stored.run.prompt;
 			reference = stored.run.reference ?? '';
 			providers = stored.providers;
-			cards = applyRunState(applyProviderConfigs(initialCards(), stored.providers), stored.answers, stored.providers);
-			judgeCards = applyJudgeRunState(
-				applyJudgeConfigs(initialJudgeCards(stored.providers), stored.providers),
-				stored.reports,
+			judges = stored.judges;
+			cards = applyRunState(
+				applyProviderConfigs(initialCards(), stored.providers),
+				stored.answers,
 				stored.providers
+			);
+			judgeCards = applyJudgeRunState(
+				applyJudgeConfigs(initialJudgeCards(stored.judges), stored.judges),
+				stored.reports,
+				stored.judges
 			);
 
 			// Anything the server still reports as pending keeps being asked about.
-			// Walks PROVIDER_IDS because it checks both an answer and a report per
-			// provider; a non-capable judge's card is simply never inFlight here.
+			// Two registries, two loops: answers per provider, reports per judge —
+			// the independent judge is not a provider and would otherwise never be
+			// recovered after a lost connection.
 			for (const provider of PROVIDER_IDS) {
 				if (cards[provider].inFlight) {
 					recoverFromConnectionLoss(provider);
 				}
-				if (judgeCards[provider].inFlight) {
-					recoverJudgeFromConnectionLoss(provider);
+			}
+			for (const judge of JUDGE_IDS) {
+				if (judgeCards[judge].inFlight) {
+					recoverJudgeFromConnectionLoss(judge);
 				}
 			}
 		} catch (err) {
@@ -676,8 +712,9 @@
 		try {
 			const config = await getCompareConfig(token);
 			providers = config.providers;
+			judges = config.judges;
 			cards = applyProviderConfigs(initialCards(), config.providers);
-			judgeCards = applyJudgeConfigs(initialJudgeCards(config.providers), config.providers);
+			judgeCards = applyJudgeConfigs(initialJudgeCards(config.judges), config.judges);
 		} catch (err) {
 			if (err instanceof CompareApiError && err.code === 'unauthorized') {
 				toast.error($i18n.t('Your session expired or admin access is required.'));
@@ -797,19 +834,22 @@
 			{$i18n.t('Generating again keeps the current answer as an earlier version.')}
 		</div>
 
-		<!-- Judging: three secondary buttons, then three independent report cards. -->
+		<!-- Judging: one secondary button per capable judge, then one report card per visible judge. -->
 		<div class="flex flex-col gap-3 pt-2">
 			<div class="text-base font-medium">{$i18n.t('Judging')}</div>
 
 			<div class="flex flex-wrap items-center gap-2">
 				<!-- Strongest within the section, still secondary to "Generate all three answers". -->
-				<Tooltip content={runAllReason || $i18n.t('Judging again keeps the current report as an earlier version.')}>
+				<Tooltip
+					content={runAllReason ||
+						$i18n.t('Judging again keeps the current report as an earlier version.')}
+				>
 					<button
 						class="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-800 dark:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
 						disabled={runAllReason !== ''}
 						on:click={() => confirmCost(judgesToRun(judgeCards).length, runAll)}
 					>
-						{$i18n.t('Run all three judges')}
+						{$i18n.t('Run all judges')}
 					</button>
 				</Tooltip>
 				<Tooltip content={summaryReason || $i18n.t('Summary')}>
@@ -832,7 +872,7 @@
 							disabled={item.reason !== null}
 							on:click={() => runJudge(item.judge)}
 						>
-							{$i18n.t('Judge with {{name}}', { name: PROVIDER_LABELS[item.judge] })}
+							{$i18n.t('Judge with {{name}}', { name: JUDGE_LABELS[item.judge] })}
 						</button>
 					</Tooltip>
 				{/each}
@@ -844,12 +884,13 @@
 			{/if}
 			{#each judgeReasons.filter((item) => item.reason !== null) as item (item.judge)}
 				<div class="text-xs text-gray-500">
-					{PROVIDER_LABELS[item.judge]}: {$i18n.t(item.reason?.key ?? '', item.reason?.params ?? {})}
+					{JUDGE_LABELS[item.judge]}: {$i18n.t(item.reason?.key ?? '', item.reason?.params ?? {})}
 				</div>
 			{/each}
 
+			<!-- Cards: the capable judges plus any legacy judge whose report is still on the run (read-only). -->
 			<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start min-w-0">
-				{#each capableJudgeIds(judgeCards) as judge (judge)}
+				{#each visibleJudgeIds(judgeCards) as judge (judge)}
 					<JudgeCard card={judgeCards[judge]} onRetry={() => runJudge(judge)} />
 				{/each}
 			</div>
@@ -872,7 +913,9 @@
 <ConfirmDialog
 	bind:show={showCostDialog}
 	title={$i18n.t('Paid requests')}
-	message={$i18n.t('This will send {{count}} paid AI requests. Continue?', { count: pendingRequestCount })}
+	message={$i18n.t('This will send {{count}} paid AI requests. Continue?', {
+		count: pendingRequestCount
+	})}
 	confirmLabel={$i18n.t('Continue')}
 	cancelLabel={$i18n.t('Cancel')}
 	on:confirm={runPendingBulkAction}

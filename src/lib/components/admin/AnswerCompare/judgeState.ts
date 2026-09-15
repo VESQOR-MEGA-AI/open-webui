@@ -1,13 +1,47 @@
 import type {
+	JudgeConfig,
+	JudgeId,
 	JudgeReports,
 	MappedReport,
-	ProviderConfig,
 	ProviderId,
 	ReportAnswerSection,
 	ReportFinding,
 	ReportRow
 } from '$lib/apis/answer-compare';
-import { ERROR_COPY, PROVIDER_IDS, PROVIDER_LABELS, UNKNOWN_ERROR_COPY, type CardFailure } from './state';
+import {
+	ERROR_COPY,
+	PROVIDER_IDS,
+	PROVIDER_LABELS,
+	UNKNOWN_ERROR_COPY,
+	type CardFailure
+} from './state';
+
+/**
+ * The judge registry, in the server's fixed order: the compared trio (judges
+ * only under a per-deployment override) and the independent judge. Every
+ * judge-only loop walks this or a subset of it — never PROVIDER_IDS, which is
+ * the answer registry and does not contain the independent judge.
+ */
+export const JUDGE_IDS: JudgeId[] = [...PROVIDER_IDS, 'sonnet'];
+
+export const JUDGE_LABELS: Record<JudgeId, string> = { ...PROVIDER_LABELS, sonnet: 'Sonnet' };
+
+/**
+ * The server's built-in default (DECISIONS.md#016): only the independent judge
+ * judges. This is the pre-load state of the cards; the config that arrives from
+ * the server corrects it, in either direction, as soon as it is applied.
+ */
+export const DEFAULT_CAPABLE: Record<JudgeId, boolean> = {
+	chatgpt: false,
+	gemini: false,
+	vesqor: false,
+	sonnet: true
+};
+
+const ANSWER_PROVIDERS: ReadonlySet<string> = new Set(PROVIDER_IDS);
+
+/** The independent judge is not a compared provider: it writes no answer. */
+export const isIndependentJudge = (judge: JudgeId): boolean => !ANSWER_PROVIDERS.has(judge);
 
 /**
  * Judge-card state, with the same discipline as `state.ts`: pure transitions, one
@@ -26,18 +60,21 @@ import { ERROR_COPY, PROVIDER_IDS, PROVIDER_LABELS, UNKNOWN_ERROR_COPY, type Car
  *    — rationale, note, passage — is passed through untouched.
  */
 
-export const SECTION_FIELDS: { field: keyof Omit<ReportAnswerSection, 'label'>; title: string }[] = [
-	{ field: 'strengths', title: 'Strengths' },
-	{ field: 'errors_or_unsupported', title: 'Errors or unsupported claims' },
-	{ field: 'omissions', title: 'Important omissions' },
-	{ field: 'useful_extras', title: 'Useful extras' },
-	{ field: 'unnecessary', title: 'Unnecessary content' },
-	{ field: 'improvements', title: 'Specific improvements' }
-];
+export const SECTION_FIELDS: { field: keyof Omit<ReportAnswerSection, 'label'>; title: string }[] =
+	[
+		{ field: 'strengths', title: 'Strengths' },
+		{ field: 'errors_or_unsupported', title: 'Errors or unsupported claims' },
+		{ field: 'omissions', title: 'Important omissions' },
+		{ field: 'useful_extras', title: 'Useful extras' },
+		{ field: 'unnecessary', title: 'Unnecessary content' },
+		{ field: 'improvements', title: 'Specific improvements' }
+	];
 
 /** Judge-specific copy. Anything not here falls back to ERROR_COPY from state.ts. */
 export const JUDGE_ERROR_COPY: Record<string, string> = {
-	malformed_report: "The judge's report could not be read as a valid report. It is not counted. Retry.",
+	malformed_report:
+		"The judge's report could not be read as a valid report. It is not counted. Retry.",
+	truncated: "The judge's report was cut off at the output limit. It is not counted. Retry.",
 	not_enough_answers: 'Judging needs at least two answers. Available: {{providers}}.',
 	oversized:
 		'The judging input is {{actualChars}} characters. The configured judging limit for {{judge}} is {{limitChars}}.',
@@ -56,7 +93,7 @@ export const JUDGE_RETRY_DISABLED_CODES = [
 ];
 
 export interface JudgeCardState {
-	judge: ProviderId;
+	judge: JudgeId;
 	/** The last complete report. Replaced only by a newer complete one. */
 	report: ReportRow | null;
 	inFlight: boolean;
@@ -66,11 +103,15 @@ export interface JudgeCardState {
 	missing: string[] | null;
 	/** Server-derived: the current report judged an older answer set. */
 	outdated: boolean;
-	/** Whether this provider may be offered as a judge at all — from `ProviderConfig.can_judge`. */
+	/**
+	 * Whether this judge may be called at all — from `JudgeConfig.can_judge` and
+	 * `JudgeReports.capable`. A card that is not capable but holds a report is a
+	 * legacy participant judge: shown read-only, never offered "Judge again".
+	 */
 	capable: boolean;
 }
 
-export type JudgeCardsState = Record<ProviderId, JudgeCardState>;
+export type JudgeCardsState = Record<JudgeId, JudgeCardState>;
 
 export type JudgePhase =
 	| 'requires_configuration'
@@ -80,7 +121,10 @@ export type JudgePhase =
 	| 'complete'
 	| 'empty';
 
-export const emptyJudgeCard = (judge: ProviderId, capable = true): JudgeCardState => ({
+export const emptyJudgeCard = (
+	judge: JudgeId,
+	capable: boolean = DEFAULT_CAPABLE[judge]
+): JudgeCardState => ({
 	judge,
 	report: null,
 	inFlight: false,
@@ -92,20 +136,24 @@ export const emptyJudgeCard = (judge: ProviderId, capable = true): JudgeCardStat
 });
 
 /**
- * Before configs arrive, every provider is assumed capable — that is the
- * pre-load state, not a claim about VESQOR. `applyJudgeConfigs` /
+ * One card per registry entry. Before the judge configs arrive the cards carry
+ * the server's built-in default (`DEFAULT_CAPABLE`); `applyJudgeConfigs` /
  * `applyJudgeRunState` correct it as soon as the server has spoken.
  */
-export const initialJudgeCards = (configs?: ProviderConfig[]): JudgeCardsState => {
+export const initialJudgeCards = (configs?: JudgeConfig[]): JudgeCardsState => {
 	const capableById = new Map(configs?.map((config) => [config.id, config.can_judge]) ?? []);
-	return PROVIDER_IDS.reduce((acc, judge) => {
-		acc[judge] = emptyJudgeCard(judge, capableById.get(judge) ?? true);
+	return JUDGE_IDS.reduce((acc, judge) => {
+		acc[judge] = emptyJudgeCard(judge, capableById.get(judge) ?? DEFAULT_CAPABLE[judge]);
 		return acc;
 	}, {} as JudgeCardsState);
 };
 
-/** The single write point: replaces one judge's card, keeps the other two by identity. */
-const withJudgeCard = (cards: JudgeCardsState, judge: ProviderId, next: JudgeCardState): JudgeCardsState => ({
+/** The single write point: replaces one judge's card, keeps the others by identity. */
+const withJudgeCard = (
+	cards: JudgeCardsState,
+	judge: JudgeId,
+	next: JudgeCardState
+): JudgeCardsState => ({
 	...cards,
 	[judge]: next
 });
@@ -130,10 +178,15 @@ export const describeJudgeFailure = (
 };
 
 export const isJudgeRetryDisabled = (card: JudgeCardState): boolean =>
-	card.inFlight || (card.failure !== null && JUDGE_RETRY_DISABLED_CODES.includes(card.failure.code));
+	card.inFlight ||
+	(card.failure !== null && JUDGE_RETRY_DISABLED_CODES.includes(card.failure.code));
 
 /** A judging starts. The existing report stays: this is Re-judging, not Judging. */
-export const startJudging = (cards: JudgeCardsState, judge: ProviderId, now: number): JudgeCardsState =>
+export const startJudging = (
+	cards: JudgeCardsState,
+	judge: JudgeId,
+	now: number
+): JudgeCardsState =>
 	withJudgeCard(cards, judge, {
 		...cards[judge],
 		inFlight: true,
@@ -144,7 +197,7 @@ export const startJudging = (cards: JudgeCardsState, judge: ProviderId, now: num
 
 export const applyJudgeNotConfigured = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	missing: string[],
 	capable?: boolean
 ): JudgeCardsState =>
@@ -159,7 +212,7 @@ export const applyJudgeNotConfigured = (
 
 export const applyJudgeOversized = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	limitChars: number,
 	actualChars: number
 ): JudgeCardsState =>
@@ -169,13 +222,13 @@ export const applyJudgeOversized = (
 		startedAt: null,
 		failure: {
 			code: 'oversized',
-			params: { judge: PROVIDER_LABELS[judge], limitChars, actualChars }
+			params: { judge: JUDGE_LABELS[judge], limitChars, actualChars }
 		}
 	});
 
 export const applyJudgeNotEnoughAnswers = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	complete: ProviderId[]
 ): JudgeCardsState =>
 	withJudgeCard(cards, judge, {
@@ -191,7 +244,7 @@ export const applyJudgeNotEnoughAnswers = (
 /** A typed failure, from our backend or from the judge via a failed row. The report is untouched. */
 export const applyJudgeFailure = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	failure: CardFailure
 ): JudgeCardsState =>
 	withJudgeCard(cards, judge, {
@@ -202,7 +255,11 @@ export const applyJudgeFailure = (
 	});
 
 /** Apply one report row, whatever its status. The single entry point for results. */
-export const applyJudgeResult = (cards: JudgeCardsState, judge: ProviderId, row: ReportRow): JudgeCardsState => {
+export const applyJudgeResult = (
+	cards: JudgeCardsState,
+	judge: JudgeId,
+	row: ReportRow
+): JudgeCardsState => {
 	const card = cards[judge];
 
 	if (row.status === 'complete') {
@@ -237,9 +294,20 @@ export const applyJudgeResult = (cards: JudgeCardsState, judge: ProviderId, row:
 	});
 };
 
-export const applyJudgeConfigs = (cards: JudgeCardsState, configs: ProviderConfig[]): JudgeCardsState =>
+/**
+ * Adopt the judge registry. A judge that cannot judge is never "requires
+ * configuration": nothing would be called anyway, and a legacy card's report
+ * must stay readable whatever its old triple looks like now.
+ */
+export const applyJudgeConfigs = (
+	cards: JudgeCardsState,
+	configs: JudgeConfig[]
+): JudgeCardsState =>
 	configs.reduce((acc, config) => {
-		const next = config.configured ? acc : applyJudgeNotConfigured(acc, config.id, config.missing);
+		const next =
+			config.configured || !config.can_judge
+				? acc
+				: applyJudgeNotConfigured(acc, config.id, config.missing);
 		return withJudgeCard(next, config.id, { ...next[config.id], capable: config.can_judge });
 	}, cards);
 
@@ -251,14 +319,17 @@ export const applyJudgeConfigs = (cards: JudgeCardsState, configs: ProviderConfi
 export const applyJudgeRunState = (
 	cards: JudgeCardsState,
 	reports: JudgeReports[],
-	configs: ProviderConfig[] = []
+	configs: JudgeConfig[] = []
 ): JudgeCardsState => {
 	const configById = new Map(configs.map((config) => [config.id, config]));
 
 	return reports.reduce((acc, entry) => {
 		const config = configById.get(entry.judge);
-		if (config && !config.configured) {
-			return applyJudgeNotConfigured(acc, entry.judge, config.missing, config.can_judge);
+		// The GET says per entry whether the judge may be called; the config is
+		// the fallback, and the card keeps what it had when neither speaks.
+		const capable = entry.capable ?? config?.can_judge ?? acc[entry.judge].capable;
+		if (config && !config.configured && capable) {
+			return applyJudgeNotConfigured(acc, entry.judge, config.missing, capable);
 		}
 
 		const card = acc[entry.judge];
@@ -287,9 +358,18 @@ export const applyJudgeRunState = (
 			failure,
 			missing: null,
 			outdated: current ? entry.outdated : false,
-			capable: config ? config.can_judge : card.capable
+			capable
 		});
 	}, cards);
+};
+
+/** The line under a judge's name that says what kind of judge it is, or null for a plain participant judge. */
+export const judgeRole = (
+	card: JudgeCardState
+): { key: string; params: Record<string, never> } | null => {
+	if (!card.capable) return { key: 'Participant judge (no longer used)', params: {} };
+	if (isIndependentJudge(card.judge)) return { key: 'Independent judge', params: {} };
+	return null;
 };
 
 export const judgeElapsedSeconds = (card: JudgeCardState, now: number): number =>
@@ -300,8 +380,13 @@ export const judgeButtonDisabledReason = (
 	card: JudgeCardState,
 	completeAnswers: number
 ): { key: string; params: Record<string, string | number> } | null => {
-	if (completeAnswers < 2) return { key: 'Judging unlocks once at least two answers exist.', params: {} };
-	if (card.missing) return { key: 'Requires configuration: {{missing}}', params: { missing: card.missing.join(', ') } };
+	if (completeAnswers < 2)
+		return { key: 'Judging unlocks once at least two answers exist.', params: {} };
+	if (card.missing)
+		return {
+			key: 'Requires configuration: {{missing}}',
+			params: { missing: card.missing.join(', ') }
+		};
 	if (card.inFlight) return { key: 'This judge is already running.', params: {} };
 	return null;
 };
@@ -319,7 +404,9 @@ export interface NamedProvider {
 }
 
 /** Invert label_map: provider -> the label it had. "(was B)" comes from here. */
-export const labelsByProvider = (labelMap: Record<string, ProviderId> | null): Partial<Record<ProviderId, string>> => {
+export const labelsByProvider = (
+	labelMap: Record<string, ProviderId> | null
+): Partial<Record<ProviderId, string>> => {
 	const out: Partial<Record<ProviderId, string>> = {};
 	for (const [label, provider] of Object.entries(labelMap ?? {})) {
 		out[provider] = label;
@@ -327,7 +414,10 @@ export const labelsByProvider = (labelMap: Record<string, ProviderId> | null): P
 	return out;
 };
 
-export const nameWithLabel = (provider: ProviderId, labelMap: Record<string, ProviderId> | null): NamedProvider => ({
+export const nameWithLabel = (
+	provider: ProviderId,
+	labelMap: Record<string, ProviderId> | null
+): NamedProvider => ({
 	provider,
 	name: PROVIDER_LABELS[provider],
 	label: labelsByProvider(labelMap)[provider] ?? null
@@ -363,22 +453,32 @@ export const answerSections = (
 		const section = mapped.answers[provider] as ReportAnswerSection;
 		return {
 			named: nameWithLabel(provider, labelMap),
-			lists: SECTION_FIELDS.map(({ field, title }) => ({ field, title, items: section[field] })).filter(
-				(list) => list.items.length > 0
-			)
+			lists: SECTION_FIELDS.map(({ field, title }) => ({
+				field,
+				title,
+				items: section[field]
+			})).filter((list) => list.items.length > 0)
 		};
 	});
 
-/** The judge-capable providers, in `PROVIDER_IDS` order — every judge-only loop walks this, not `PROVIDER_IDS`. */
-export const capableJudgeIds = (cards: JudgeCardsState): ProviderId[] =>
-	PROVIDER_IDS.filter((judge) => cards[judge].capable);
+/** The judge-capable judges, in `JUDGE_IDS` order — every judge BUTTON loop walks this, never `PROVIDER_IDS`. */
+export const capableJudgeIds = (cards: JudgeCardsState): JudgeId[] =>
+	JUDGE_IDS.filter((judge) => cards[judge].capable);
 
 /**
- * The judges "Run all three judges" will actually call: capable, configured,
- * not already running, and not sitting on a state the server would skip
- * anyway. Same reason as `providersToGenerate` — the dialog quotes this count.
+ * The judges that get a CARD: the capable ones, plus any legacy judge whose
+ * stored report is still on the run (read-only, never re-judged). A judge that
+ * can neither be called nor show anything gets no card.
  */
-export const judgesToRun = (cards: JudgeCardsState): ProviderId[] =>
+export const visibleJudgeIds = (cards: JudgeCardsState): JudgeId[] =>
+	JUDGE_IDS.filter((judge) => cards[judge].capable || cards[judge].report !== null);
+
+/**
+ * The judges "Run all judges" will actually call: capable, configured, not
+ * already running, and not sitting on a state the server would skip anyway.
+ * Same reason as `providersToGenerate` — the dialog quotes this count.
+ */
+export const judgesToRun = (cards: JudgeCardsState): JudgeId[] =>
 	capableJudgeIds(cards).filter((judge) => {
 		const card = cards[judge];
 		if (card.missing !== null || card.inFlight) return false;

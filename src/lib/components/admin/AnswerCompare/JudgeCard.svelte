@@ -12,8 +12,10 @@
 	import {
 		describeJudgeFailure,
 		isJudgeRetryDisabled,
+		JUDGE_LABELS,
 		judgeElapsedSeconds,
 		judgePhase,
+		judgeRole,
 		nameWithLabel,
 		type JudgeCardState
 	} from './judgeState';
@@ -46,6 +48,7 @@
 	onDestroy(stopTicker);
 
 	$: phase = judgePhase(card);
+	$: role = judgeRole(card);
 	$: elapsed = judgeElapsedSeconds(card, now);
 	$: failureCopy = card.failure ? describeJudgeFailure(card.failure) : null;
 	$: retryDisabled = isJudgeRetryDisabled(card);
@@ -86,11 +89,17 @@
 	<div
 		class="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-gray-100 dark:border-gray-850"
 	>
-		<div class="text-sm font-medium truncate">
-			{$i18n.t('Judge: {{name}}', { name: PROVIDER_LABELS[card.judge] })}
+		<div class="min-w-0">
+			<div class="text-sm font-medium truncate">
+				{$i18n.t('Judge: {{name}}', { name: JUDGE_LABELS[card.judge] })}
+			</div>
+			{#if role}
+				<div class="text-xs text-gray-500 truncate">{$i18n.t(role.key)}</div>
+			{/if}
 		</div>
 
-		{#if phase !== 'requires_configuration' && phase !== 'empty'}
+		<!-- A legacy participant judge is read-only: its report stays, but it is never called again. -->
+		{#if card.capable && phase !== 'requires_configuration' && phase !== 'empty'}
 			<Tooltip content={retryDisabledReason}>
 				<button
 					class="px-2 py-1 text-xs rounded-lg bg-transparent hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -111,7 +120,9 @@
 					<li>{variable}</li>
 				{/each}
 			</ul>
-			<div class="text-xs text-gray-500">{$i18n.t('Set these in the environment and restart.')}</div>
+			<div class="text-xs text-gray-500">
+				{$i18n.t('Set these in the environment and restart.')}
+			</div>
 		{:else}
 			<!-- Progress is a strip ABOVE the report, never a spinner over it. -->
 			{#if card.inFlight}
@@ -125,20 +136,28 @@
 					<span class="tabular-nums">{elapsed}s</span>
 				</div>
 				{#if elapsed >= SLOW_GENERATION_AFTER_SECONDS}
-					<div class="text-xs text-gray-500">{$i18n.t('Reasoning models can take a few minutes.')}</div>
+					<div class="text-xs text-gray-500">
+						{$i18n.t('Reasoning models can take a few minutes.')}
+					</div>
 				{/if}
 			{/if}
 
 			{#if failureCopy}
-				<div class="text-xs rounded-lg px-2.5 py-2 bg-red-500/10 text-red-600 dark:text-red-400 break-words">
+				<div
+					class="text-xs rounded-lg px-2.5 py-2 bg-red-500/10 text-red-600 dark:text-red-400 break-words"
+				>
 					{$i18n.t(failureCopy.key, failureCopy.params)}
 				</div>
 			{/if}
 
 			{#if card.report}
 				{#if card.outdated}
-					<div class="text-xs rounded-lg px-2.5 py-2 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-						{$i18n.t('Based on earlier answer versions. Judge again to evaluate the current answers.')}
+					<div
+						class="text-xs rounded-lg px-2.5 py-2 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+					>
+						{$i18n.t(
+							'Based on earlier answer versions. Judge again to evaluate the current answers.'
+						)}
 					</div>
 				{/if}
 
@@ -166,7 +185,9 @@
 						<ReportBody mapped={card.report.mapped} {labelMap} />
 					{:else}
 						<div class="text-xs text-gray-500">
-							{$i18n.t('This report could not be mapped to provider names. The raw report is kept.')}
+							{$i18n.t(
+								'This report could not be mapped to provider names. The raw report is kept.'
+							)}
 						</div>
 					{/if}
 				</div>

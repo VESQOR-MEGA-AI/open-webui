@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { JudgeCardsState } from './judgeState';
 import type { ProviderConfig, SummaryRow, Tally } from '$lib/apis/answer-compare';
 import { providersToGenerate } from './state';
-import { applyJudgeFailure, applyJudgeNotConfigured, initialJudgeCards, judgesToRun, startJudging } from './judgeState';
+import {
+	applyJudgeFailure,
+	applyJudgeNotConfigured,
+	initialJudgeCards,
+	JUDGE_IDS,
+	judgesToRun,
+	startJudging
+} from './judgeState';
 import {
 	applySummary,
 	applySummaryRow,
@@ -65,7 +72,10 @@ describe('the panel renders the narrative and never rewrites it', () => {
 	it('carries the version and the revision count', () => {
 		const state = applySummary({ summary: { current: summaryRow(), revisions: 3 } });
 		expect(state.revisions).toBe(3);
-		expect(summaryView(state.summary!).version).toEqual({ key: 'Version {{revision}}', params: { revision: 2 } });
+		expect(summaryView(state.summary!).version).toEqual({
+			key: 'Version {{revision}}',
+			params: { revision: 2 }
+		});
 	});
 
 	it('shows the outdated banner only when the server says so', () => {
@@ -101,20 +111,29 @@ describe('the panel renders the narrative and never rewrites it', () => {
 
 describe('the cost dialog counts what will actually be sent', () => {
 	it('counts only configured providers for generate', () => {
-		expect(providersToGenerate([config('chatgpt', true), config('gemini', true), config('vesqor', true)])).toEqual([
-			'chatgpt',
-			'gemini',
-			'vesqor'
-		]);
-		expect(providersToGenerate([config('chatgpt', true), config('gemini', false), config('vesqor', true)])).toEqual([
-			'chatgpt',
-			'vesqor'
-		]);
+		expect(
+			providersToGenerate([config('chatgpt', true), config('gemini', true), config('vesqor', true)])
+		).toEqual(['chatgpt', 'gemini', 'vesqor']);
+		expect(
+			providersToGenerate([
+				config('chatgpt', true),
+				config('gemini', false),
+				config('vesqor', true)
+			])
+		).toEqual(['chatgpt', 'vesqor']);
 		expect(providersToGenerate([])).toEqual([]);
 	});
 
 	it('counts only judges that will really be called', () => {
-		let cards: JudgeCardsState = initialJudgeCards();
+		// The built-in registry: sonnet alone judges (DECISIONS.md#016). The
+		// participant panel is re-created through the override, as a deployment would.
+		expect(judgesToRun(initialJudgeCards())).toEqual(['sonnet']);
+		const participants = JUDGE_IDS.map((id) => ({
+			...config(id === 'sonnet' ? 'chatgpt' : id, true),
+			id,
+			can_judge: id !== 'sonnet'
+		}));
+		let cards: JudgeCardsState = initialJudgeCards(participants);
 		expect(judgesToRun(cards)).toEqual(['chatgpt', 'gemini', 'vesqor']);
 
 		// Unconfigured: the server would skip it, so it is not a paid request.
@@ -126,9 +145,20 @@ describe('the cost dialog counts what will actually be sent', () => {
 		expect(judgesToRun(cards)).toEqual(['vesqor']);
 
 		// Oversized would be skipped as well; an ordinary failure would not.
-		const oversized = applyJudgeFailure(initialJudgeCards(), 'vesqor', { code: 'oversized' });
+		const oversized = applyJudgeFailure(initialJudgeCards(participants), 'vesqor', {
+			code: 'oversized'
+		});
 		expect(judgesToRun(oversized)).toEqual(['chatgpt', 'gemini']);
-		const timedOut = applyJudgeFailure(initialJudgeCards(), 'vesqor', { code: 'timeout' });
+		const timedOut = applyJudgeFailure(initialJudgeCards(participants), 'vesqor', {
+			code: 'timeout'
+		});
 		expect(judgesToRun(timedOut)).toEqual(['chatgpt', 'gemini', 'vesqor']);
+
+		// And with the default registry, an unconfigured sonnet means nothing is called.
+		expect(
+			judgesToRun(
+				applyJudgeNotConfigured(initialJudgeCards(), 'sonnet', ['ANSWER_COMPARE_SONNET_API_KEY'])
+			)
+		).toEqual([]);
 	});
 });
