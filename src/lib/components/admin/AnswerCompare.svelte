@@ -60,6 +60,7 @@
 		applyJudgeOversized,
 		applyJudgeResult,
 		applyJudgeRunState,
+		capableJudgeIds,
 		initialJudgeCards,
 		judgeButtonDisabledReason,
 		judgesToRun,
@@ -132,13 +133,16 @@
 	const recoveryTimers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
 	const judgeRecoveryTimers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
 
+	// Answers: every provider can generate one, so this walks PROVIDER_IDS.
 	$: completeAnswers = PROVIDER_IDS.filter((provider) => cards[provider].answer !== null).length;
-	$: judgeReasons = PROVIDER_IDS.map((judge) => ({
+	// Judges: only the judge-capable providers get a button/card — VESQOR generates
+	// an answer but never judges, so this walks capableJudgeIds, not PROVIDER_IDS.
+	$: judgeReasons = capableJudgeIds(judgeCards).map((judge) => ({
 		judge,
 		reason: judgeButtonDisabledReason(judgeCards[judge], completeAnswers)
 	}));
-	$: anyJudgeConfigured = PROVIDER_IDS.some((judge) => judgeCards[judge].missing === null);
-	$: anyJudgeInFlight = PROVIDER_IDS.some((judge) => judgeCards[judge].inFlight);
+	$: anyJudgeConfigured = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].missing === null);
+	$: anyJudgeInFlight = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].inFlight);
 	$: lineage = currentRun ? lineageLines(currentRun) : { parent: null, children: null };
 	// A rerun generates nothing on purpose (the cost dialog owns that); say so, or
 	// the empty cards after "Run again" read as a failure. It goes as soon as an
@@ -448,7 +452,7 @@
 		if (!runId || runAllReason) return;
 		runAllInFlight = true;
 		const started = Date.now();
-		for (const judge of PROVIDER_IDS) {
+		for (const judge of capableJudgeIds(judgeCards)) {
 			clearJudgeRecovery(judge);
 			if (judgeCards[judge].missing === null) {
 				judgeCards = startJudging(judgeCards, judge, started);
@@ -466,7 +470,7 @@
 		} catch (err) {
 			if (err instanceof CompareApiError) {
 				// Global preconditions only: nothing ran, so every started card settles.
-				for (const judge of PROVIDER_IDS) {
+				for (const judge of capableJudgeIds(judgeCards)) {
 					if (judgeCards[judge].inFlight) {
 						if (err.code === 'not_enough_answers') {
 							judgeCards = applyJudgeNotEnoughAnswers(judgeCards, judge, (err.detail.complete as ProviderId[]) ?? []);
@@ -477,13 +481,13 @@
 				}
 			} else if (err instanceof CompareConnectionError) {
 				// Three pending rows may already be written: ask, per judge, before guessing.
-				for (const judge of PROVIDER_IDS) {
+				for (const judge of capableJudgeIds(judgeCards)) {
 					if (judgeCards[judge].inFlight) {
 						recoverJudgeFromConnectionLoss(judge);
 					}
 				}
 			} else {
-				for (const judge of PROVIDER_IDS) {
+				for (const judge of capableJudgeIds(judgeCards)) {
 					if (judgeCards[judge].inFlight) {
 						judgeCards = applyJudgeFailure(judgeCards, judge, { code: 'network' });
 					}
@@ -596,7 +600,7 @@
 		runId = created.run.id;
 		providers = created.providers;
 		cards = applyProviderConfigs(initialCards(), created.providers);
-		judgeCards = applyJudgeConfigs(initialJudgeCards(), created.providers);
+		judgeCards = applyJudgeConfigs(initialJudgeCards(created.providers), created.providers);
 		tallyState = clearTally();
 		summaryState = clearSummary();
 		// The run id lives in the URL so a reload reopens the run being looked at
@@ -640,12 +644,14 @@
 			providers = stored.providers;
 			cards = applyRunState(applyProviderConfigs(initialCards(), stored.providers), stored.answers, stored.providers);
 			judgeCards = applyJudgeRunState(
-				applyJudgeConfigs(initialJudgeCards(), stored.providers),
+				applyJudgeConfigs(initialJudgeCards(stored.providers), stored.providers),
 				stored.reports,
 				stored.providers
 			);
 
 			// Anything the server still reports as pending keeps being asked about.
+			// Walks PROVIDER_IDS because it checks both an answer and a report per
+			// provider; a non-capable judge's card is simply never inFlight here.
 			for (const provider of PROVIDER_IDS) {
 				if (cards[provider].inFlight) {
 					recoverFromConnectionLoss(provider);
@@ -671,7 +677,7 @@
 			const config = await getCompareConfig(token);
 			providers = config.providers;
 			cards = applyProviderConfigs(initialCards(), config.providers);
-			judgeCards = applyJudgeConfigs(initialJudgeCards(), config.providers);
+			judgeCards = applyJudgeConfigs(initialJudgeCards(config.providers), config.providers);
 		} catch (err) {
 			if (err instanceof CompareApiError && err.code === 'unauthorized') {
 				toast.error($i18n.t('Your session expired or admin access is required.'));
@@ -843,7 +849,7 @@
 			{/each}
 
 			<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start min-w-0">
-				{#each PROVIDER_IDS as judge (judge)}
+				{#each capableJudgeIds(judgeCards) as judge (judge)}
 					<JudgeCard card={judgeCards[judge]} onRetry={() => runJudge(judge)} />
 				{/each}
 			</div>

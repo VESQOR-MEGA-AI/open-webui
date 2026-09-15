@@ -86,6 +86,7 @@
 	"This is the limit configured for this page, not the provider's context window.": "",
 	"This judge is already running.": "",
 	"This judge saw the answers as A, B, C in a random order and was not told which system wrote which.": "",
+	"This provider cannot act as a judge.": "",
 	"This report could not be mapped to provider names. The raw report is kept.": "",
 	"This run is no longer available.": "",
 	"This will send {{count}} paid AI requests. Continue?": "",

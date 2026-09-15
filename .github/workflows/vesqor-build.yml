@@ -57,6 +57,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # VESQOR: the frontend unit tests previously ran NOWHERE. `vite build`
+      # only proves the code compiles, so a logic regression in the
+      # answer-comparison card state (e.g. offering a provider as a judge when
+      # it cannot be one) shipped with a green build. Runs before the build to
+      # fail fast, and on pull_request too, so a regression is caught before it
+      # reaches the deploy branch.
+      - name: Frontend unit tests
+        run: npm run test:frontend
+
       - name: Build frontend (no pyodide)
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"

@@ -51,7 +51,8 @@ export const ERROR_COPY: Record<string, string> = {
 	answer_vanished: 'The provider failed: {{code}}.',
 	run_not_found: 'This run is no longer available.',
 	unknown_provider: 'The provider failed: {{code}}.',
-	prompt_required: 'Enter a prompt first.'
+	prompt_required: 'Enter a prompt first.',
+	judge_not_capable: 'This provider cannot act as a judge.'
 };
 
 export const UNKNOWN_ERROR_COPY = 'The provider failed: {{code}}.';

@@ -39,6 +39,7 @@ const config = (overrides: Partial<ProviderConfig> = {}): ProviderConfig => ({
 	missing: [],
 	base_url: 'https://api.openai.com/v1',
 	model: 'gpt-test-1',
+	can_judge: true,
 	...overrides
 });
 

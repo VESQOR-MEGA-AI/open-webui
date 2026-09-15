@@ -28,6 +28,7 @@ from open_webui.utils.answer_compare_providers import (
     PROVIDER_IDS,
     ProviderConfig,
     resolve_api_key,
+    resolve_judge_ids,
     resolve_judge_max_input_chars,
     resolve_max_input_chars,
     resolve_provider,
@@ -507,8 +508,11 @@ async def _tally_for_run(run_id: str) -> dict:
     latest_reports = {r.judge: r for r in await AnswerCompareReports.get_latest_attempt_by_run(run_id)}
     configs = {c.id: c for c in resolve_providers()}
 
+    # A JUDGES walk, not an answers one: only judge-capable providers ever get a
+    # TallyJudge entry, so a generator-only provider can never surface in the
+    # tally as a permanently missing judge.
     judges = []
-    for judge_id in PROVIDER_IDS:
+    for judge_id in resolve_judge_ids():
         current = current_reports.get(judge_id)
         latest = latest_reports.get(judge_id)
         judges.append(
@@ -692,6 +696,9 @@ async def get_run(run_id: str, user=Depends(get_admin_user)) -> GetRunResponse:
             )
             for provider_id in PROVIDER_IDS
         ],
+        # A JUDGES walk: report cards exist only for judge-capable providers —
+        # `answers` above stays PROVIDER_IDS on purpose, since all three can be
+        # generated and compared.
         reports=[
             JudgeReportsResponse(
                 judge=judge_id,
@@ -699,7 +706,7 @@ async def get_run(run_id: str, user=Depends(get_admin_user)) -> GetRunResponse:
                 latest_attempt=_report_response(latest_reports[judge_id]) if judge_id in latest_reports else None,
                 outdated=_is_outdated(current_reports.get(judge_id), run_versions),
             )
-            for judge_id in PROVIDER_IDS
+            for judge_id in resolve_judge_ids()
         ],
         tally=run_tally,
         summary=await _summary_for_run(run_id, run_tally),
@@ -942,6 +949,14 @@ async def judge_run(run_id: str, judge_id: str, user=Depends(get_admin_user)) ->
             detail=_detail('unknown_judge', judge=judge_id),
         )
 
+    if judge_id not in resolve_judge_ids():
+        # 400, not 404 (the provider exists) and not 503 (it is configured):
+        # this provider is simply never eligible for the judge role.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_detail('judge_not_capable', judge=judge_id),
+        )
+
     run, complete = await _load_run_for_judging(run_id)
 
     try:
@@ -999,14 +1014,19 @@ async def judge_run_all(run_id: str, user=Depends(get_admin_user)) -> RunAllResp
     """
     run, complete = await _load_run_for_judging(run_id)
 
+    # A JUDGES walk: run-all only ever calls judge-capable providers — a
+    # generator-only provider is never attempted, and never appears in the
+    # results, not even as a `skipped` entry.
+    judge_ids = resolve_judge_ids()
+
     # return_exceptions is belt-and-braces: _run_one_judge_entry already catches
     # everything, but one judge must never be able to abort the others' awaits.
     outcomes = await asyncio.gather(
-        *(_run_one_judge_entry(run, judge_id, complete) for judge_id in PROVIDER_IDS),
+        *(_run_one_judge_entry(run, judge_id, complete) for judge_id in judge_ids),
         return_exceptions=True,
     )
     results: list[RunAllEntry] = []
-    for judge_id, outcome in zip(PROVIDER_IDS, outcomes):
+    for judge_id, outcome in zip(judge_ids, outcomes):
         if isinstance(outcome, BaseException):
             log.error('run-all: entry for judge %s raised past its own guard: %r', judge_id, outcome)
             results.append(RunAllEntry(judge=judge_id, status='failed', reason=_detail('internal')))
