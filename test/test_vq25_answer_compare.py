@@ -48,6 +48,9 @@ ALL_ENV_VARS = (
     providers.ENV_VESQOR_BASE_URL,
     providers.ENV_VESQOR_API_KEY,
     providers.ENV_VESQOR_MODEL,
+    providers.ENV_SONNET_BASE_URL,
+    providers.ENV_SONNET_API_KEY,
+    providers.ENV_SONNET_MODEL,
 )
 
 # Credentials belonging to other integrations. The resolver must not read any of
@@ -60,6 +63,8 @@ FOREIGN_CREDENTIAL_ENV_VARS = (
     'GEMINI_API_BASE_URL',
     'VESQOR_SERVICE_TOKEN',
     'VESQOR_API_BASE_URL',
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_BASE_URL',
 )
 
 DUMMY_KEY = 'sk-vq25-dummy-do-not-leak'
@@ -186,9 +191,17 @@ def test_no_fallback_to_other_integrations_credentials(clean_env):
     clean_env.setenv('ANSWER_COMPARE_CHATGPT_MODEL', 'gpt-test-1')
     clean_env.setenv('ANSWER_COMPARE_GEMINI_MODEL', 'gemini-test-1')
     clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
+    clean_env.setenv('ANSWER_COMPARE_SONNET_MODEL', 'claude-sonnet-test-1')
 
     resolved = providers.resolve_providers()
     by_id = {p.id: p for p in resolved}
+
+    # The independent judge follows the same rule: ANTHROPIC_API_KEY is never read.
+    sonnet = {j.id: j for j in providers.resolve_judges()}['sonnet']
+    assert sonnet.configured is False
+    assert sonnet.missing == ['ANSWER_COMPARE_SONNET_API_KEY']
+    assert sonnet.base_url == providers.DEFAULT_SONNET_BASE_URL
+    assert FOREIGN_KEY not in json.dumps(sonnet.model_dump())
 
     assert by_id['chatgpt'].configured is False
     assert by_id['chatgpt'].missing == ['ANSWER_COMPARE_CHATGPT_API_KEY']
@@ -610,29 +623,58 @@ def test_model_round_trip_keeps_every_revision():
 
 
 ####################
-# 6 — VQ-25: VESQOR is a subject, never a judge
+# 6 — VQ-25: the three compared providers are subjects; the judge is Sonnet
 ####################
+#
+# History, kept on the record because the tests below were inverted in place:
+# PR #17 introduced ANSWER_COMPARE_<ID>_CAN_JUDGE with chatgpt/gemini judging by
+# default and VESQOR a subject only. DECISIONS.md#016 (owner, 2026-09-15) moved
+# judging to one independent judge, Sonnet: the trio defaults to False, sonnet
+# to True, and the override variable keeps working in both directions.
 
 CAN_JUDGE_ENV = {
     'chatgpt': 'ANSWER_COMPARE_CHATGPT_CAN_JUDGE',
     'gemini': 'ANSWER_COMPARE_GEMINI_CAN_JUDGE',
     'vesqor': 'ANSWER_COMPARE_VESQOR_CAN_JUDGE',
+    'sonnet': 'ANSWER_COMPARE_SONNET_CAN_JUDGE',
 }
 
 
 @pytest.fixture
 def clean_can_judge_env(monkeypatch):
-    """The fourth, optional per-provider variable, removed — the built-in-default state."""
+    """The optional per-judge variable, removed — the built-in-default state."""
     for name in CAN_JUDGE_ENV.values():
         monkeypatch.delenv(name, raising=False)
     return monkeypatch
 
 
+@pytest.fixture
+def participant_judges(clean_can_judge_env):
+    """The pre-#016 panel, re-created through the supported override.
+
+    The tests that use it exercise the CAN_JUDGE mechanics with chatgpt and
+    gemini as judges (a two-judge panel is what makes "partial" and "run-all
+    skips one" observable). Sonnet is switched off so the panel is exactly the
+    two of them. The default panel is covered in test_vq25_sonnet.py.
+    """
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['chatgpt'], 'true')
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['gemini'], 'true')
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['sonnet'], 'false')
+    return clean_can_judge_env
+
+
 def test_resolve_can_judge_defaults(clean_can_judge_env):
-    """ChatGPT and Gemini can judge out of the box; VESQOR cannot (proven live, see module docstring)."""
-    assert providers.resolve_can_judge('chatgpt') is True
-    assert providers.resolve_can_judge('gemini') is True
+    """Only Sonnet judges out of the box (DECISIONS.md#016); the compared trio never does."""
+    assert providers.resolve_can_judge('chatgpt') is False
+    assert providers.resolve_can_judge('gemini') is False
     assert providers.resolve_can_judge('vesqor') is False
+    assert providers.resolve_can_judge('sonnet') is True
+
+
+def test_the_judge_registry_is_the_trio_plus_sonnet_and_sonnet_is_not_an_answer_provider():
+    assert providers.JUDGE_CANDIDATE_IDS == ('chatgpt', 'gemini', 'vesqor', 'sonnet')
+    assert providers.PROVIDER_IDS == ('chatgpt', 'gemini', 'vesqor')
+    assert 'sonnet' not in providers.PROVIDER_IDS
 
 
 @pytest.mark.parametrize('spelling', ['true', 'TRUE', 'True', '1', 'yes', 'YES'])
@@ -643,8 +685,8 @@ def test_resolve_can_judge_true_spellings_enable_a_disabled_default(clean_can_ju
 
 @pytest.mark.parametrize('spelling', ['false', 'FALSE', 'False', '0', 'no', 'NO'])
 def test_resolve_can_judge_false_spellings_disable_an_enabled_default(clean_can_judge_env, spelling):
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['chatgpt'], spelling)
-    assert providers.resolve_can_judge('chatgpt') is False
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['sonnet'], spelling)
+    assert providers.resolve_can_judge('sonnet') is False
 
 
 def test_resolve_can_judge_junk_value_falls_back_to_the_default_without_raising(clean_can_judge_env, caplog):
@@ -657,32 +699,63 @@ def test_resolve_can_judge_junk_value_falls_back_to_the_default_without_raising(
     assert CAN_JUDGE_ENV['vesqor'] in caplog.text
 
 
-def test_resolve_judge_ids_returns_chatgpt_and_gemini_by_default(clean_can_judge_env):
-    assert providers.resolve_judge_ids() == ('chatgpt', 'gemini')
+def test_resolve_can_judge_junk_value_keeps_sonnet_judging(clean_can_judge_env, caplog):
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['sonnet'], 'maybe')
+
+    with caplog.at_level('WARNING', logger=providers.__name__):
+        result = providers.resolve_can_judge('sonnet')
+
+    assert result is True  # the built-in default for sonnet
+    assert CAN_JUDGE_ENV['sonnet'] in caplog.text
+
+
+def test_resolve_judge_ids_returns_only_sonnet_by_default(clean_can_judge_env):
+    assert providers.resolve_judge_ids() == ('sonnet',)
 
 
 def test_resolve_judge_ids_follows_overrides_in_both_directions(clean_can_judge_env):
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['chatgpt'], 'true')
     clean_can_judge_env.setenv(CAN_JUDGE_ENV['vesqor'], 'true')
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['gemini'], 'false')
-    # Fixed PROVIDER_IDS order, not the order the overrides were set in.
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['sonnet'], 'false')
+    # Fixed JUDGE_CANDIDATE_IDS order, not the order the overrides were set in.
     assert providers.resolve_judge_ids() == ('chatgpt', 'vesqor')
+
+
+def test_resolve_judge_ids_can_re_add_a_participant_beside_sonnet(clean_can_judge_env):
+    clean_can_judge_env.setenv(CAN_JUDGE_ENV['chatgpt'], 'true')
+    assert providers.resolve_judge_ids() == ('chatgpt', 'sonnet')
 
 
 def test_provider_config_carries_can_judge(clean_env, clean_can_judge_env):
     by_id = {p.id: p for p in providers.resolve_providers()}
-    assert by_id['chatgpt'].can_judge is True
-    assert by_id['gemini'].can_judge is True
+    assert [p.id for p in providers.resolve_providers()] == ['chatgpt', 'gemini', 'vesqor']
+    assert by_id['chatgpt'].can_judge is False
+    assert by_id['gemini'].can_judge is False
     assert by_id['vesqor'].can_judge is False
+
+
+def test_judge_configs_walk_the_judge_registry(clean_env, clean_can_judge_env):
+    judges = providers.resolve_judges()
+    assert [j.id for j in judges] == ['chatgpt', 'gemini', 'vesqor', 'sonnet']
+    assert [j.can_judge for j in judges] == [False, False, False, True]
 
 
 def test_config_endpoint_exposes_can_judge_per_provider(clean_env, clean_can_judge_env):
     response = _client_as('admin').get('/api/v1/compare/config')
 
     assert response.status_code == 200
-    by_id = {p['id']: p for p in response.json()['providers']}
-    assert by_id['chatgpt']['can_judge'] is True
-    assert by_id['gemini']['can_judge'] is True
+    payload = response.json()
+    by_id = {p['id']: p for p in payload['providers']}
+    assert list(by_id) == ['chatgpt', 'gemini', 'vesqor']
+    assert by_id['chatgpt']['can_judge'] is False
+    assert by_id['gemini']['can_judge'] is False
     assert by_id['vesqor']['can_judge'] is False
+    # Judges are a separate list: sonnet is a judge, never an answer provider.
+    judges = {j['id']: j for j in payload['judges']}
+    assert list(judges) == ['chatgpt', 'gemini', 'vesqor', 'sonnet']
+    assert judges['sonnet']['can_judge'] is True
+    assert judges['sonnet']['configured'] is False
+    assert judges['chatgpt']['can_judge'] is False
 
 
 ####################
@@ -711,8 +784,8 @@ def _tally_report_2(kind: str, providers_named: list[str], versions: list[dict])
     )
 
 
-def test_tally_two_capable_judges_is_not_partial(clean_can_judge_env):
-    """chatgpt+gemini is the WHOLE judge panel by default: two fresh verdicts must not read as partial."""
+def test_tally_two_capable_judges_is_not_partial(participant_judges):
+    """chatgpt+gemini is the WHOLE judge panel under the override: two fresh verdicts must not read as partial."""
     versions = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
     judges = [
         tally.TallyJudge(judge='chatgpt', current=_tally_report_2('winner', ['chatgpt'], versions)),
@@ -722,12 +795,15 @@ def test_tally_two_capable_judges_is_not_partial(clean_can_judge_env):
     result = tally.compute_tally(versions, judges)
 
     assert result['n_included'] == 2
+    assert result['n_judges'] == 2
     assert result['partial'] is False
     assert result['included_judges'] == ['chatgpt', 'gemini']
 
 
-def test_tally_ignores_a_judge_entry_for_a_non_capable_provider(clean_can_judge_env):
-    """Even if a caller mistakenly hands in a TallyJudge for vesqor, it is never tallied as a judge."""
+def test_tally_excludes_a_judge_entry_for_a_non_capable_provider_visibly(participant_judges):
+    """A TallyJudge for vesqor is never COUNTED as a judge — but since #016 it is not
+    silently dropped either: the router hands in non-capable judges only when they
+    have stored rows, and those must stay visible as excluded ``not_capable``."""
     versions = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
     judges = [
         tally.TallyJudge(judge='chatgpt', current=_tally_report_2('winner', ['chatgpt'], versions)),
@@ -739,11 +815,13 @@ def test_tally_ignores_a_judge_entry_for_a_non_capable_provider(clean_can_judge_
 
     # The judge-capable panel is still just chatgpt+gemini: fully included, not partial.
     assert result['n_included'] == 2
+    assert result['n_judges'] == 2
     assert result['partial'] is False
-    assert all(item['judge'] != 'vesqor' for item in result['excluded'])
+    assert result['included_judges'] == ['chatgpt', 'gemini']
+    assert result['excluded'] == [{'judge': 'vesqor', 'reason': 'not_capable'}]
 
 
-def test_tally_a_capable_judge_missing_its_report_is_still_correctly_partial(clean_can_judge_env):
+def test_tally_a_capable_judge_missing_its_report_is_still_correctly_partial(participant_judges):
     """Regression: a judge-capable provider with no report yet is unaffected by this change."""
     versions = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
     judges = [
@@ -859,7 +937,20 @@ def _configure_provider(monkeypatch, provider_id: str) -> None:
     monkeypatch.setenv(f'ANSWER_COMPARE_{provider_id.upper()}_MODEL', f'{provider_id}-model-test-1')
 
 
-def test_judge_endpoint_refuses_a_non_capable_provider_and_writes_nothing(clean_env, clean_can_judge_env):
+@pytest.mark.parametrize('judge_id', ['chatgpt', 'gemini', 'vesqor'])
+def test_judge_endpoint_refuses_a_non_capable_provider_and_writes_nothing(clean_env, clean_can_judge_env, judge_id):
+    """By default none of the compared trio may judge (#016) — same door, same error as PR #17 gave vesqor."""
+    asyncio.run(_create_compare_tables())
+    run_id = _make_run()
+
+    response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/reports/{judge_id}')
+
+    assert response.status_code == 400
+    assert response.json()['detail'] == {'code': 'judge_not_capable', 'judge': judge_id}
+    assert _report_rows(run_id) == []
+
+
+def test_judge_endpoint_refuses_vesqor_even_under_the_participant_override(clean_env, participant_judges):
     asyncio.run(_create_compare_tables())
     run_id = _make_run()
 
@@ -870,7 +961,7 @@ def test_judge_endpoint_refuses_a_non_capable_provider_and_writes_nothing(clean_
     assert _report_rows(run_id) == []
 
 
-def test_judge_endpoint_still_accepts_a_capable_provider(clean_env, clean_can_judge_env, monkeypatch):
+def test_judge_endpoint_still_accepts_a_capable_provider(clean_env, participant_judges, monkeypatch):
     """Regression: a provider with can_judge=true is unaffected by this change."""
     asyncio.run(_create_compare_tables())
     _configure_provider(monkeypatch, 'chatgpt')
@@ -889,7 +980,7 @@ def test_judge_endpoint_still_accepts_a_capable_provider(clean_env, clean_can_ju
 
 
 def test_run_all_skips_the_non_capable_judge_and_still_writes_the_capable_ones(
-    clean_env, clean_can_judge_env, monkeypatch
+    clean_env, participant_judges, monkeypatch
 ):
     asyncio.run(_create_compare_tables())
     _configure_provider(monkeypatch, 'chatgpt')

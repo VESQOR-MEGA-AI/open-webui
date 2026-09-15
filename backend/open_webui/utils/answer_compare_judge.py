@@ -15,11 +15,13 @@ assessed). Placeholders are substituted; nothing else is paraphrased.
 
 import json
 import logging
+import os
 import random
 from typing import Any, Awaitable, Callable, Literal, Optional
 
+from open_webui.utils import answer_compare_anthropic_client as anthropic_client
 from open_webui.utils import answer_compare_client as client
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS
+from open_webui.utils.answer_compare_providers import API_FORMAT_ANTHROPIC, API_FORMAT_OPENAI, PROVIDER_IDS, api_format
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 log = logging.getLogger(__name__)
@@ -46,6 +48,37 @@ MODE_JSON_SCHEMA = 1
 MODE_JSON_OBJECT = 2
 MODE_PLAIN = 3
 MODES: tuple[int, ...] = (MODE_JSON_SCHEMA, MODE_JSON_OBJECT, MODE_PLAIN)
+
+# The ladder per wire format. One loop in call_judge walks whichever list the
+# judge's format names; the mode numbers keep their meaning across formats
+# (1 = schema-constrained, 3 = nothing structured, the prompt carries the skeleton).
+# Anthropic has no json_object mode, so its full ladder is schema -> plain.
+LADDERS: dict[str, tuple[int, ...]] = {
+    API_FORMAT_OPENAI: (MODE_JSON_SCHEMA, MODE_JSON_OBJECT, MODE_PLAIN),
+    API_FORMAT_ANTHROPIC: (MODE_JSON_SCHEMA, MODE_PLAIN),
+}
+# Live check on Kie (LIVE-CHECK.md, 2026-09-15): Kie accepts `output_format` plus
+# the beta header and silently ignores both — the reply is prose or fenced JSON
+# either way. Recording mode 1 as "succeeded" there would be a lie in the
+# diagnostics, so by default the anthropic ladder is plain only, per the ticket's
+# own rule ("if Kie does not support it — go straight to step 2"). A deployment
+# on a real Anthropic endpoint switches the schema step back on with the flag.
+ANTHROPIC_LADDER_PLAIN_ONLY: tuple[int, ...] = (MODE_PLAIN,)
+ENV_SONNET_STRUCTURED_OUTPUT = 'ANSWER_COMPARE_SONNET_STRUCTURED_OUTPUT'
+_TRUE_STRINGS = {'true', '1', 'yes'}
+
+# Anthropic structured outputs shipped behind a beta header.
+ANTHROPIC_STRUCTURED_OUTPUTS_BETA = 'structured-outputs-2025-11-13'
+
+
+def ladder_for(wire_format: str) -> tuple[int, ...]:
+    """The steps this call may take, read from the environment at call time."""
+    if wire_format == API_FORMAT_ANTHROPIC:
+        raw = (os.environ.get(ENV_SONNET_STRUCTURED_OUTPUT) or '').strip().lower()
+        if raw not in _TRUE_STRINGS:
+            return ANTHROPIC_LADDER_PLAIN_ONLY
+    return LADDERS[wire_format]
+
 
 JUDGE_TEMPERATURE = 0
 SCHEMA_NAME = 'answer_compare_report'
@@ -324,6 +357,31 @@ class MalformedReport(Exception):
         self.reason = reason
 
 
+def strip_code_fence(content: str) -> str:
+    """Unwrap a report a model put inside a Markdown code fence.
+
+    This is the production path on Kie, not a fallback: the live check
+    (LIVE-CHECK.md, 2026-09-15) had Sonnet return the whole report inside
+    ```` ```json ```` on the plain step, and this is what let it parse.
+
+    ```` ```json ... ``` ```` and bare ```` ``` ... ``` ```` are unwrapped; anything
+    else — prose before or after the fence, a fence that never closes — is
+    returned as-is and fails the JSON parse as before. Tolerance is for the
+    wrapper only, never for the shape.
+    """
+    text = content.strip()
+    if not text.startswith('```') or not text.endswith('```') or len(text) < 6:
+        return content
+    inner = text[3:-3]
+    first_line, newline, rest = inner.partition('\n')
+    # The language tag sits on the opening line: ```json or ``` alone.
+    if newline and first_line.strip().isalnum():
+        inner = rest
+    elif newline and first_line.strip() == '':
+        inner = rest
+    return inner.strip()
+
+
 def parse_report(content: str, labels: list[str]) -> dict[str, Any]:
     """Strict shape validation. Returns the report exactly as the judge returned it.
 
@@ -332,7 +390,7 @@ def parse_report(content: str, labels: list[str]) -> dict[str, Any]:
     never judged here.
     """
     try:
-        data = json.loads(content)
+        data = json.loads(strip_code_fence(content))
     except ValueError as err:
         raise MalformedReport(f'not a single JSON object: {type(err).__name__}') from None
     if not isinstance(data, dict):
@@ -442,6 +500,7 @@ def _response_format(mode: int, labels: list[str]) -> Optional[dict[str, Any]]:
 
 
 def _extra_body(mode: int, labels: list[str], with_temperature: bool) -> dict[str, Any]:
+    """OpenAI-format body additions for a ladder step."""
     extra: dict[str, Any] = {}
     if with_temperature:
         extra['temperature'] = JUDGE_TEMPERATURE
@@ -449,6 +508,32 @@ def _extra_body(mode: int, labels: list[str], with_temperature: bool) -> dict[st
     if response_format is not None:
         extra['response_format'] = response_format
     return extra
+
+
+def _anthropic_extra(mode: int, labels: list[str], with_temperature: bool) -> tuple[dict[str, Any], dict[str, str]]:
+    """Anthropic-format body additions and headers for a ladder step.
+
+    Step 1 sends structured output — ``output_format`` with the strict schema —
+    together with the beta header that gates the feature. Plain sends nothing
+    structured; the prompt's skeleton carries the shape.
+    """
+    extra: dict[str, Any] = {}
+    headers: dict[str, str] = {}
+    if with_temperature:
+        extra['temperature'] = JUDGE_TEMPERATURE
+    if mode == MODE_JSON_SCHEMA:
+        extra['output_format'] = {'type': 'json_schema', 'schema': report_schema(labels)}
+        headers['anthropic-beta'] = ANTHROPIC_STRUCTURED_OUTPUTS_BETA
+    return extra, headers
+
+
+def _default_completion(provider_id: str) -> CompletionFn:
+    """The client a judge's wire format needs; the seam tests replace with a double."""
+    return (
+        anthropic_client.messages_completion
+        if api_format(provider_id) == API_FORMAT_ANTHROPIC
+        else client.chat_completion
+    )
 
 
 # The statuses a door uses to refuse a request *shape* before generating: 400 from
@@ -473,7 +558,7 @@ async def call_judge(
     model: str,
     messages: list[dict[str, str]],
     labels: list[str],
-    completion: CompletionFn = client.chat_completion,
+    completion: Optional[CompletionFn] = None,
 ) -> JudgeCallResult:
     """Call the judge, walking the structured-output ladder as needed.
 
@@ -483,19 +568,38 @@ async def call_judge(
     ``json_schema`` — the other order would record mode 3 for a provider where
     mode 1 works, and later diagnostics would lie.
 
-    ``completion`` is injectable for tests; the application uses the client.
+    ``completion`` is injectable for tests; the application picks the client by
+    the judge's wire format. The loop is the same for every format — only the
+    list of steps and the body/headers of a step differ.
     """
+    wire_format = api_format(provider_id)
+    ladder = ladder_for(wire_format)
+    completion_fn = completion or _default_completion(provider_id)
+
     cache_key = (provider_id, model)
     cached = _MODE_CACHE.get(cache_key)
-    mode, with_temperature = cached if cached is not None else (MODE_JSON_SCHEMA, True)
+    if cached is not None and cached[0] not in ladder:
+        # A remembered step that this format does not have (a model switch
+        # between formats): forget it rather than trust it.
+        _MODE_CACHE.pop(cache_key, None)
+        cached = None
+    mode, with_temperature = cached if cached is not None else (ladder[0], True)
     from_cache = cached is not None
 
     rejections: list[dict[str, Any]] = []
 
     while True:
-        extra = _extra_body(mode, labels, with_temperature)
+        if wire_format == API_FORMAT_ANTHROPIC:
+            extra, headers = _anthropic_extra(mode, labels, with_temperature)
+        else:
+            extra, headers = _extra_body(mode, labels, with_temperature), {}
         try:
-            result = await completion(base_url, api_key, model, messages, extra_body=extra)
+            if headers:
+                result = await completion_fn(
+                    base_url, api_key, model, messages, extra_body=extra, extra_headers=headers
+                )
+            else:
+                result = await completion_fn(base_url, api_key, model, messages, extra_body=extra)
         except client.ProviderCallError as err:
             if not _is_rejection(err):
                 raise
@@ -520,19 +624,20 @@ async def call_judge(
                 # The remembered step no longer works: forget it and start over.
                 _MODE_CACHE.pop(cache_key, None)
                 from_cache = False
-                mode, with_temperature = MODE_JSON_SCHEMA, True
+                mode, with_temperature = ladder[0], True
                 continue
 
             if with_temperature:
                 with_temperature = False
                 continue
 
-            if mode < MODE_PLAIN:
-                mode += 1
+            position = ladder.index(mode)
+            if position + 1 < len(ladder):
+                mode = ladder[position + 1]
                 with_temperature = True
                 continue
 
-            # Step 3 carried no response_format: this 400 is a real error.
+            # The last step carried nothing structured: this 400 is a real error.
             raise
 
         _MODE_CACHE[cache_key] = (mode, with_temperature)

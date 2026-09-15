@@ -426,18 +426,31 @@ def test_single_included_verdict_omits_the_agreement_section():
     assert summary.HEADING_AGREEMENT not in result.narrative
     assert result.partial is True
     assert 'Partial summary: 1 of 3 judges included.' in result.narrative
-    # The outcome says why in words, so "no majority" beside one clear verdict
-    # does not read as a bug (DECISIONS.md#014).
-    assert (
-        'No majority: only one judge has a valid verdict — a preferred answer requires at least two.'
-    ) in result.narrative
-    assert 'No majority among' not in result.narrative
+    # DECISIONS.md#016 removed the two-judge floor, and with it the sentence that
+    # explained it. This single verdict is a tie, so it is honestly "no majority"
+    # — stated plainly, with no talk of requiring a second judge.
+    assert 'No majority among 1 valid verdicts.' in result.narrative
+    assert 'requires at least two' not in result.narrative
 
 
-def test_the_single_judge_explanation_is_only_used_for_a_single_judge():
-    text = build_golden()  # two included verdicts
-    assert 'No majority among 2 valid verdicts.' in text
-    assert 'only one judge has a valid verdict' not in text
+def test_a_single_winner_verdict_is_a_preferred_answer_in_the_narrative():
+    """The other half of #016: one independent verdict naming a winner reads as
+    'Preferred answer', not as a majority that failed to form."""
+    single = tally.compute_tally(
+        FRESH_VERSIONS,
+        [
+            tally.TallyJudge(
+                judge='vesqor',
+                current=tally.TallyReport(
+                    revision=1, judged_versions=FRESH_VERSIONS, label_map=VESQOR_MAP, report=VESQOR_REPORT
+                ),
+            )
+        ],
+    )
+    text = summary.build_narrative(single, [golden_reports()[1]])
+    assert 'Preferred answer: ChatGPT (1 of 1 judges).' in text
+    assert 'requires at least two' not in text
+    assert summary.HEADING_AGREEMENT not in text
 
 
 ####################
@@ -613,6 +626,20 @@ PROVIDER_HOST = {
     'gemini': 'https://gemini.example/v1',
     'vesqor': 'https://door.example/api/v1',
 }
+
+
+@pytest.fixture(autouse=True)
+def participant_judges(monkeypatch):
+    """This suite exercises the judging mechanics with the three participants as
+    judges, through the supported override. Since DECISIONS.md#016 the default is
+    the independent judge alone; the override is exactly how a deployment brings
+    a participant judge back, so these tests stay valid — and the default itself
+    is covered in test_vq25_sonnet.py.
+    """
+    for provider_id in ('chatgpt', 'gemini', 'vesqor'):
+        monkeypatch.setenv(f'ANSWER_COMPARE_{provider_id.upper()}_CAN_JUDGE', 'true')
+    monkeypatch.setenv('ANSWER_COMPARE_SONNET_CAN_JUDGE', 'false')
+    return monkeypatch
 
 
 @pytest.fixture

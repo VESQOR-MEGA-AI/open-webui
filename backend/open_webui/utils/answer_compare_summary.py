@@ -22,12 +22,12 @@ import logging
 from typing import Any, Optional
 
 from open_webui.utils.answer_compare_judge import UnmappedLabel, map_report
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS, resolve_judge_ids
+from open_webui.utils.answer_compare_providers import JUDGE_CANDIDATE_IDS, PROVIDER_IDS, resolve_judge_ids
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
-PROVIDER_LABELS: dict[str, str] = {'chatgpt': 'ChatGPT', 'gemini': 'Gemini', 'vesqor': 'VESQOR'}
+PROVIDER_LABELS: dict[str, str] = {'chatgpt': 'ChatGPT', 'gemini': 'Gemini', 'vesqor': 'VESQOR', 'sonnet': 'Sonnet'}
 
 # The owner's own system: section 8 collects improvements recorded for it.
 OWNER_PROVIDER = 'vesqor'
@@ -53,6 +53,7 @@ EXCLUSION_WORDS: dict[str, str] = {
     'malformed': 'report could not be read',
     'not_configured': 'requires configuration',
     'unmappable': 'report could not be mapped to provider names',
+    'not_capable': 'participant judge, no longer used',
 }
 
 LATEST_ATTEMPT_WORDS: dict[str, str] = {
@@ -133,27 +134,27 @@ def _section_outcome(tally: dict[str, Any], extra_excluded: list[str]) -> list[s
         lines.append(
             f'Preferred answer: {_name(provider)} ({tally["votes"].get(provider, 0)} of {tally["n_included"]} judges).'
         )
-    elif tally['n_included'] == 1:
-        # Otherwise "no majority" with a single clear verdict reads as a bug.
-        lines.append('No majority: only one judge has a valid verdict — a preferred answer requires at least two.')
     else:
         lines.append(f'No majority among {tally["n_included"]} valid verdicts.')
 
     excluded = list(tally['excluded']) + [{'judge': judge, 'reason': 'unmappable'} for judge in extra_excluded]
     included_count = tally['n_included'] - len(extra_excluded)
-    # A JUDGES walk: the denominator and the per-judge exclusion list below are
-    # both the judge-capable providers, never every compared provider — a
-    # provider that can only generate answers is not part of the panel and must
-    # not read as a permanently missing judge.
-    judge_ids = resolve_judge_ids()
-    partial = included_count < len(judge_ids)
+    # A JUDGES walk. The denominator is the judge-capable set (the tally says
+    # so explicitly as n_judges); the exclusion lines cover that set UNION any
+    # judge the tally excluded — a legacy participant judge is no longer in the
+    # denominator, but its "no longer used" line still belongs in §1.
+    n_judges = int(tally.get('n_judges', len(resolve_judge_ids())))
+    partial = included_count < n_judges
+    by_judge = {item['judge']: item for item in excluded}
+    capable = resolve_judge_ids()
+    panel = [j for j in JUDGE_CANDIDATE_IDS if j in capable or j in by_judge]
 
-    if partial:
+    if partial or any(j not in capable for j in by_judge):
         lines.append('')
-        lines.append(f'Partial summary: {included_count} of {len(judge_ids)} judges included.')
+        if partial:
+            lines.append(f'Partial summary: {included_count} of {n_judges} judges included.')
         self_voted = {item['judge']: item['kind'] for item in tally['self_votes_excluded']}
-        by_judge = {item['judge']: item for item in excluded}
-        for judge in judge_ids:
+        for judge in panel:
             item = by_judge.get(judge)
             if item is None:
                 continue
@@ -311,7 +312,9 @@ def build_narrative(tally: dict[str, Any], reports: list[SummaryReport]) -> str:
     """The whole narrative. Sections in fixed order; an empty one is omitted."""
     mapped, unmappable = _map_included_reports(reports)
     label_maps = {entry.judge: entry.label_map for entry in reports}
-    judges = [judge for judge in PROVIDER_IDS if judge in mapped]
+    # A JUDGES walk: the independent judge is not in PROVIDER_IDS, and walking
+    # that here would drop its rationale, findings and claims without an error.
+    judges = [judge for judge in JUDGE_CANDIDATE_IDS if judge in mapped]
 
     sections: list[list[str]] = [
         _section_outcome(tally, unmappable),
@@ -338,6 +341,6 @@ def build_summary(tally: dict[str, Any], reports: list[SummaryReport]) -> Summar
         narrative=build_narrative(tally, reports),
         tally=tally,
         judged_versions=tally['current_versions'],
-        partial=len(included) < len(resolve_judge_ids()),
+        partial=len(included) < int(tally.get('n_judges', len(resolve_judge_ids()))),
         included_judges=included,
     )

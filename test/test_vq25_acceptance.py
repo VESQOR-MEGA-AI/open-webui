@@ -15,9 +15,21 @@ ticket is a human step on the stage-7 checklist.
 
 Source: VQ-25 ticket, SPEC.md → "Acceptance Criteria", first bullet.
 Copied: 2026-09-13.
+
+**Which judge panel the matrix runs against.** DECISIONS.md#016 (owner,
+2026-09-15) replaced the participant judges with one independent judge, Sonnet;
+that is the production default and it is what every item below runs against
+unless the item is *about* several judges. Four items are: "each judge alone",
+"all three judges with no cross-visibility", "self-vote flags" and "partial
+summaries" need two or more judges to mean anything, and the mechanism they
+certify is retained under the ``ANSWER_COMPARE_<ID>_CAN_JUDGE`` override. Those
+four opt into the override explicitly (``PARTICIPANT_PANEL_REQUIREMENTS``) and a
+guard checks the split both ways. The #016 default path has its own items
+(``INDEPENDENT_JUDGE_REQUIREMENTS``), certified by ``test_vq25_sonnet.py``.
 """
 
 import asyncio
+import inspect
 import json
 import secrets
 from typing import Any, Optional
@@ -67,7 +79,31 @@ ACCEPTANCE_REQUIREMENTS = (
     'rejection of non-admin requests',
 )
 
+# The items that need several judges by their own meaning. Mechanism retained
+# under the `_CAN_JUDGE` override; superseded as the default by DECISIONS.md#016.
+PARTICIPANT_PANEL_REQUIREMENTS = frozenset(
+    {
+        'each judge alone',
+        'all three judges with no cross-visibility',
+        'self-vote flags',
+        'partial summaries',
+    }
+)
+
+# Source: DECISIONS.md#016 (owner, 2026-09-15) — not the ticket. One independent
+# judge, Sonnet, over the Anthropic Messages format; the compared trio never
+# judges by default; legacy participant reports stay visible. Certified by the
+# named tests in test_vq25_sonnet.py, which run the built-in default panel.
+INDEPENDENT_JUDGE_REQUIREMENTS = (
+    'sonnet judges the run alone through /reports/sonnet',
+    'run-all calls only sonnet',
+    'a participant is refused as a judge by default',
+    'a single sonnet verdict is a preferred answer',
+    'a legacy participant report stays visible and is excluded as not_capable',
+)
+
 PROVIDERS = list(providers.PROVIDER_IDS)
+SONNET = 'sonnet'
 DUMMY_KEY = 'sk-vq25-acceptance-secret'
 PROVIDER_ENV = {
     p: (
@@ -77,7 +113,13 @@ PROVIDER_ENV = {
     )
     for p in PROVIDERS
 }
+PROVIDER_ENV[SONNET] = (
+    'ANSWER_COMPARE_SONNET_BASE_URL',
+    'ANSWER_COMPARE_SONNET_API_KEY',
+    'ANSWER_COMPARE_SONNET_MODEL',
+)
 HOST = {p: f'https://{p}.example/v1' for p in PROVIDERS}
+HOST[SONNET] = 'https://sonnet.example/claude'
 ANSWER = {p: f'{p} says something about latency' for p in PROVIDERS}
 
 
@@ -88,12 +130,17 @@ ANSWER = {p: f'{p} says something about latency' for p in PROVIDERS}
 
 @pytest.fixture(autouse=True)
 def env(monkeypatch):
+    """The production default: no `_CAN_JUDGE` override anywhere, so the judge
+    panel is Sonnet alone (DECISIONS.md#016). Every item runs against this unless
+    it opts into `participant_judges`."""
     for names in PROVIDER_ENV.values():
         for name in names:
             monkeypatch.delenv(name, raising=False)
+    for judge_id in providers.JUDGE_CANDIDATE_IDS:
+        monkeypatch.delenv(providers.can_judge_env(judge_id), raising=False)
+        monkeypatch.delenv(providers.judge_max_input_chars_env(judge_id), raising=False)
     for p in PROVIDERS:
         monkeypatch.delenv(providers.max_input_chars_env(p), raising=False)
-        monkeypatch.delenv(providers.judge_max_input_chars_env(p), raising=False)
     judge.reset_mode_cache()
     asyncio.run(_create_tables())
     asyncio.run(_clear_tables())
@@ -115,6 +162,19 @@ async def _clear_tables() -> None:
         for model in (AnswerCompareSummary, AnswerCompareReport, AnswerCompareAnswer, AnswerCompareRun):
             await db.execute(delete(model))
         await db.commit()
+
+
+@pytest.fixture
+def participant_judges(env):
+    """The pre-#016 panel, opted into per item through the supported override.
+
+    Mechanism retained under `_CAN_JUDGE`; superseded as the default by
+    DECISIONS.md#016. Only the items in PARTICIPANT_PANEL_REQUIREMENTS take it.
+    """
+    for p in PROVIDERS:
+        env.setenv(providers.can_judge_env(p), 'true')
+    env.setenv(providers.can_judge_env(SONNET), 'false')
+    return env
 
 
 def configure(monkeypatch, *ids: str) -> None:
@@ -170,6 +230,24 @@ def completion(content: Any) -> httpx.Response:
     return httpx.Response(200, json={'model': 'm', 'choices': [{'message': {'content': text}}]})
 
 
+def anthropic_completion(content: Any) -> httpx.Response:
+    text = content if isinstance(content, str) else json.dumps(content)
+    return httpx.Response(
+        200,
+        json={
+            'model': 'claude-m',
+            'content': [{'type': 'text', 'text': text}],
+            'stop_reason': 'end_turn',
+            'usage': {'input_tokens': 1, 'output_tokens': 2},
+        },
+    )
+
+
+def reply(request: httpx.Request, content: Any) -> httpx.Response:
+    """The completion in whichever wire format the door being called speaks."""
+    return anthropic_completion(content) if str(request.url).startswith(HOST[SONNET]) else completion(content)
+
+
 class Double:
     def __init__(self):
         self.requests: list[dict] = []
@@ -181,8 +259,9 @@ class Double:
         for host, responder in self.responders.items():
             if str(request.url).startswith(host):
                 return responder(body)
-        return completion(
-            report_for(labels_in(body)) if 'ANSWERS TO EVALUATE' in json.dumps(body) else 'a generated answer'
+        return reply(
+            request,
+            report_for(labels_in(body)) if 'ANSWERS TO EVALUATE' in json.dumps(body) else 'a generated answer',
         )
 
     def sent_to(self, provider: str) -> list[dict]:
@@ -271,7 +350,9 @@ def test_partial_provider_failure(env):
     assert answers['chatgpt']['current']['text'] and answers['vesqor']['current']['text']
 
 
-def test_each_judge_alone(env):
+def test_each_judge_alone(participant_judges):
+    """Mechanism retained under the `_CAN_JUDGE` override; superseded as default by DECISIONS.md#016."""
+    env = participant_judges
     configure(env, *PROVIDERS)
     install(env)
     run_id = create_run()
@@ -284,7 +365,9 @@ def test_each_judge_alone(env):
         assert report['mapped']['verdict']['providers']
 
 
-def test_all_three_judges_with_no_cross_visibility(env):
+def test_all_three_judges_with_no_cross_visibility(participant_judges):
+    """Mechanism retained under the `_CAN_JUDGE` override; superseded as default by DECISIONS.md#016."""
+    env = participant_judges
     configure(env, *PROVIDERS)
     double = install(env)
     markers = {p: secrets.token_hex(8) for p in PROVIDERS}
@@ -306,26 +389,26 @@ def test_all_three_judges_with_no_cross_visibility(env):
 
 
 def test_two_answer_judging(env):
-    configure(env, *PROVIDERS)
+    configure(env, SONNET)
     double = install(env)
     run_id = create_run()
     seed_answers(run_id, 'chatgpt', 'gemini')
 
-    report = judge_run(run_id, 'vesqor')
+    report = judge_run(run_id, SONNET)
     assert report['status'] == STATUS_COMPLETE
-    assert labels_in(double.sent_to('vesqor')[0]['body']) == ['A', 'B']
+    assert labels_in(double.sent_to(SONNET)[0]['body']) == ['A', 'B']
     assert report['missing_providers'] == ['vesqor']
 
 
 def test_correct_mapping_of_anonymous_labels(env):
-    configure(env, *PROVIDERS)
+    configure(env, SONNET)
     double = install(env)
     run_id = create_run()
     seed_answers(run_id)
 
-    report = judge_run(run_id, 'chatgpt')
+    report = judge_run(run_id, SONNET)
     label_map = report['label_map']
-    received = answers_in(double.sent_to('chatgpt')[0]['body'])
+    received = answers_in(double.sent_to(SONNET)[0]['body'])
 
     # The invariant: the text under a label IS that provider's answer.
     for label, text in received.items():
@@ -334,7 +417,10 @@ def test_correct_mapping_of_anonymous_labels(env):
     assert report['mapped']['verdict']['providers'] == [label_map[winner_label]]
 
 
-def test_self_vote_flags(env):
+def test_self_vote_flags(participant_judges):
+    """Mechanism retained under the `_CAN_JUDGE` override; superseded as default by
+    DECISIONS.md#016 — an independent judge has no answer of its own to vote for."""
+    env = participant_judges
     configure(env, *PROVIDERS)
     double = install(env)
     run_id = create_run()
@@ -357,57 +443,62 @@ def test_self_vote_flags(env):
 
 
 def test_malformed_reports_excluded_from_the_tally(env):
-    configure(env, *PROVIDERS)
+    configure(env, SONNET)
     double = install(env)
-    double.responders[HOST['gemini']] = lambda body: completion('not a report at all')
+    double.responders[HOST[SONNET]] = lambda body: anthropic_completion('not a report at all')
     run_id = create_run()
     seed_answers(run_id)
 
-    client_as().post(f'/api/v1/compare/runs/{run_id}/reports')
+    results = client_as().post(f'/api/v1/compare/runs/{run_id}/reports').json()['results']
+    assert [(r['judge'], r['status']) for r in results] == [(SONNET, STATUS_FAILED)]
     result = get_run(run_id)['tally']
 
-    assert {'judge': 'gemini', 'reason': 'malformed'} in result['excluded']
-    assert 'gemini' not in result['included_judges']
+    assert result['excluded'] == [{'judge': SONNET, 'reason': 'malformed'}]
+    assert result['included_judges'] == []
     assert result['partial'] is True
+    assert result['outcome']['kind'] == 'no_valid_verdicts'
 
 
 def test_tallies_for_ties(env):
-    configure(env, *PROVIDERS)
+    configure(env, SONNET)
     double = install(env)
-    for p in PROVIDERS:
-        double.responders[HOST[p]] = lambda body: completion(
-            report_for(labels_in(body), kind='tie', named=labels_in(body)[:2])
-        )
+    double.responders[HOST[SONNET]] = lambda body: anthropic_completion(
+        report_for(labels_in(body), kind='tie', named=labels_in(body)[:2])
+    )
     run_id = create_run()
     seed_answers(run_id)
 
     client_as().post(f'/api/v1/compare/runs/{run_id}/reports')
     result = get_run(run_id)['tally']
 
-    assert len(result['ties']) == 3
+    assert [t['judge'] for t in result['ties']] == [SONNET]
+    assert len(result['ties'][0]['providers']) == 2
     assert sum(result['votes'].values()) == 0, 'a tie names no sole winner'
-    assert result['n_included'] == 3, 'but it still counts in the denominator'
+    assert result['n_included'] == 1, 'but it still counts in the denominator'
     assert result['outcome']['kind'] == 'no_majority'
 
 
 def test_no_reliable_winner(env):
-    configure(env, *PROVIDERS)
+    configure(env, SONNET)
     double = install(env)
-    for p in PROVIDERS:
-        double.responders[HOST[p]] = lambda body: completion(
-            report_for(labels_in(body), kind='no_reliable_winner', named=[])
-        )
+    double.responders[HOST[SONNET]] = lambda body: anthropic_completion(
+        report_for(labels_in(body), kind='no_reliable_winner', named=[])
+    )
     run_id = create_run()
     seed_answers(run_id)
 
     client_as().post(f'/api/v1/compare/runs/{run_id}/reports')
     result = get_run(run_id)['tally']
 
-    assert sorted(result['inconclusive']) == PROVIDERS
+    assert result['inconclusive'] == [SONNET]
+    assert result['n_included'] == 1
     assert result['outcome']['kind'] == 'no_majority'
 
 
-def test_partial_summaries(env):
+def test_partial_summaries(participant_judges):
+    """Mechanism retained under the `_CAN_JUDGE` override; superseded as default by
+    DECISIONS.md#016 — a one-judge panel is either complete or has nothing to summarise (409)."""
+    env = participant_judges
     configure(env, *PROVIDERS)
     install(env)
     run_id = create_run()
@@ -425,18 +516,18 @@ def test_partial_summaries(env):
 def test_outdated_marking_after_regeneration_with_earlier_runs_unchanged(env):
     """Both halves: the regeneration outdates reviews and summary, and the
     earlier run keeps every row it had."""
-    configure(env, *PROVIDERS)
+    configure(env, *PROVIDERS, SONNET)
     install(env)
 
     earlier = create_run(prompt='the earlier run')
     seed_answers(earlier)
-    judge_run(earlier, 'chatgpt')
+    judge_run(earlier, SONNET)
     client_as().post(f'/api/v1/compare/runs/{earlier}/summary')
     before = asyncio.run(_snapshot(earlier))
 
     current = create_run(prompt='the current run')
     seed_answers(current)
-    judge_run(current, 'chatgpt')
+    judge_run(current, SONNET)
     client_as().post(f'/api/v1/compare/runs/{current}/summary')
     assert get_run(current)['reports'][0]['outdated'] is False
 
@@ -451,11 +542,11 @@ def test_outdated_marking_after_regeneration_with_earlier_runs_unchanged(env):
 
 
 def test_reopen_and_rerun(env):
-    configure(env, *PROVIDERS)
+    configure(env, SONNET)
     install(env)
     source = create_run(prompt='the original question', reference='the original reference')
     seed_answers(source)
-    judge_run(source, 'chatgpt')
+    judge_run(source, SONNET)
 
     # Reopen: everything saved comes back.
     reopened = get_run(source)
@@ -478,10 +569,10 @@ def test_reopen_and_rerun(env):
 
 
 def test_oversized_input(env):
-    configure(env, *PROVIDERS)
+    configure(env, *PROVIDERS, SONNET)
     double = install(env)
     env.setenv('ANSWER_COMPARE_CHATGPT_MAX_INPUT_CHARS', '50')
-    env.setenv('ANSWER_COMPARE_GEMINI_JUDGE_MAX_INPUT_CHARS', '80')
+    env.setenv('ANSWER_COMPARE_SONNET_JUDGE_MAX_INPUT_CHARS', '80')
     run_id = create_run(prompt='x' * 200)
 
     generation = client_as().post(f'/api/v1/compare/runs/{run_id}/answers/chatgpt')
@@ -490,10 +581,10 @@ def test_oversized_input(env):
     assert double.sent_to('chatgpt') == []
 
     seed_answers(run_id)
-    judging = client_as().post(f'/api/v1/compare/runs/{run_id}/reports/gemini')
+    judging = client_as().post(f'/api/v1/compare/runs/{run_id}/reports/sonnet')
     assert judging.status_code == 413
     assert judging.json()['detail']['limit_chars'] == 80, 'judging has its own limit'
-    assert double.sent_to('gemini') == []
+    assert double.sent_to(SONNET) == []
 
 
 def test_missing_integration_state(env):
@@ -513,9 +604,19 @@ def test_missing_integration_state(env):
     assert refusal.json()['detail']['code'] == 'not_configured'
     assert double.sent_to('gemini') == []
 
+    # The judge has the same honest state: named variables, never a key, no call.
+    judges = {j['id']: j for j in client_as().get('/api/v1/compare/config').json()['judges']}
+    assert judges[SONNET]['configured'] is False
+    assert 'ANSWER_COMPARE_SONNET_API_KEY' in judges[SONNET]['missing']
+    seed_answers(run_id)
+    judge_refusal = client_as().post(f'/api/v1/compare/runs/{run_id}/reports/sonnet')
+    assert judge_refusal.status_code == 503
+    assert judge_refusal.json()['detail']['code'] == 'not_configured'
+    assert double.sent_to(SONNET) == []
+
 
 def test_rejection_of_non_admin_requests(env):
-    configure(env, *PROVIDERS)
+    configure(env, *PROVIDERS, SONNET)
     install(env)
     run_id = create_run()
     seed_answers(run_id)
@@ -527,7 +628,7 @@ def test_rejection_of_non_admin_requests(env):
         ('post', '/api/v1/compare/runs'),
         ('get', f'/api/v1/compare/runs/{run_id}'),
         ('post', f'/api/v1/compare/runs/{run_id}/answers/chatgpt'),
-        ('post', f'/api/v1/compare/runs/{run_id}/reports/chatgpt'),
+        ('post', f'/api/v1/compare/runs/{run_id}/reports/sonnet'),
         ('post', f'/api/v1/compare/runs/{run_id}/reports'),
         ('post', f'/api/v1/compare/runs/{run_id}/summary'),
     ):
@@ -582,6 +683,21 @@ ACCEPTANCE_MATRIX: dict[str, str] = {
 }
 
 
+# The #016 items live in test_vq25_sonnet.py, which runs the default panel end
+# to end; the matrix points at them rather than copying them.
+INDEPENDENT_JUDGE_MATRIX: dict[str, str] = {
+    'sonnet judges the run alone through /reports/sonnet': 'test_judge_endpoint_sonnet_full_path',
+    'run-all calls only sonnet': 'test_run_all_runs_sonnet_only',
+    'a participant is refused as a judge by default': (
+        'test_judge_endpoint_refuses_a_participant_by_default_and_calls_nothing'
+    ),
+    'a single sonnet verdict is a preferred answer': 'test_single_sonnet_verdict_is_preferred_and_not_partial',
+    'a legacy participant report stays visible and is excluded as not_capable': (
+        'test_legacy_participant_report_is_visible_excluded_and_outdates_its_summary'
+    ),
+}
+
+
 def test_zz_matrix_covers_every_acceptance_requirement():
     """No missing keys, no extras, and every named test really exists here."""
     assert set(ACCEPTANCE_MATRIX) == set(ACCEPTANCE_REQUIREMENTS), {
@@ -595,3 +711,32 @@ def test_zz_matrix_covers_every_acceptance_requirement():
     for requirement, test_name in ACCEPTANCE_MATRIX.items():
         assert test_name in module, f'{requirement}: {test_name} is not defined in this file'
         assert callable(module[test_name]), test_name
+
+
+def test_zz_matrix_runs_the_default_panel_except_where_several_judges_are_the_point():
+    """The split is declared, not implied: exactly the PARTICIPANT_PANEL items take
+    the override fixture, and every other item runs against the #016 default."""
+    assert PARTICIPANT_PANEL_REQUIREMENTS <= set(ACCEPTANCE_REQUIREMENTS)
+    module = globals()
+    for requirement, test_name in ACCEPTANCE_MATRIX.items():
+        fixtures = inspect.signature(module[test_name]).parameters
+        if requirement in PARTICIPANT_PANEL_REQUIREMENTS:
+            assert 'participant_judges' in fixtures, f'{requirement} must opt into the participant panel'
+            assert 'DECISIONS.md#016' in (module[test_name].__doc__ or ''), f'{requirement} must say why'
+        else:
+            assert 'participant_judges' not in fixtures, f'{requirement} silently runs the rejected panel'
+            assert 'env' in fixtures, requirement
+
+
+def test_zz_independent_judge_matrix_points_at_real_tests():
+    """The #016 items are certified by test_vq25_sonnet.py — each name must exist there."""
+    import test_vq25_sonnet
+
+    assert set(INDEPENDENT_JUDGE_MATRIX) == set(INDEPENDENT_JUDGE_REQUIREMENTS)
+    assert len(INDEPENDENT_JUDGE_REQUIREMENTS) == 5
+    assert len(set(INDEPENDENT_JUDGE_MATRIX.values())) == 5, 'one test per requirement'
+    for requirement, test_name in INDEPENDENT_JUDGE_MATRIX.items():
+        target = getattr(test_vq25_sonnet, test_name, None)
+        assert callable(target), f'{requirement}: {test_name} is not defined in test_vq25_sonnet.py'
+        # Those tests run the built-in default: they never take a panel override.
+        assert 'participant_judges' not in inspect.signature(target).parameters, test_name

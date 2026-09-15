@@ -4,8 +4,10 @@ Pure functions, no database. The caller hands in the run's current answer
 versions and, per judge, the current (highest complete) report plus the latest
 attempt; this module decides which verdicts count and counts them.
 
-A preferred answer additionally requires at least two included verdicts (owner
-decision, DECISIONS.md#014): a strict majority of one is not a preference.
+A preferred answer needs a strict majority of the included verdicts, and one
+included verdict is enough (owner decision, DECISIONS.md#016, superseding #014):
+the judge is independent of the answers, so its single verdict is a preference,
+not a self-assessment.
 
 Which verdicts count (owner decision, DECISIONS.md#012): a judge's verdict is
 included iff its current report exists, is complete (so it passed validation) and
@@ -36,7 +38,7 @@ from open_webui.utils.answer_compare_judge import (
     UnmappedLabel,
     map_report,
 )
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS, resolve_judge_ids
+from open_webui.utils.answer_compare_providers import JUDGE_CANDIDATE_IDS, PROVIDER_IDS, resolve_judge_ids
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -46,6 +48,10 @@ REASON_OUTDATED = 'outdated'
 REASON_FAILED = 'failed'
 REASON_MALFORMED = 'malformed'
 REASON_NOT_CONFIGURED = 'not_configured'
+# A judge with stored rows for this run that is no longer allowed to judge — a
+# participant judge from before DECISIONS.md#016. Its report stays visible and
+# is excluded here, never silently dropped.
+REASON_NOT_CAPABLE = 'not_capable'
 # A stored complete report whose labels its own map cannot resolve — a server
 # invariant violation the serializer also answers with mapped: null. Not in the
 # spec's list because it is practically unreachable after validation; it still
@@ -59,9 +65,12 @@ OUTCOME_NO_VALID_VERDICTS = 'no_valid_verdicts'
 MALFORMED_REPORT_CODE = 'malformed_report'
 
 # A preferred answer needs at least this many included verdicts, on top of the
-# strict majority. With one judge the majority test is vacuously true and the
-# result would read as agreement where there was only ever one opinion.
-MIN_JUDGES_FOR_PREFERRED = 2
+# strict majority. DECISIONS.md#014 set this to two while judges were the
+# participants themselves — one participant's vote for a peer was a single,
+# possibly biased opinion. DECISIONS.md#016 (owner, 2026-09-15) supersedes it:
+# judging is done by an independent judge that wrote none of the answers, so one
+# verdict is a verdict and the floor is one.
+MIN_JUDGES_FOR_PREFERRED = 1
 
 
 class TallyReport(BaseModel):
@@ -147,13 +156,15 @@ def _mapped_verdict(report: TallyReport) -> Optional[dict[str, Any]]:
 
 def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudge]) -> dict[str, Any]:
     """The tally, in the shape stage 5 persists. Every list is in the fixed provider order."""
-    # A JUDGES walk, not an answers one: only judge-capable providers are ever
-    # tallied as judges, regardless of what the caller passed in — this is the
-    # one place that decides who counts, so a provider that cannot judge (e.g.
-    # a generator-only door) can never appear here even by a caller's mistake.
-    judge_ids = resolve_judge_ids()
+    # A JUDGES walk, not an answers one. The panel is the judge-capable ids
+    # (the denominator) UNION every judge the caller handed in with stored rows —
+    # a legacy participant judge is not capable any more, but its report exists
+    # and must be excluded visibly, with a reason, never dropped from the tally
+    # as if it had never judged.
+    capable = resolve_judge_ids()
     by_judge = {entry.judge: entry for entry in judges}
-    ordered = [by_judge[judge] for judge in judge_ids if judge in by_judge]
+    panel = [j for j in JUDGE_CANDIDATE_IDS if j in capable or j in by_judge]
+    ordered = [by_judge[judge] for judge in panel if judge in by_judge]
 
     included_reports: list[dict[str, Any]] = []
     included_judges: list[str] = []
@@ -166,7 +177,10 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
     votes: dict[str, int] = {provider: 0 for provider in PROVIDER_IDS}
 
     for entry in ordered:
-        reason = exclusion_reason(entry, current_versions)
+        if entry.judge not in capable:
+            reason: Optional[dict[str, Any]] = {'judge': entry.judge, 'reason': REASON_NOT_CAPABLE}
+        else:
+            reason = exclusion_reason(entry, current_versions)
 
         if reason is not None:
             excluded.append(reason)
@@ -200,9 +214,9 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
             self_votes.append({'judge': entry.judge, 'kind': kind})
 
     n_included = len(included_judges)
-    # A preferred answer needs a strict majority AND at least two included judges
-    # (owner decision, DECISIONS.md#014): one voter is arithmetically a majority
-    # of one, but substantively a single opinion, not a preference.
+    # A preferred answer needs a strict majority of the included verdicts. The
+    # floor is MIN_JUDGES_FOR_PREFERRED (1 since DECISIONS.md#016; #014 had set it
+    # to 2 while the judges were the participants themselves).
     preferred = (
         next((p for p in PROVIDER_IDS if votes[p] * 2 > n_included), None)
         if n_included >= MIN_JUDGES_FOR_PREFERRED
@@ -223,7 +237,11 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
         'included_reports': included_reports,
         'included_judges': included_judges,
         'excluded': excluded,
-        'partial': n_included < len(judge_ids),
+        # Explicit denominator: the page prints "{n_included} of {n_judges}" from
+        # this, never from included + excluded — with the judge included and a
+        # legacy participant excluded that would read "1 of 2" beside partial: false.
+        'n_judges': len(capable),
+        'partial': n_included < len(capable),
         'verdicts': verdicts,
         'votes': votes,
         'n_included': n_included,

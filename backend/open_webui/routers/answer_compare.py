@@ -28,7 +28,9 @@ from open_webui.utils.answer_compare_providers import (
     PROVIDER_IDS,
     ProviderConfig,
     resolve_api_key,
+    JUDGE_CANDIDATE_IDS,
     resolve_judge_ids,
+    resolve_judges,
     resolve_judge_max_input_chars,
     resolve_max_input_chars,
     resolve_provider,
@@ -135,7 +137,11 @@ class InputSizeResponse(BaseModel):
 
 
 class CompareConfigResponse(BaseModel):
+    # The answer columns — never the judge.
     providers: list[ProviderConfig]
+    # The judge registry, with `can_judge` saying who may judge right now. The
+    # independent judge lives here and only here.
+    judges: list[ProviderConfig] = []
 
 
 class AnswerError(BaseModel):
@@ -194,6 +200,10 @@ class JudgeReportsResponse(BaseModel):
     judge: str
     current: Optional[ReportResponse] = None
     latest_attempt: Optional[ReportResponse] = None
+    # False for a judge that has stored rows for this run but may no longer
+    # judge (a participant from before DECISIONS.md#016): shown read-only,
+    # never dropped from history.
+    capable: bool = True
     # Derived on read: the current report judged a different answer set than the
     # run has now. Never stored.
     outdated: bool = False
@@ -208,6 +218,10 @@ class CreateRunForm(BaseModel):
 class CreateRunResponse(BaseModel):
     run: RunResponse
     providers: list[ProviderConfig]
+    # The judge registry travels with every response that carries `providers`,
+    # so the page builds its judge cards from one source and never from the
+    # answer columns.
+    judges: list[ProviderConfig] = []
     input_size: InputSizeResponse
 
 
@@ -232,6 +246,7 @@ class RunSummaryResponse(BaseModel):
 class GetRunResponse(BaseModel):
     run: RunResponse
     providers: list[ProviderConfig]
+    judges: list[ProviderConfig] = []
     answers: list[ProviderAnswersResponse]
     reports: list[JudgeReportsResponse] = []
     # Computed on read from the current reports and answer versions; nothing
@@ -422,6 +437,19 @@ def _detail(code: str, **extra: Any) -> dict:
     return {'code': code, **extra}
 
 
+def _judge_panel(present: set[str]) -> list[str]:
+    """The judges a run's responses reason about: everyone who may judge now,
+    union everyone who has stored rows for this run, in registry order.
+
+    Production holds reports by the participant judges of before
+    DECISIONS.md#016. Walking only ``resolve_judge_ids()`` would drop every one
+    of them from the response and show those runs as never judged while the rows
+    exist — a silent break of the append-only promise.
+    """
+    capable = set(resolve_judge_ids())
+    return [j for j in JUDGE_CANDIDATE_IDS if j in capable or j in present]
+
+
 def _tally_attempt(report: AnswerCompareReportModel) -> tally.TallyAttempt:
     """The latest attempt as the read-time rules see it: a stale pending row is a failure."""
     wire = _report_response(report)
@@ -506,13 +534,12 @@ async def _tally_for_run(run_id: str) -> dict:
     run_versions = await AnswerCompareAnswers.get_current_versions(run_id)
     current_reports = {r.judge: r for r in await AnswerCompareReports.get_current_by_run(run_id)}
     latest_reports = {r.judge: r for r in await AnswerCompareReports.get_latest_attempt_by_run(run_id)}
-    configs = {c.id: c for c in resolve_providers()}
+    configs = {c.id: c for c in resolve_judges()}
 
-    # A JUDGES walk, not an answers one: only judge-capable providers ever get a
-    # TallyJudge entry, so a generator-only provider can never surface in the
-    # tally as a permanently missing judge.
+    # A JUDGES walk, not an answers one: the capable judges plus any legacy judge
+    # with stored rows, so the tally can exclude the latter with a reason.
     judges = []
-    for judge_id in resolve_judge_ids():
+    for judge_id in _judge_panel(set(current_reports) | set(latest_reports)):
         current = current_reports.get(judge_id)
         latest = latest_reports.get(judge_id)
         judges.append(
@@ -568,7 +595,7 @@ async def get_compare_config(user=Depends(get_admin_user)) -> CompareConfigRespo
     No display labels: those live in the frontend's i18n context, and returning
     them here would only have to be undone later.
     """
-    return CompareConfigResponse(providers=resolve_providers())
+    return CompareConfigResponse(providers=resolve_providers(), judges=resolve_judges())
 
 
 @router.get('/runs', response_model=RunListResponse)
@@ -659,6 +686,7 @@ async def create_run(form: CreateRunForm, user=Depends(get_admin_user)) -> Creat
     return CreateRunResponse(
         run=_run_response(run),
         providers=resolve_providers(),
+        judges=resolve_judges(),
         input_size=_input_size(prompt, reference),
     )
 
@@ -678,12 +706,14 @@ async def get_run(run_id: str, user=Depends(get_admin_user)) -> GetRunResponse:
     run_tally = await _tally_for_run(run_id)
     current_reports = {r.judge: r for r in await AnswerCompareReports.get_current_by_run(run_id)}
     latest_reports = {r.judge: r for r in await AnswerCompareReports.get_latest_attempt_by_run(run_id)}
+    capable_judges = set(resolve_judge_ids())
 
     rerun_of, rerun_count = await _run_lineage(run)
 
     return GetRunResponse(
         run=_run_response(run, rerun_of, rerun_count),
         providers=resolve_providers(),
+        judges=resolve_judges(),
         answers=[
             ProviderAnswersResponse(
                 provider=provider_id,
@@ -696,17 +726,19 @@ async def get_run(run_id: str, user=Depends(get_admin_user)) -> GetRunResponse:
             )
             for provider_id in PROVIDER_IDS
         ],
-        # A JUDGES walk: report cards exist only for judge-capable providers —
-        # `answers` above stays PROVIDER_IDS on purpose, since all three can be
-        # generated and compared.
+        # A JUDGES walk: report cards exist for the judge-capable judges plus
+        # any legacy judge with stored rows (capable=false) — `answers` above
+        # stays PROVIDER_IDS on purpose, since all three can be generated and
+        # compared and the independent judge generates nothing.
         reports=[
             JudgeReportsResponse(
                 judge=judge_id,
                 current=_report_response(current_reports[judge_id]) if judge_id in current_reports else None,
                 latest_attempt=_report_response(latest_reports[judge_id]) if judge_id in latest_reports else None,
                 outdated=_is_outdated(current_reports.get(judge_id), run_versions),
+                capable=judge_id in capable_judges,
             )
-            for judge_id in resolve_judge_ids()
+            for judge_id in _judge_panel(set(current_reports) | set(latest_reports))
         ],
         tally=run_tally,
         summary=await _summary_for_run(run_id, run_tally),
@@ -883,6 +915,8 @@ async def judge_once(
         settled = await AnswerCompareReports.update_result(
             id=report_row.id,
             status=STATUS_FAILED,
+            # A truncation records what the call cost before it was cut off.
+            params=getattr(err, 'params', None),
             error=_encode_error(err.code, err.message),
         )
         return await _settled_report_response(report_row, settled)
@@ -943,7 +977,7 @@ async def judge_run(run_id: str, judge_id: str, user=Depends(get_admin_user)) ->
             detail=_detail('run_not_found', run_id=run_id),
         )
 
-    if judge_id not in PROVIDER_IDS:
+    if judge_id not in JUDGE_CANDIDATE_IDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_detail('unknown_judge', judge=judge_id),

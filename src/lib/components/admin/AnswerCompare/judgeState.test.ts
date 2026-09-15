@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { JudgeReports, MappedReport, ProviderConfig, RawReport, ReportRow } from '$lib/apis/answer-compare';
-import { ERROR_COPY } from './state';
+import type {
+	JudgeConfig,
+	JudgeReports,
+	MappedReport,
+	RawReport,
+	ReportRow
+} from '$lib/apis/answer-compare';
+import { ERROR_COPY, PROVIDER_IDS } from './state';
 import {
 	answerSections,
 	applyJudgeConfigs,
+	capableJudgeIds,
+	DEFAULT_CAPABLE,
 	applyJudgeFailure,
 	applyJudgeNotConfigured,
 	applyJudgeNotEnoughAnswers,
@@ -14,12 +22,17 @@ import {
 	initialJudgeCards,
 	isJudgeRetryDisabled,
 	JUDGE_ERROR_COPY,
+	JUDGE_IDS,
+	JUDGE_LABELS,
 	judgeButtonDisabledReason,
 	judgePhase,
+	judgeRole,
+	judgesToRun,
 	labelsByProvider,
 	nameWithLabel,
 	startJudging,
-	verdictHeadline
+	verdictHeadline,
+	visibleJudgeIds
 } from './judgeState';
 
 const LABEL_MAP = { A: 'vesqor', B: 'chatgpt', C: 'gemini' } as const;
@@ -76,14 +89,19 @@ const reportRow = (overrides: Partial<ReportRow> = {}): ReportRow => ({
 	...overrides
 });
 
-const config = (overrides: Partial<ProviderConfig> = {}): ProviderConfig => ({
+const config = (overrides: Partial<JudgeConfig> = {}): JudgeConfig => ({
 	id: 'gemini',
 	configured: true,
 	missing: [],
 	base_url: 'https://x',
 	model: 'gemini-test-1',
+	can_judge: true,
 	...overrides
 });
+
+/** The server's built-in registry (DECISIONS.md#016): the trio cannot judge, sonnet can. */
+const defaultRegistry = (): JudgeConfig[] =>
+	JUDGE_IDS.map((id) => config({ id, can_judge: DEFAULT_CAPABLE[id], model: `${id}-model` }));
 
 const withReport = () => applyJudgeResult(initialJudgeCards(), 'gemini', reportRow());
 
@@ -106,7 +124,12 @@ describe('judge-card independence', () => {
 			() => applyJudgeNotEnoughAnswers(before, 'chatgpt', ['gemini']),
 			() => applyJudgeFailure(before, 'chatgpt', { code: 'malformed_report' }),
 			() => applyJudgeResult(before, 'chatgpt', reportRow({ judge: 'chatgpt' })),
-			() => applyJudgeResult(before, 'chatgpt', reportRow({ judge: 'chatgpt', status: 'pending', report: null, mapped: null }))
+			() =>
+				applyJudgeResult(
+					before,
+					'chatgpt',
+					reportRow({ judge: 'chatgpt', status: 'pending', report: null, mapped: null })
+				)
 		];
 		for (const transition of transitions) {
 			const after = transition();
@@ -122,7 +145,14 @@ describe('a report is removed by nothing but a successful new version', () => {
 		const after = applyJudgeResult(
 			before,
 			'gemini',
-			reportRow({ id: 'report-2', revision: 2, status: 'failed', report: null, mapped: null, error: { code: 'malformed_report', message: 'x' } })
+			reportRow({
+				id: 'report-2',
+				revision: 2,
+				status: 'failed',
+				report: null,
+				mapped: null,
+				error: { code: 'malformed_report', message: 'x' }
+			})
 		);
 
 		expect(after.gemini.report).toBe(before.gemini.report);
@@ -163,7 +193,15 @@ describe('a report is removed by nothing but a successful new version', () => {
 			{
 				judge: 'gemini',
 				current: null,
-				latest_attempt: reportRow({ id: 'report-2', revision: 2, status: 'failed', report: null, mapped: null, error: { code: 'stale', message: 'x' } }),
+				latest_attempt: reportRow({
+					id: 'report-2',
+					revision: 2,
+					status: 'failed',
+					report: null,
+					mapped: null,
+					error: { code: 'stale', message: 'x' }
+				}),
+				capable: true,
 				outdated: false
 			}
 		];
@@ -175,7 +213,9 @@ describe('a report is removed by nothing but a successful new version', () => {
 
 	it('keeps the rendered report when the server reports nothing at all', () => {
 		const before = withReport();
-		const after = applyJudgeRunState(before, [{ judge: 'gemini', current: null, latest_attempt: null, outdated: false }]);
+		const after = applyJudgeRunState(before, [
+			{ judge: 'gemini', current: null, latest_attempt: null, capable: true, outdated: false }
+		]);
 		expect(after.gemini.report).toBe(before.gemini.report);
 		expect(judgePhase(after.gemini)).toBe('complete');
 	});
@@ -195,6 +235,7 @@ describe('outdated', () => {
 			judge: 'gemini',
 			current: reportRow(),
 			latest_attempt: reportRow(),
+			capable: true,
 			outdated
 		});
 		const flagged = applyJudgeRunState(initialJudgeCards(), [entry(true)]);
@@ -206,18 +247,28 @@ describe('outdated', () => {
 
 	it('is never true without a current report', () => {
 		const after = applyJudgeRunState(initialJudgeCards(), [
-			{ judge: 'gemini', current: null, latest_attempt: null, outdated: true }
+			{ judge: 'gemini', current: null, latest_attempt: null, capable: true, outdated: true }
 		]);
 		expect(after.gemini.outdated).toBe(false);
 	});
 
 	it('is not inherited by a new complete report', () => {
 		const flagged = applyJudgeRunState(initialJudgeCards(), [
-			{ judge: 'gemini', current: reportRow(), latest_attempt: reportRow(), outdated: true }
+			{
+				judge: 'gemini',
+				current: reportRow(),
+				latest_attempt: reportRow(),
+				capable: true,
+				outdated: true
+			}
 		]);
 		expect(flagged.gemini.outdated).toBe(true);
 
-		const rejudged = applyJudgeResult(flagged, 'gemini', reportRow({ id: 'report-2', revision: 2 }));
+		const rejudged = applyJudgeResult(
+			flagged,
+			'gemini',
+			reportRow({ id: 'report-2', revision: 2 })
+		);
 		expect(rejudged.gemini.outdated).toBe(false);
 		expect(rejudged.gemini.report?.revision).toBe(2);
 	});
@@ -226,12 +277,19 @@ describe('outdated', () => {
 describe('display substitution — not mapping', () => {
 	it('inverts label_map into "(was X)" per provider', () => {
 		expect(labelsByProvider(LABEL_MAP)).toEqual({ vesqor: 'A', chatgpt: 'B', gemini: 'C' });
-		expect(nameWithLabel('chatgpt', LABEL_MAP)).toEqual({ provider: 'chatgpt', name: 'ChatGPT', label: 'B' });
+		expect(nameWithLabel('chatgpt', LABEL_MAP)).toEqual({
+			provider: 'chatgpt',
+			name: 'ChatGPT',
+			label: 'B'
+		});
 		expect(nameWithLabel('chatgpt', null).label).toBeNull();
 	});
 
 	it('renders a tie with every tied provider and its label', () => {
-		const mapped: MappedReport = { ...mappedReport(), verdict: { kind: 'tie', providers: ['chatgpt', 'vesqor'] } };
+		const mapped: MappedReport = {
+			...mappedReport(),
+			verdict: { kind: 'tie', providers: ['chatgpt', 'vesqor'] }
+		};
 		const headline = verdictHeadline(mapped, LABEL_MAP);
 		expect(headline.kind).toBe('tie');
 		expect(headline.providers).toEqual([
@@ -240,7 +298,7 @@ describe('display substitution — not mapping', () => {
 		]);
 	});
 
-	it('passes the judge\'s text through untouched, by identity', () => {
+	it("passes the judge's text through untouched, by identity", () => {
 		const mapped = mappedReport();
 		const sections = answerSections(mapped, LABEL_MAP);
 
@@ -281,7 +339,11 @@ describe('copy and controls', () => {
 		const after = applyJudgeOversized(initialJudgeCards(), 'vesqor', 400000, 512000);
 		const described = describeJudgeFailure(after.vesqor.failure!);
 		expect(described.key).toBe(JUDGE_ERROR_COPY.oversized);
-		expect(described.params).toMatchObject({ judge: 'VESQOR', limitChars: 400000, actualChars: 512000 });
+		expect(described.params).toMatchObject({
+			judge: 'VESQOR',
+			limitChars: 400000,
+			actualChars: 512000
+		});
 		expect(isJudgeRetryDisabled(after.vesqor)).toBe(true);
 	});
 
@@ -292,16 +354,154 @@ describe('copy and controls', () => {
 
 	it('button reason: unlock at two answers, then configuration, then running', () => {
 		const cards = initialJudgeCards();
-		expect(judgeButtonDisabledReason(cards.gemini, 1)?.key).toBe('Judging unlocks once at least two answers exist.');
+		expect(judgeButtonDisabledReason(cards.gemini, 1)?.key).toBe(
+			'Judging unlocks once at least two answers exist.'
+		);
 		expect(judgeButtonDisabledReason(cards.gemini, 2)).toBeNull();
 
-		const unconfigured = applyJudgeConfigs(cards, [config({ configured: false, missing: ['ANSWER_COMPARE_GEMINI_MODEL'] })]);
+		const unconfigured = applyJudgeConfigs(cards, [
+			config({ configured: false, missing: ['ANSWER_COMPARE_GEMINI_MODEL'] })
+		]);
 		expect(judgeButtonDisabledReason(unconfigured.gemini, 3)).toEqual({
 			key: 'Requires configuration: {{missing}}',
 			params: { missing: 'ANSWER_COMPARE_GEMINI_MODEL' }
 		});
 
 		const running = startJudging(cards, 'gemini', 1);
-		expect(judgeButtonDisabledReason(running.gemini, 3)?.key).toBe('This judge is already running.');
+		expect(judgeButtonDisabledReason(running.gemini, 3)?.key).toBe(
+			'This judge is already running.'
+		);
+	});
+});
+
+describe('the judge registry — two registries, not one (DECISIONS.md#016)', () => {
+	it('keys one card per judge id, the independent judge included', () => {
+		const cards = initialJudgeCards();
+		expect(Object.keys(cards)).toEqual(['chatgpt', 'gemini', 'vesqor', 'sonnet']);
+		expect(JUDGE_IDS).toEqual([...PROVIDER_IDS, 'sonnet']);
+		expect(PROVIDER_IDS as string[]).not.toContain('sonnet');
+		expect(JUDGE_LABELS.sonnet).toBe('Sonnet');
+	});
+
+	it('before configs arrive, the cards carry the built-in default: sonnet alone judges', () => {
+		expect(capableJudgeIds(initialJudgeCards())).toEqual(['sonnet']);
+		expect(visibleJudgeIds(initialJudgeCards())).toEqual(['sonnet']);
+	});
+
+	it('reads capability from the judges list, in either direction', () => {
+		const registry = defaultRegistry();
+		expect(capableJudgeIds(applyJudgeConfigs(initialJudgeCards(registry), registry))).toEqual([
+			'sonnet'
+		]);
+
+		// The per-deployment override brings a participant back and can switch sonnet off.
+		const overridden = registry.map((c) =>
+			c.id === 'chatgpt'
+				? { ...c, can_judge: true }
+				: c.id === 'sonnet'
+					? { ...c, can_judge: false }
+					: c
+		);
+		expect(capableJudgeIds(applyJudgeConfigs(initialJudgeCards(overridden), overridden))).toEqual([
+			'chatgpt'
+		]);
+		expect(initialJudgeCards(overridden).sonnet.capable).toBe(false);
+	});
+
+	it('the run state can flip capability by itself, from the reports entry', () => {
+		const entry: JudgeReports = {
+			judge: 'chatgpt',
+			current: null,
+			latest_attempt: null,
+			outdated: false,
+			capable: true
+		};
+		const cards = applyJudgeRunState(initialJudgeCards(), [entry]);
+		expect(cards.chatgpt.capable).toBe(true);
+		expect(applyJudgeRunState(cards, [{ ...entry, capable: false }]).chatgpt.capable).toBe(false);
+	});
+
+	it('never marks a judge that cannot judge as "requires configuration"', () => {
+		const registry = defaultRegistry().map((c) =>
+			c.id === 'vesqor'
+				? { ...c, configured: false, missing: ['ANSWER_COMPARE_VESQOR_API_KEY'] }
+				: c
+		);
+		const cards = applyJudgeConfigs(initialJudgeCards(registry), registry);
+		expect(cards.vesqor.missing).toBeNull();
+		expect(judgePhase(cards.vesqor)).toBe('empty');
+		// …while a capable, unconfigured judge is.
+		const sonnetMissing = registry.map((c) =>
+			c.id === 'sonnet'
+				? { ...c, configured: false, missing: ['ANSWER_COMPARE_SONNET_API_KEY'] }
+				: c
+		);
+		expect(
+			applyJudgeConfigs(initialJudgeCards(sonnetMissing), sonnetMissing).sonnet.missing
+		).toEqual(['ANSWER_COMPARE_SONNET_API_KEY']);
+	});
+
+	it('judgesToRun walks the capable set: sonnet alone by default', () => {
+		const cards = initialJudgeCards(defaultRegistry());
+		expect(judgesToRun(cards)).toEqual(['sonnet']);
+		expect(judgesToRun(startJudging(cards, 'sonnet', 1))).toEqual([]);
+	});
+});
+
+describe('legacy participant judges — visible, read-only', () => {
+	const legacyEntry = (): JudgeReports => ({
+		judge: 'chatgpt',
+		current: reportRow({ judge: 'chatgpt', id: 'legacy-1' }),
+		latest_attempt: reportRow({ judge: 'chatgpt', id: 'legacy-1' }),
+		outdated: false,
+		capable: false
+	});
+
+	it('a non-capable judge with a stored report gets a card, but no button', () => {
+		const registry = defaultRegistry();
+		const cards = applyJudgeRunState(
+			applyJudgeConfigs(initialJudgeCards(registry), registry),
+			[legacyEntry()],
+			registry
+		);
+		expect(cards.chatgpt.report?.id).toBe('legacy-1');
+		expect(cards.chatgpt.capable).toBe(false);
+		expect(visibleJudgeIds(cards)).toEqual(['chatgpt', 'sonnet']);
+		expect(capableJudgeIds(cards)).toEqual(['sonnet']);
+		expect(judgesToRun(cards)).toEqual(['sonnet']);
+	});
+
+	it('keeps the legacy report readable even when its old triple is no longer configured', () => {
+		const registry = defaultRegistry().map((c) =>
+			c.id === 'chatgpt'
+				? { ...c, configured: false, missing: ['ANSWER_COMPARE_CHATGPT_API_KEY'] }
+				: c
+		);
+		const cards = applyJudgeRunState(
+			applyJudgeConfigs(initialJudgeCards(registry), registry),
+			[legacyEntry()],
+			registry
+		);
+		expect(cards.chatgpt.report?.id).toBe('legacy-1');
+		expect(cards.chatgpt.missing).toBeNull();
+		expect(judgePhase(cards.chatgpt)).toBe('complete');
+	});
+
+	it('a non-capable judge with nothing stored gets no card at all', () => {
+		const cards = applyJudgeRunState(initialJudgeCards(), [
+			{ judge: 'gemini', current: null, latest_attempt: null, outdated: false, capable: false }
+		]);
+		expect(visibleJudgeIds(cards)).toEqual(['sonnet']);
+	});
+
+	it('names the role under the judge: independent, legacy, or nothing', () => {
+		const cards = applyJudgeRunState(initialJudgeCards(), [legacyEntry()]);
+		expect(judgeRole(cards.sonnet)?.key).toBe('Independent judge');
+		expect(judgeRole(cards.chatgpt)?.key).toBe('Participant judge (no longer used)');
+		// A participant judge re-enabled by the override has no subtitle.
+		const reenabled = applyJudgeRunState(initialJudgeCards(), [
+			{ ...legacyEntry(), judge: 'gemini', capable: true }
+		]);
+		expect(judgeRole(reenabled.gemini)).toBeNull();
 	});
 });

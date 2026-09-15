@@ -22,6 +22,14 @@ import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 export type ProviderId = 'chatgpt' | 'gemini' | 'vesqor';
 
+/**
+ * Who may judge. The compared trio can be re-enabled as judges per deployment
+ * (`ANSWER_COMPARE_<ID>_CAN_JUDGE`), and `sonnet` is the independent judge that
+ * never writes an answer — so it is a JudgeId and never a ProviderId
+ * (DECISIONS.md#016).
+ */
+export type JudgeId = ProviderId | 'sonnet';
+
 export interface ApiErrorDetail {
 	code: string;
 	message?: string;
@@ -36,6 +44,11 @@ export interface ProviderConfig {
 	model: string | null;
 	/** Whether this provider may be offered as a judge — every provider can be an answer, not every one can score. */
 	can_judge: boolean;
+}
+
+/** One entry of the judge registry: the same shape, keyed by JudgeId. */
+export interface JudgeConfig extends Omit<ProviderConfig, 'id'> {
+	id: JudgeId;
 }
 
 export interface AnswerError {
@@ -88,6 +101,8 @@ export interface InputSize {
 export interface CreateRunResponse {
 	run: RunRow;
 	providers: ProviderConfig[];
+	/** The judge registry — the page builds judge cards from this, never from `providers`. */
+	judges: JudgeConfig[];
 	input_size: InputSize;
 }
 
@@ -138,7 +153,7 @@ export interface MappedReport {
 export interface ReportRow {
 	id: string;
 	run_id: string;
-	judge: ProviderId;
+	judge: JudgeId;
 	revision: number;
 	status: 'pending' | 'complete' | 'failed';
 	requested_model: string | null;
@@ -155,11 +170,16 @@ export interface ReportRow {
 }
 
 export interface JudgeReports {
-	judge: ProviderId;
+	judge: JudgeId;
 	current: ReportRow | null;
 	latest_attempt: ReportRow | null;
 	/** Derived by the server on read: the current report judged an older answer set. */
 	outdated: boolean;
+	/**
+	 * Whether this judge may be called now. False for a legacy participant judge
+	 * whose stored report must stay visible but which is never called again.
+	 */
+	capable: boolean;
 }
 
 export type ExclusionReason =
@@ -168,17 +188,18 @@ export type ExclusionReason =
 	| 'failed'
 	| 'malformed'
 	| 'not_configured'
+	| 'not_capable'
 	| 'unmappable';
 
 export interface TallyExcluded {
-	judge: ProviderId;
+	judge: JudgeId;
 	reason: ExclusionReason;
 	/** A failed re-judge on top of an outdated report, when both facts hold. */
 	latest_attempt?: 'failed' | 'malformed';
 }
 
 export interface TallyVerdict {
-	judge: ProviderId;
+	judge: JudgeId;
 	kind: VerdictKind;
 	providers: ProviderId[];
 }
@@ -189,18 +210,21 @@ export interface TallyVerdict {
  */
 export interface Tally {
 	current_versions: { provider: ProviderId; revision: number }[];
-	included_reports: { judge: ProviderId; revision: number }[];
-	included_judges: ProviderId[];
+	included_reports: { judge: JudgeId; revision: number }[];
+	included_judges: JudgeId[];
 	excluded: TallyExcluded[];
 	partial: boolean;
 	verdicts: TallyVerdict[];
+	/** Votes are per ANSWER provider: a judge is never a column here. */
 	votes: Record<ProviderId, number>;
 	n_included: number;
+	/** The denominator: how many judges may judge right now (the capable set). */
+	n_judges: number;
 	outcome: { kind: 'preferred' | 'no_majority' | 'no_valid_verdicts'; provider: ProviderId | null };
-	ties: { judge: ProviderId; providers: ProviderId[] }[];
-	inconclusive: ProviderId[];
-	self_votes: { judge: ProviderId; kind: VerdictKind }[];
-	self_votes_excluded: { judge: ProviderId; kind: VerdictKind }[];
+	ties: { judge: JudgeId; providers: ProviderId[] }[];
+	inconclusive: JudgeId[];
+	self_votes: { judge: JudgeId; kind: VerdictKind }[];
+	self_votes_excluded: { judge: JudgeId; kind: VerdictKind }[];
 }
 
 export interface SummaryRow {
@@ -212,7 +236,7 @@ export interface SummaryRow {
 	tally: Tally;
 	judged_versions: { provider: ProviderId; revision: number }[];
 	partial: boolean;
-	included_judges: ProviderId[];
+	included_judges: JudgeId[];
 	/** Derived on read across both dimensions: answers moved, or reports moved. */
 	outdated: boolean;
 }
@@ -225,6 +249,7 @@ export interface RunSummary {
 export interface GetRunResponse {
 	run: RunRow;
 	providers: ProviderConfig[];
+	judges: JudgeConfig[];
 	answers: ProviderAnswers[];
 	reports: JudgeReports[];
 	tally: Tally;
@@ -232,7 +257,7 @@ export interface GetRunResponse {
 }
 
 export interface RunAllEntry {
-	judge: ProviderId;
+	judge: JudgeId;
 	status: 'complete' | 'failed' | 'skipped';
 	report: ReportRow | null;
 	reason: ApiErrorDetail | null;
@@ -329,7 +354,9 @@ const request = async <T>(
 	throw new CompareConnectionError('untyped-error-body', res.status);
 };
 
-export const getCompareConfig = async (token: string): Promise<{ providers: ProviderConfig[] }> =>
+export const getCompareConfig = async (
+	token: string
+): Promise<{ providers: ProviderConfig[]; judges: JudgeConfig[] }> =>
 	request(token, 'GET', '/config');
 
 export const createRun = async (
@@ -351,7 +378,7 @@ export const generateAnswer = async (
 		`/runs/${encodeURIComponent(runId)}/answers/${encodeURIComponent(provider)}`
 	);
 
-export const judgeRun = async (token: string, runId: string, judge: ProviderId): Promise<ReportRow> =>
+export const judgeRun = async (token: string, runId: string, judge: JudgeId): Promise<ReportRow> =>
 	request(token, 'POST', `/runs/${encodeURIComponent(runId)}/reports/${encodeURIComponent(judge)}`);
 
 export const runAllJudges = async (token: string, runId: string): Promise<RunAllResponse> =>

@@ -79,6 +79,20 @@ ANSWER_BLOCK_RE = re.compile(r'=== ANSWER ([A-C]) ===\n(.*?)\n=== END ANSWER \1 
 
 
 @pytest.fixture(autouse=True)
+def participant_judges(monkeypatch):
+    """This suite exercises the judging mechanics with the three participants as
+    judges, through the supported override. Since DECISIONS.md#016 the default is
+    the independent judge alone; the override is exactly how a deployment brings
+    a participant judge back, so these tests stay valid — and the default itself
+    is covered in test_vq25_sonnet.py.
+    """
+    for provider_id in ('chatgpt', 'gemini', 'vesqor'):
+        monkeypatch.setenv(f'ANSWER_COMPARE_{provider_id.upper()}_CAN_JUDGE', 'true')
+    monkeypatch.setenv('ANSWER_COMPARE_SONNET_CAN_JUDGE', 'false')
+    return monkeypatch
+
+
+@pytest.fixture(autouse=True)
 def isolated_env(monkeypatch):
     for names in PROVIDER_ENV.values():
         for name in names:
