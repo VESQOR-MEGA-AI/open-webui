@@ -18,6 +18,7 @@ import {
 	judgePhase,
 	labelsByProvider,
 	nameWithLabel,
+	reportToText,
 	startJudging,
 	verdictHeadline
 } from './judgeState';
@@ -303,5 +304,71 @@ describe('copy and controls', () => {
 
 		const running = startJudging(cards, 'gemini', 1);
 		expect(judgeButtonDisabledReason(running.gemini, 3)?.key).toBe('This judge is already running.');
+	});
+});
+
+describe('reportToText — the Copy button', () => {
+	it('leads with the judge and the model that ran, so a pasted report has provenance', () => {
+		const text = reportToText('gemini', reportRow(), LABEL_MAP);
+
+		expect(text.split('\n')[0]).toBe('Gemini · gemini-test-1-002');
+	});
+
+	it('falls back to the requested model when the run did not report one', () => {
+		const text = reportToText('gemini', reportRow({ model: null }), LABEL_MAP);
+
+		expect(text.split('\n')[0]).toBe('Gemini · gemini-test-1');
+	});
+
+	it('renders the verdict, the sections and the verification list like the card does', () => {
+		const text = reportToText('gemini', reportRow(), LABEL_MAP);
+
+		expect(text).toContain('Winner: VESQOR (was A)');
+		expect(text).toContain('Answer A is more accurate.');
+		expect(text).toContain('VESQOR (was A)');
+		expect(text).toContain('ChatGPT (was B)');
+		expect(text).toContain('Gemini (was C)');
+		expect(text).toContain('Strengths:');
+		expect(text).toContain('Important omissions:');
+		expect(text).toContain('Claims that need verification:');
+		expect(text).toContain('- the p99 claim');
+	});
+
+	it('copies the judge text verbatim — passage and note keep their newlines and are never re-wrapped', () => {
+		const text = reportToText('gemini', reportRow(), LABEL_MAP);
+
+		expect(text).toContain('quoted from A');
+		expect(text).toContain('A is tight');
+		// The multi-line note from `section()` survives as-is.
+		expect(text).toContain('a general\nmulti-line remark');
+	});
+
+	it('drops empty finding lists rather than printing empty headings', () => {
+		const text = reportToText('gemini', reportRow(), LABEL_MAP);
+
+		expect(text).not.toContain('Useful extras:');
+		expect(text).not.toContain('Unnecessary content:');
+		expect(text).not.toContain('Specific improvements:');
+	});
+
+	it('says so instead of inventing content when the report could not be mapped', () => {
+		const text = reportToText(
+			'gemini',
+			reportRow({ mapped: null, mapping_error: 'label Z is unknown' }),
+			LABEL_MAP
+		);
+
+		expect(text).toContain(JUDGE_ERROR_COPY.label_not_in_map);
+		expect(text).toContain('label Z is unknown');
+		expect(text).not.toContain('Winner');
+	});
+
+	it('names providers without a label when this judge saw them unlabelled', () => {
+		const mapped = mappedReport();
+		const text = reportToText('gemini', reportRow({ mapped, label_map: null }), null);
+
+		// No "(was X)" invented: the label was never known.
+		expect(text).toContain('Winner: VESQOR');
+		expect(text).not.toContain('(was');
 	});
 });
