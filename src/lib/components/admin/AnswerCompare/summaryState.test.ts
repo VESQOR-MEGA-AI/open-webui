@@ -46,7 +46,7 @@ const config = (id: ProviderConfig['id'], configured: boolean): ProviderConfig =
 	missing: configured ? [] : [`ANSWER_COMPARE_${id.toUpperCase()}_API_KEY`],
 	base_url: 'https://x',
 	model: configured ? 'm' : null,
-	can_judge: id !== 'vesqor'
+	can_judge: id === 'anthropic'
 });
 
 describe('the panel renders the narrative and never rewrites it', () => {
@@ -115,20 +115,21 @@ describe('the cost dialog counts what will actually be sent', () => {
 
 	it('counts only judges that will really be called', () => {
 		let cards: JudgeCardsState = initialJudgeCards();
-		expect(judgesToRun(cards)).toEqual(['chatgpt', 'gemini', 'vesqor']);
+		expect(judgesToRun(cards)).toEqual(['anthropic']);
 
-		// Unconfigured: the server would skip it, so it is not a paid request.
-		cards = applyJudgeNotConfigured(cards, 'gemini', ['ANSWER_COMPARE_GEMINI_MODEL']);
-		expect(judgesToRun(cards)).toEqual(['chatgpt', 'vesqor']);
+		// Unconfigured: the server would skip it, so it is not a paid request —
+		// and with a one-judge panel that means the dialog would quote zero.
+		cards = applyJudgeNotConfigured(cards, 'anthropic', ['ANSWER_COMPARE_ANTHROPIC_BASE_URL']);
+		expect(judgesToRun(cards)).toEqual([]);
 
 		// Already running: skipped too.
-		cards = startJudging(cards, 'chatgpt', 1000);
-		expect(judgesToRun(cards)).toEqual(['vesqor']);
+		cards = startJudging(initialJudgeCards(), 'anthropic', 1000);
+		expect(judgesToRun(cards)).toEqual([]);
 
 		// Oversized would be skipped as well; an ordinary failure would not.
-		const oversized = applyJudgeFailure(initialJudgeCards(), 'vesqor', { code: 'oversized' });
-		expect(judgesToRun(oversized)).toEqual(['chatgpt', 'gemini']);
-		const timedOut = applyJudgeFailure(initialJudgeCards(), 'vesqor', { code: 'timeout' });
-		expect(judgesToRun(timedOut)).toEqual(['chatgpt', 'gemini', 'vesqor']);
+		const oversized = applyJudgeFailure(initialJudgeCards(), 'anthropic', { code: 'oversized' });
+		expect(judgesToRun(oversized)).toEqual([]);
+		const timedOut = applyJudgeFailure(initialJudgeCards(), 'anthropic', { code: 'timeout' });
+		expect(judgesToRun(timedOut)).toEqual(['anthropic']);
 	});
 });

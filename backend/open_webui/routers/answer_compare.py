@@ -27,6 +27,7 @@ from open_webui.utils import answer_compare_judge as judge
 from open_webui.utils import answer_compare_summary as summary
 from open_webui.utils import answer_compare_tally as tally
 from open_webui.utils.answer_compare_providers import (
+    GENERATOR_IDS,
     PROVIDER_IDS,
     ProviderConfig,
     resolve_api_key,
@@ -293,7 +294,7 @@ def _input_size(prompt: str, reference: Optional[str]) -> InputSizeResponse:
                 limit_chars=resolve_max_input_chars(provider_id),
                 exceeds=chars > resolve_max_input_chars(provider_id),
             )
-            for provider_id in PROVIDER_IDS
+            for provider_id in GENERATOR_IDS
         ],
     )
 
@@ -696,11 +697,10 @@ async def get_run(run_id: str, user=Depends(get_admin_user)) -> GetRunResponse:
                     _answer_response(latest_by_provider[provider_id]) if provider_id in latest_by_provider else None
                 ),
             )
-            for provider_id in PROVIDER_IDS
+            for provider_id in GENERATOR_IDS
         ],
-        # A JUDGES walk: report cards exist only for judge-capable providers —
-        # `answers` above stays PROVIDER_IDS on purpose, since all three can be
-        # generated and compared.
+        # A JUDGES walk: report cards exist only for the adjudicator —
+        # `answers` above is a CANDIDATES walk, since those are what is compared.
         reports=[
             JudgeReportsResponse(
                 judge=judge_id,
@@ -724,7 +724,11 @@ async def generate_answer(run_id: str, provider: str, user=Depends(get_admin_use
             detail=_detail('run_not_found', run_id=run_id),
         )
 
-    if provider not in PROVIDER_IDS:
+    # A CANDIDATES check: the adjudicator is a known provider but is not one of
+    # the compared systems, so asking it to generate an answer is `unknown_provider`
+    # here — the same answer as for a name that does not exist at all. Letting it
+    # through would put the adjudicator into the field it scores.
+    if provider not in GENERATOR_IDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_detail('unknown_provider', provider=provider),

@@ -88,7 +88,10 @@ describe('the panel never counts', () => {
 			['gemini', 0],
 			['vesqor', 0]
 		]);
-		expect(view.partial?.params).toEqual({ nIncluded: 2, total: 3 });
+		// The denominator is the SIZE OF THE PANEL, not the number of compared
+		// systems. Reading it off the candidates is how "1 of 3 judges" appears
+		// on a one-adjudicator panel.
+		expect(view.partial?.params).toEqual({ nIncluded: 2, total: 1 });
 	});
 
 	it('is cleared when a response carries no tally', () => {

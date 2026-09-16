@@ -32,6 +32,7 @@ from open_webui.models.answer_compare import (
 )
 from open_webui.models.users import UserModel
 from open_webui.routers import answer_compare as answer_compare_router
+from open_webui.utils import answer_compare_adjudication as adjudication
 from open_webui.utils import answer_compare_client as provider_client
 from open_webui.utils import answer_compare_providers as providers
 from open_webui.utils import answer_compare_tally as tally
@@ -48,6 +49,9 @@ ALL_ENV_VARS = (
     providers.ENV_VESQOR_BASE_URL,
     providers.ENV_VESQOR_API_KEY,
     providers.ENV_VESQOR_MODEL,
+    providers.ENV_ANTHROPIC_BASE_URL,
+    providers.ENV_ANTHROPIC_API_KEY,
+    providers.ENV_ANTHROPIC_MODEL,
 )
 
 # Credentials belonging to other integrations. The resolver must not read any of
@@ -82,7 +86,12 @@ def clean_env(monkeypatch):
 def test_unconfigured_providers_name_the_exact_env_vars(clean_env):
     by_id = {p.id: p for p in providers.resolve_providers()}
 
-    assert [p.id for p in providers.resolve_providers()] == ['chatgpt', 'gemini', 'vesqor']
+    assert [p.id for p in providers.resolve_providers()] == [
+        'chatgpt',
+        'gemini',
+        'vesqor',
+        'anthropic',
+    ]
 
     assert by_id['chatgpt'].configured is False
     assert by_id['chatgpt'].missing == [
@@ -106,6 +115,17 @@ def test_unconfigured_providers_name_the_exact_env_vars(clean_env):
     ]
     assert by_id['vesqor'].model is None
     assert by_id['vesqor'].base_url is None
+
+    # The adjudicator: no base URL default (the gateway differs per deployment
+    # and guessing one would ship the key to it), but the model IS defaulted,
+    # because Sonnet 5 is the specified adjudicator rather than a guess.
+    assert by_id['anthropic'].configured is False
+    assert by_id['anthropic'].missing == [
+        'ANSWER_COMPARE_ANTHROPIC_API_KEY',
+        'ANSWER_COMPARE_ANTHROPIC_BASE_URL',
+    ]
+    assert by_id['anthropic'].model == 'claude-sonnet-5'
+    assert by_id['anthropic'].base_url is None
 
     # The other two have defaults, so the page can show where it would call.
     assert by_id['chatgpt'].base_url == 'https://api.openai.com/v1'
@@ -147,6 +167,8 @@ def test_configured_providers_report_no_secrets(clean_env):
     clean_env.setenv('ANSWER_COMPARE_VESQOR_API_KEY', DUMMY_KEY)
     clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
     clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', f'https://user:{DUMMY_KEY}@door.example.com/api/v1')
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://gateway.example/v1')
 
     resolved = providers.resolve_providers()
     for provider in resolved:
@@ -159,6 +181,8 @@ def test_configured_providers_report_no_secrets(clean_env):
     assert by_id['gemini'].base_url == 'https://gemini.example/v1'
     assert by_id['vesqor'].model == 'vesqor-reasoning'
     assert by_id['vesqor'].base_url == 'https://door.example.com/api/v1'
+    assert by_id['anthropic'].model == 'claude-sonnet-5'
+    assert by_id['anthropic'].base_url == 'https://gateway.example/v1'
 
     serialized = json.dumps([p.model_dump() for p in resolved])
     assert DUMMY_KEY not in serialized
@@ -326,14 +350,19 @@ def test_startup_logging_warns_on_every_missing_var_when_nothing_configured(clea
         providers.ENV_VESQOR_API_KEY,
         providers.ENV_VESQOR_MODEL,
         providers.ENV_VESQOR_BASE_URL,
+        providers.ENV_ANTHROPIC_API_KEY,
+        providers.ENV_ANTHROPIC_BASE_URL,
     )
     for name in expected_missing:
         assert name in text, name
 
-    assert '0/3' in text
+    assert '0/4' in text
+    # The adjudicator is called out on its own: without it the page cannot
+    # adjudicate at all, which is not the same as losing one compared column.
+    assert 'cannot adjudicate' in text
 
 
-def test_startup_logging_reports_one_of_three_when_only_vesqor_is_configured(clean_env, caplog):
+def test_startup_logging_reports_one_of_four_when_only_vesqor_is_configured(clean_env, caplog):
     """Mirrors production: only the VESQOR door is configured."""
     clean_env.setenv('ANSWER_COMPARE_VESQOR_API_KEY', DUMMY_KEY)
     clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
@@ -343,7 +372,8 @@ def test_startup_logging_reports_one_of_three_when_only_vesqor_is_configured(cle
         providers.log_startup_configuration()
 
     text = '\n'.join(record.getMessage() for record in caplog.records)
-    assert '1/3' in text
+    assert '1/4' in text
+    assert 'cannot adjudicate' in text, 'a configured candidate is not a configured adjudicator'
     # The still-unconfigured providers' missing vars are still named.
     for name in (
         providers.ENV_CHATGPT_API_KEY,
@@ -354,7 +384,7 @@ def test_startup_logging_reports_one_of_three_when_only_vesqor_is_configured(cle
         assert name in text, name
 
 
-def test_startup_logging_reports_three_of_three_when_all_configured(clean_env, caplog):
+def test_startup_logging_reports_four_of_four_when_all_configured(clean_env, caplog):
     clean_env.setenv('ANSWER_COMPARE_CHATGPT_API_KEY', DUMMY_KEY)
     clean_env.setenv('ANSWER_COMPARE_CHATGPT_MODEL', 'gpt-test-1')
     clean_env.setenv('ANSWER_COMPARE_GEMINI_API_KEY', DUMMY_KEY)
@@ -362,12 +392,15 @@ def test_startup_logging_reports_three_of_three_when_all_configured(clean_env, c
     clean_env.setenv('ANSWER_COMPARE_VESQOR_API_KEY', DUMMY_KEY)
     clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
     clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', 'https://door.example/api/v1')
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_API_KEY', DUMMY_KEY)
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://gateway.example/v1')
 
     with caplog.at_level('INFO', logger=providers.__name__):
         providers.log_startup_configuration()  # must not raise
 
     text = '\n'.join(record.getMessage() for record in caplog.records)
-    assert '3/3' in text
+    assert '4/4' in text
+    assert 'cannot adjudicate' not in text
 
 
 def test_startup_logging_never_leaks_a_configured_providers_key(clean_env, caplog):
@@ -420,7 +453,7 @@ def test_config_endpoint_allows_an_admin(clean_env):
 
     assert response.status_code == 200
     payload = response.json()
-    assert [p['id'] for p in payload['providers']] == ['chatgpt', 'gemini', 'vesqor']
+    assert [p['id'] for p in payload['providers']] == ['chatgpt', 'gemini', 'vesqor', 'anthropic']
     assert payload['providers'][0]['configured'] is False
     assert set(payload['providers'][0]) == {'id', 'configured', 'missing', 'base_url', 'model', 'can_judge'}
 
@@ -610,69 +643,64 @@ def test_model_round_trip_keeps_every_revision():
 
 
 ####################
-# 6 — VQ-25: VESQOR is a subject, never a judge
+# 6 — VQ-25: the compared systems are subjects, never judges
 ####################
-
-CAN_JUDGE_ENV = {
-    'chatgpt': 'ANSWER_COMPARE_CHATGPT_CAN_JUDGE',
-    'gemini': 'ANSWER_COMPARE_GEMINI_CAN_JUDGE',
-    'vesqor': 'ANSWER_COMPARE_VESQOR_CAN_JUDGE',
-}
 
 
 @pytest.fixture
 def clean_can_judge_env(monkeypatch):
-    """The fourth, optional per-provider variable, removed — the built-in-default state."""
-    for name in CAN_JUDGE_ENV.values():
-        monkeypatch.delenv(name, raising=False)
+    """Kept as a fixture so the tests below read the same as they did.
+
+    There is nothing left to clean: judge capability used to be a per-provider
+    environment variable and is now structural. The fixture asserts that — a
+    stray ``ANSWER_COMPARE_*_CAN_JUDGE`` in an environment must be inert, not
+    quietly hand a candidate the judge role back.
+    """
+    for provider_id in providers.PROVIDER_IDS:
+        monkeypatch.setenv(f'ANSWER_COMPARE_{provider_id.upper()}_CAN_JUDGE', 'true')
     return monkeypatch
 
 
-def test_resolve_can_judge_defaults(clean_can_judge_env):
-    """ChatGPT and Gemini can judge out of the box; VESQOR cannot (proven live, see module docstring)."""
-    assert providers.resolve_can_judge('chatgpt') is True
-    assert providers.resolve_can_judge('gemini') is True
-    assert providers.resolve_can_judge('vesqor') is False
+def test_no_candidate_can_judge_whatever_the_environment_says(clean_can_judge_env):
+    """The three compared systems never judge — including their own answers."""
+    for provider_id in providers.GENERATOR_IDS:
+        assert providers.resolve_can_judge(provider_id) is False, provider_id
 
 
-@pytest.mark.parametrize('spelling', ['true', 'TRUE', 'True', '1', 'yes', 'YES'])
-def test_resolve_can_judge_true_spellings_enable_a_disabled_default(clean_can_judge_env, spelling):
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['vesqor'], spelling)
-    assert providers.resolve_can_judge('vesqor') is True
+def test_the_adjudicator_judges_and_is_not_one_of_the_candidates(clean_can_judge_env):
+    assert providers.resolve_can_judge(providers.ADJUDICATOR_ID) is True
+    assert providers.ADJUDICATOR_ID not in providers.GENERATOR_IDS
 
 
-@pytest.mark.parametrize('spelling', ['false', 'FALSE', 'False', '0', 'no', 'NO'])
-def test_resolve_can_judge_false_spellings_disable_an_enabled_default(clean_can_judge_env, spelling):
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['chatgpt'], spelling)
-    assert providers.resolve_can_judge('chatgpt') is False
+def test_the_two_roles_are_disjoint():
+    """The property the whole split exists for, asserted directly."""
+    assert set(providers.GENERATOR_IDS) & set(providers.JUDGE_IDS) == set()
+    assert providers.PROVIDER_IDS == providers.GENERATOR_IDS + providers.JUDGE_IDS
 
 
-def test_resolve_can_judge_junk_value_falls_back_to_the_default_without_raising(clean_can_judge_env, caplog):
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['vesqor'], 'maybe')
-
-    with caplog.at_level('WARNING', logger=providers.__name__):
-        result = providers.resolve_can_judge('vesqor')  # must not raise
-
-    assert result is False  # the built-in default for vesqor
-    assert CAN_JUDGE_ENV['vesqor'] in caplog.text
+def test_resolve_can_judge_rejects_an_unknown_provider():
+    with pytest.raises(ValueError):
+        providers.resolve_can_judge('not-a-provider')
 
 
-def test_resolve_judge_ids_returns_chatgpt_and_gemini_by_default(clean_can_judge_env):
-    assert providers.resolve_judge_ids() == ('chatgpt', 'gemini')
+def test_resolve_judge_ids_returns_the_single_adjudicator(clean_can_judge_env):
+    assert providers.resolve_judge_ids() == ('anthropic',)
 
 
-def test_resolve_judge_ids_follows_overrides_in_both_directions(clean_can_judge_env):
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['vesqor'], 'true')
-    clean_can_judge_env.setenv(CAN_JUDGE_ENV['gemini'], 'false')
-    # Fixed PROVIDER_IDS order, not the order the overrides were set in.
-    assert providers.resolve_judge_ids() == ('chatgpt', 'vesqor')
+def test_judge_capability_is_not_configurable_at_all(clean_can_judge_env):
+    """No environment variable can move the judge role, in either direction."""
+    clean_can_judge_env.setenv('ANSWER_COMPARE_ANTHROPIC_CAN_JUDGE', 'false')
+    clean_can_judge_env.setenv('ANSWER_COMPARE_VESQOR_CAN_JUDGE', 'true')
+    assert providers.resolve_judge_ids() == ('anthropic',)
+    assert not hasattr(providers, 'can_judge_env'), 'the CAN_JUDGE seam must stay gone'
 
 
 def test_provider_config_carries_can_judge(clean_env, clean_can_judge_env):
     by_id = {p.id: p for p in providers.resolve_providers()}
-    assert by_id['chatgpt'].can_judge is True
-    assert by_id['gemini'].can_judge is True
+    assert by_id['chatgpt'].can_judge is False
+    assert by_id['gemini'].can_judge is False
     assert by_id['vesqor'].can_judge is False
+    assert by_id['anthropic'].can_judge is True
 
 
 def test_config_endpoint_exposes_can_judge_per_provider(clean_env, clean_can_judge_env):
@@ -680,13 +708,45 @@ def test_config_endpoint_exposes_can_judge_per_provider(clean_env, clean_can_jud
 
     assert response.status_code == 200
     by_id = {p['id']: p for p in response.json()['providers']}
-    assert by_id['chatgpt']['can_judge'] is True
-    assert by_id['gemini']['can_judge'] is True
+    assert by_id['chatgpt']['can_judge'] is False
+    assert by_id['gemini']['can_judge'] is False
     assert by_id['vesqor']['can_judge'] is False
+    assert by_id['anthropic']['can_judge'] is True
+
+
+def test_the_config_endpoint_never_returns_adjudicator_key_material(clean_env, monkeypatch):
+    """The adjudicator's key is reached through one header and is never reported."""
+    monkeypatch.setenv('ANSWER_COMPARE_ANTHROPIC_API_KEY', 'sk-secret-adjudicator-key')
+    monkeypatch.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://gateway.example/v1')
+
+    response = _client_as('admin').get('/api/v1/compare/config')
+
+    assert response.status_code == 200
+    assert 'sk-secret-adjudicator-key' not in response.text
+
+
+def test_the_adjudicator_defaults_to_the_specified_model(clean_env):
+    """Sonnet 5 is the specified adjudicator, so it is a default, not a guess."""
+    config = providers.resolve_provider('anthropic')
+    assert config.model == 'claude-sonnet-5'
+    assert providers.ENV_ANTHROPIC_MODEL not in config.missing
+
+
+def test_the_adjudicator_base_url_has_no_default(clean_env):
+    """Guessing a gateway URL would ship the key and every answer to it."""
+    config = providers.resolve_provider('anthropic')
+    assert config.base_url is None
+    assert providers.ENV_ANTHROPIC_BASE_URL in config.missing
+
+
+def test_no_generator_gets_an_invented_model_default(clean_env):
+    for provider_id in providers.GENERATOR_IDS:
+        config = providers.resolve_provider(provider_id)
+        assert config.model is None, provider_id
 
 
 ####################
-# 6a — tally: the judge panel is judge-capable providers, not every provider
+# 6a — tally: the judge panel is the adjudicator, not every provider
 ####################
 
 LABEL_MAP_2 = {'A': 'chatgpt', 'B': 'gemini'}
@@ -711,51 +771,72 @@ def _tally_report_2(kind: str, providers_named: list[str], versions: list[dict])
     )
 
 
-def test_tally_two_capable_judges_is_not_partial(clean_can_judge_env):
-    """chatgpt+gemini is the WHOLE judge panel by default: two fresh verdicts must not read as partial."""
-    versions = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
-    judges = [
-        tally.TallyJudge(judge='chatgpt', current=_tally_report_2('winner', ['chatgpt'], versions)),
-        tally.TallyJudge(judge='gemini', current=_tally_report_2('winner', ['chatgpt'], versions)),
-    ]
+_VERSIONS_2 = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
 
-    result = tally.compute_tally(versions, judges)
 
-    assert result['n_included'] == 2
+def test_tally_the_single_adjudicator_is_the_whole_panel(clean_can_judge_env):
+    """One fresh verdict IS the panel's verdict — it must not read as partial."""
+    judges = [tally.TallyJudge(judge='anthropic', current=_tally_report_2('winner', ['chatgpt'], _VERSIONS_2))]
+
+    result = tally.compute_tally(_VERSIONS_2, judges)
+
+    assert result['n_included'] == 1
     assert result['partial'] is False
-    assert result['included_judges'] == ['chatgpt', 'gemini']
+    assert result['included_judges'] == ['anthropic']
 
 
-def test_tally_ignores_a_judge_entry_for_a_non_capable_provider(clean_can_judge_env):
-    """Even if a caller mistakenly hands in a TallyJudge for vesqor, it is never tallied as a judge."""
-    versions = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
-    judges = [
-        tally.TallyJudge(judge='chatgpt', current=_tally_report_2('winner', ['chatgpt'], versions)),
-        tally.TallyJudge(judge='gemini', current=_tally_report_2('winner', ['chatgpt'], versions)),
-        tally.TallyJudge(judge='vesqor', configured=True, current=None),
-    ]
+def test_tally_a_single_adjudicators_verdict_is_the_preferred_answer(clean_can_judge_env):
+    """DECISIONS.md#014 guards a PARTIAL panel, not a panel that is one by design.
 
-    result = tally.compute_tally(versions, judges)
+    Requiring two included verdicts on a one-judge panel would report "no
+    majority" for every adjudication the product can ever produce, which is
+    false rather than cautious.
+    """
+    judges = [tally.TallyJudge(judge='anthropic', current=_tally_report_2('winner', ['chatgpt'], _VERSIONS_2))]
 
-    # The judge-capable panel is still just chatgpt+gemini: fully included, not partial.
-    assert result['n_included'] == 2
-    assert result['partial'] is False
-    assert all(item['judge'] != 'vesqor' for item in result['excluded'])
+    result = tally.compute_tally(_VERSIONS_2, judges)
+
+    assert result['outcome'] == {'kind': 'preferred', 'provider': 'chatgpt'}
 
 
-def test_tally_a_capable_judge_missing_its_report_is_still_correctly_partial(clean_can_judge_env):
-    """Regression: a judge-capable provider with no report yet is unaffected by this change."""
-    versions = [{'provider': 'chatgpt', 'revision': 1}, {'provider': 'gemini', 'revision': 1}]
-    judges = [
-        tally.TallyJudge(judge='chatgpt', current=_tally_report_2('winner', ['chatgpt'], versions)),
-        tally.TallyJudge(judge='gemini', current=None),
-    ]
+def test_tally_one_of_a_larger_panel_is_still_not_preferred(monkeypatch):
+    """The same code, on a three-judge panel: one voter is still one opinion."""
+    monkeypatch.setattr(tally, 'resolve_judge_ids', lambda: ('anthropic', 'second', 'third'))
+    judges = [tally.TallyJudge(judge='anthropic', current=_tally_report_2('winner', ['chatgpt'], _VERSIONS_2))]
 
-    result = tally.compute_tally(versions, judges)
+    result = tally.compute_tally(_VERSIONS_2, judges)
 
     assert result['n_included'] == 1
     assert result['partial'] is True
-    assert result['excluded'] == [{'judge': 'gemini', 'reason': 'no_report'}]
+    assert result['outcome'] == {'kind': 'no_majority', 'provider': None}
+
+
+@pytest.mark.parametrize('candidate', ['chatgpt', 'gemini', 'vesqor'])
+def test_tally_ignores_a_judge_entry_for_a_candidate(clean_can_judge_env, candidate):
+    """Even handed in by mistake, a compared system is never tallied as a judge."""
+    judges = [
+        tally.TallyJudge(judge='anthropic', current=_tally_report_2('winner', ['chatgpt'], _VERSIONS_2)),
+        tally.TallyJudge(judge=candidate, configured=True, current=None),
+    ]
+
+    result = tally.compute_tally(_VERSIONS_2, judges)
+
+    assert result['n_included'] == 1
+    assert result['partial'] is False
+    assert all(item['judge'] != candidate for item in result['excluded'])
+    assert all(entry['judge'] != candidate for entry in result['verdicts'])
+
+
+def test_tally_the_adjudicator_missing_its_report_is_correctly_partial(clean_can_judge_env):
+    """With the panel unreported there is no verdict at all — and it says so."""
+    judges = [tally.TallyJudge(judge='anthropic', current=None)]
+
+    result = tally.compute_tally(_VERSIONS_2, judges)
+
+    assert result['n_included'] == 0
+    assert result['partial'] is True
+    assert result['excluded'] == [{'judge': 'anthropic', 'reason': 'no_report'}]
+    assert result['outcome'] == {'kind': 'no_valid_verdicts', 'provider': None}
 
 
 ####################
@@ -802,30 +883,69 @@ def _report_rows(run_id: str) -> list:
     return asyncio.run(AnswerCompareReports.get_all_by_run(run_id))
 
 
-ANSWER_BLOCK_RE = re.compile(r'=== ANSWER ([A-Z]) ===\n(.*?)\n=== END ANSWER \1 ===', re.S)
+# The canonical engine's candidate block. The double has to read the prompt the
+# engine really writes: a stale pattern here yields zero labels and the double
+# starts answering about candidates that were never asked about.
+CANDIDATE_BLOCK_RE = re.compile(r'=== CANDIDATE ([A-Z]) ===\n(.*?)\n=== END CANDIDATE \1 ===', re.S)
 
 
 def _labels_in(body: dict) -> list[str]:
     user = next(m['content'] for m in body['messages'] if m['role'] == 'user')
-    return [m.group(1) for m in ANSWER_BLOCK_RE.finditer(user)]
+    labels = [m.group(1) for m in CANDIDATE_BLOCK_RE.finditer(user)]
+    assert labels, 'the double could not find a candidate block — the prompt format moved'
+    return labels
+
+
+def _candidate_findings(label: str, winner: bool) -> dict:
+    """One candidate's findings in the canonical schema.
+
+    Only findings and per-category points: the double never writes a total, a
+    ranking or a winner's score, because the engine computes all of those from
+    exactly this and would silently accept a model that made them up.
+    """
+    fraction = 0.9 if winner else 0.6
+    return {
+        'label': label,
+        'claims': [
+            {
+                'claim': 'the deploy succeeded',
+                'passage': 'the deploy succeeded',
+                # NOT_VERIFIABLE, not VERIFIED: the runs in this file carry no
+                # reference corpus, and the engine rightly refuses a VERIFIED
+                # material claim that cites no evidence.
+                'classification': adjudication.CLAIM_NOT_VERIFIABLE,
+                'material': True,
+                'evidence_ids': [],
+                'note': '',
+            }
+        ],
+        'category_scores': {
+            key: round(adjudication.CATEGORY_WEIGHTS[key] * fraction, 1) for key in adjudication.CATEGORY_KEYS
+        },
+        'penalties': [],
+        'coverage': {'covered_evidence_ids': [], 'missed_evidence_ids': []},
+        'strengths': [{'passage': 'a passage', 'note': 'clear'}],
+        'critical_errors': [],
+        'critical_omissions': [],
+        'improvements': [{'passage': 'a passage', 'note': 'be specific'}],
+        'unnecessary': [],
+        'useful_extras': [],
+    }
 
 
 def _valid_report_for(labels: list[str]) -> dict:
     return {
-        'answers': [
-            {
-                'label': label,
-                'strengths': [],
-                'errors_or_unsupported': [],
-                'omissions': [],
-                'useful_extras': [],
-                'unnecessary': [],
-                'improvements': [],
-            }
-            for label in labels
-        ],
-        'verdict': {'kind': 'winner', 'labels': [labels[0]]},
-        'rationale': 'Answer is fine.',
+        'evidence_matrix': [],
+        'candidates': [_candidate_findings(label, label == labels[0]) for label in labels],
+        'category_winners': {key: [labels[0]] for key in adjudication.CATEGORY_KEYS},
+        'pairwise': [],
+        'declared_winner': labels[0],
+        'confidence': adjudication.CONFIDENCE_MEDIUM,
+        'decisive_reasons': ['Better supported by the reference.'],
+        'winner_gap_analysis': ['Still hedges on the timeline.'],
+        'loser_recovery_analysis': [{'label': label, 'actions': ['cite the log']} for label in labels[1:]],
+        'final_adjudication': 'Answer is fine.',
+        'unresolved_uncertainty': [],
         'needs_verification': [],
     }
 
@@ -859,44 +979,62 @@ def _configure_provider(monkeypatch, provider_id: str) -> None:
     monkeypatch.setenv(f'ANSWER_COMPARE_{provider_id.upper()}_MODEL', f'{provider_id}-model-test-1')
 
 
-def test_judge_endpoint_refuses_a_non_capable_provider_and_writes_nothing(clean_env, clean_can_judge_env):
+@pytest.mark.parametrize('candidate', ['chatgpt', 'gemini', 'vesqor'])
+def test_judge_endpoint_refuses_every_candidate_and_writes_nothing(
+    clean_env, clean_can_judge_env, monkeypatch, candidate
+):
+    """No compared system can be asked to judge — not even a fully configured one."""
     asyncio.run(_create_compare_tables())
+    _configure_provider(monkeypatch, candidate)
     run_id = _make_run()
 
-    response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/reports/vesqor')
+    response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/reports/{candidate}')
 
     assert response.status_code == 400
-    assert response.json()['detail'] == {'code': 'judge_not_capable', 'judge': 'vesqor'}
+    assert response.json()['detail'] == {'code': 'judge_not_capable', 'judge': candidate}
     assert _report_rows(run_id) == []
 
 
-def test_judge_endpoint_still_accepts_a_capable_provider(clean_env, clean_can_judge_env, monkeypatch):
-    """Regression: a provider with can_judge=true is unaffected by this change."""
+def test_judge_endpoint_accepts_the_adjudicator(clean_env, clean_can_judge_env, monkeypatch):
     asyncio.run(_create_compare_tables())
     _configure_provider(monkeypatch, 'chatgpt')
     _configure_provider(monkeypatch, 'gemini')
+    _configure_provider(monkeypatch, 'anthropic')
     _install_judge_double(monkeypatch)
 
     run_id = _make_run()
     _seed_complete_answers(run_id, ('chatgpt', 'gemini'))
 
-    response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/reports/chatgpt')
+    response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/reports/anthropic')
 
     assert response.status_code == 200
-    assert response.json()['status'] == 'complete'
+    assert response.json()['status'] == 'complete', response.json().get('error')
     rows = _report_rows(run_id)
-    assert [r.judge for r in rows] == ['chatgpt']
+    assert [r.judge for r in rows] == ['anthropic']
 
 
-def test_run_all_skips_the_non_capable_judge_and_still_writes_the_capable_ones(
+def test_the_adjudicator_cannot_be_asked_to_generate_an_answer(clean_env, monkeypatch):
+    """The independence the split exists for, enforced at the endpoint."""
+    asyncio.run(_create_compare_tables())
+    _configure_provider(monkeypatch, 'anthropic')
+    run_id = _make_run()
+
+    response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/answers/anthropic')
+
+    assert response.status_code == 400
+    assert response.json()['detail'] == {'code': 'unknown_provider', 'provider': 'anthropic'}
+
+
+def test_run_all_calls_the_adjudicator_only_however_many_candidates_are_configured(
     clean_env, clean_can_judge_env, monkeypatch
 ):
     asyncio.run(_create_compare_tables())
+    # Every candidate fully configured — the point is that being configured
+    # does not make one of them a judge.
     _configure_provider(monkeypatch, 'chatgpt')
     _configure_provider(monkeypatch, 'gemini')
-    # vesqor is left fully configured too — the point is that being configured
-    # does not make it judge-capable.
     _configure_provider(monkeypatch, 'vesqor')
+    _configure_provider(monkeypatch, 'anthropic')
     double = _install_judge_double(monkeypatch)
 
     run_id = _make_run()
@@ -907,13 +1045,12 @@ def test_run_all_skips_the_non_capable_judge_and_still_writes_the_capable_ones(
     assert response.status_code == 200
     payload = response.json()
     by_judge = {entry['judge']: entry for entry in payload['results']}
-    # vesqor never appears at all — not complete, not failed, not even skipped.
-    assert set(by_judge) == {'chatgpt', 'gemini'}
-    assert by_judge['chatgpt']['status'] == 'complete'
-    assert by_judge['gemini']['status'] == 'complete'
+    # No candidate appears at all — not complete, not failed, not even skipped.
+    assert set(by_judge) == {'anthropic'}
+    assert by_judge['anthropic']['status'] == 'complete'
 
     rows = _report_rows(run_id)
-    assert sorted(r.judge for r in rows) == ['chatgpt', 'gemini']
+    assert sorted(r.judge for r in rows) == ['anthropic']
 
-    # Only two requests ever went out — vesqor's door was never called.
-    assert len(double.requests) == 2
+    # Exactly one request went out: three candidates' doors were never called.
+    assert len(double.requests) == 1

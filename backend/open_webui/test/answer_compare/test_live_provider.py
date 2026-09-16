@@ -5,18 +5,25 @@ same path Administration -> Compare uses: the canonical request builder, the
 real prompt, the real structured-output ladder, the real validator, the real
 scoring. Nothing here is stubbed.
 
-It is skipped unless a provider is actually configured, because a suite that
-quietly passed against no provider would be worse than no suite at all — it
+It is skipped unless the adjudicator is actually configured, because a suite
+that quietly passed against no provider would be worse than no suite at all — it
 would read as live validation while proving nothing. Run it with the same
 environment the deployed app uses:
 
-    ANSWER_COMPARE_CHATGPT_API_KEY=... \\
-    ANSWER_COMPARE_CHATGPT_MODEL=... \\
+    ANSWER_COMPARE_ANTHROPIC_BASE_URL=... \\
+    ANSWER_COMPARE_ANTHROPIC_API_KEY=... \\
+    ANSWER_COMPARE_ANTHROPIC_MODEL=claude-sonnet-5 \\
     pytest backend/open_webui/test/answer_compare/test_live_provider.py -v
 
-Every judge-capable configured provider is exercised, so provider consistency is
-checked by construction: the same scenario runs through each, and the assertions
-are on adjudication *semantics*, never on transport success.
+Note that ``ANSWER_COMPARE_ANTHROPIC_*`` is the ADJUDICATOR, not a fourth
+candidate: it writes none of the answers it scores. The candidates'
+``ANSWER_COMPARE_CHATGPT_*`` / ``_GEMINI_*`` / ``_VESQOR_*`` variables are not
+needed here, because this suite builds its candidate answers as fixtures and
+only the adjudicator is really called.
+
+Every configured judge is exercised, so a panel that later grows stays checked
+by construction: the same scenario runs through each, and the assertions are on
+adjudication *semantics*, never on transport success.
 
 What is asserted is what a reviewer would check by hand — that fabrication is
 punished, that a critical omission is seen, that injected instructions are

@@ -2,12 +2,20 @@ import type {
 	JudgeReports,
 	MappedReport,
 	ProviderConfig,
-	ProviderId,
+	GeneratorId,
+	JudgeId,
 	ReportAnswerSection,
 	ReportFinding,
 	ReportRow
 } from '$lib/apis/answer-compare';
-import { ERROR_COPY, PROVIDER_IDS, PROVIDER_LABELS, UNKNOWN_ERROR_COPY, type CardFailure } from './state';
+import {
+	ERROR_COPY,
+	GENERATOR_IDS,
+	JUDGE_IDS,
+	PROVIDER_LABELS,
+	UNKNOWN_ERROR_COPY,
+	type CardFailure
+} from './state';
 
 /**
  * Judge-card state, with the same discipline as `state.ts`: pure transitions, one
@@ -56,7 +64,7 @@ export const JUDGE_RETRY_DISABLED_CODES = [
 ];
 
 export interface JudgeCardState {
-	judge: ProviderId;
+	judge: JudgeId;
 	/** The last complete report. Replaced only by a newer complete one. */
 	report: ReportRow | null;
 	inFlight: boolean;
@@ -70,7 +78,7 @@ export interface JudgeCardState {
 	capable: boolean;
 }
 
-export type JudgeCardsState = Record<ProviderId, JudgeCardState>;
+export type JudgeCardsState = Record<JudgeId, JudgeCardState>;
 
 export type JudgePhase =
 	| 'requires_configuration'
@@ -80,7 +88,7 @@ export type JudgePhase =
 	| 'complete'
 	| 'empty';
 
-export const emptyJudgeCard = (judge: ProviderId, capable = true): JudgeCardState => ({
+export const emptyJudgeCard = (judge: JudgeId, capable = true): JudgeCardState => ({
 	judge,
 	report: null,
 	inFlight: false,
@@ -98,14 +106,14 @@ export const emptyJudgeCard = (judge: ProviderId, capable = true): JudgeCardStat
  */
 export const initialJudgeCards = (configs?: ProviderConfig[]): JudgeCardsState => {
 	const capableById = new Map(configs?.map((config) => [config.id, config.can_judge]) ?? []);
-	return PROVIDER_IDS.reduce((acc, judge) => {
+	return JUDGE_IDS.reduce((acc, judge) => {
 		acc[judge] = emptyJudgeCard(judge, capableById.get(judge) ?? true);
 		return acc;
 	}, {} as JudgeCardsState);
 };
 
 /** The single write point: replaces one judge's card, keeps the other two by identity. */
-const withJudgeCard = (cards: JudgeCardsState, judge: ProviderId, next: JudgeCardState): JudgeCardsState => ({
+const withJudgeCard = (cards: JudgeCardsState, judge: JudgeId, next: JudgeCardState): JudgeCardsState => ({
 	...cards,
 	[judge]: next
 });
@@ -133,7 +141,7 @@ export const isJudgeRetryDisabled = (card: JudgeCardState): boolean =>
 	card.inFlight || (card.failure !== null && JUDGE_RETRY_DISABLED_CODES.includes(card.failure.code));
 
 /** A judging starts. The existing report stays: this is Re-judging, not Judging. */
-export const startJudging = (cards: JudgeCardsState, judge: ProviderId, now: number): JudgeCardsState =>
+export const startJudging = (cards: JudgeCardsState, judge: JudgeId, now: number): JudgeCardsState =>
 	withJudgeCard(cards, judge, {
 		...cards[judge],
 		inFlight: true,
@@ -144,7 +152,7 @@ export const startJudging = (cards: JudgeCardsState, judge: ProviderId, now: num
 
 export const applyJudgeNotConfigured = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	missing: string[],
 	capable?: boolean
 ): JudgeCardsState =>
@@ -159,7 +167,7 @@ export const applyJudgeNotConfigured = (
 
 export const applyJudgeOversized = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	limitChars: number,
 	actualChars: number
 ): JudgeCardsState =>
@@ -175,8 +183,8 @@ export const applyJudgeOversized = (
 
 export const applyJudgeNotEnoughAnswers = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
-	complete: ProviderId[]
+	judge: JudgeId,
+	complete: GeneratorId[]
 ): JudgeCardsState =>
 	withJudgeCard(cards, judge, {
 		...cards[judge],
@@ -191,7 +199,7 @@ export const applyJudgeNotEnoughAnswers = (
 /** A typed failure, from our backend or from the judge via a failed row. The report is untouched. */
 export const applyJudgeFailure = (
 	cards: JudgeCardsState,
-	judge: ProviderId,
+	judge: JudgeId,
 	failure: CardFailure
 ): JudgeCardsState =>
 	withJudgeCard(cards, judge, {
@@ -202,7 +210,7 @@ export const applyJudgeFailure = (
 	});
 
 /** Apply one report row, whatever its status. The single entry point for results. */
-export const applyJudgeResult = (cards: JudgeCardsState, judge: ProviderId, row: ReportRow): JudgeCardsState => {
+export const applyJudgeResult = (cards: JudgeCardsState, judge: JudgeId, row: ReportRow): JudgeCardsState => {
 	const card = cards[judge];
 
 	if (row.status === 'complete') {
@@ -238,10 +246,17 @@ export const applyJudgeResult = (cards: JudgeCardsState, judge: ProviderId, row:
 };
 
 export const applyJudgeConfigs = (cards: JudgeCardsState, configs: ProviderConfig[]): JudgeCardsState =>
-	configs.reduce((acc, config) => {
-		const next = config.configured ? acc : applyJudgeNotConfigured(acc, config.id, config.missing);
-		return withJudgeCard(next, config.id, { ...next[config.id], capable: config.can_judge });
-	}, cards);
+	// Filtered to the panel, not reduced over every config the server sent: the
+	// config list carries the candidates too, and writing a judge card for one
+	// would put a contestant back among the judges through the back door.
+	configs
+		.filter((config): config is ProviderConfig & { id: JudgeId } =>
+			(JUDGE_IDS as string[]).includes(config.id)
+		)
+		.reduce((acc, config) => {
+			const next = config.configured ? acc : applyJudgeNotConfigured(acc, config.id, config.missing);
+			return withJudgeCard(next, config.id, { ...next[config.id], capable: config.can_judge });
+		}, cards);
 
 /**
  * Adopt the stored state: the current report, the latest attempt layered on it,
@@ -311,7 +326,7 @@ export const judgeButtonDisabledReason = (
 // ---------------------------------------------------------------------------
 
 export interface NamedProvider {
-	provider: ProviderId;
+	provider: GeneratorId;
 	/** The provider's display name. */
 	name: string;
 	/** The anonymous label this provider had for this judge, or null when unknown. */
@@ -319,15 +334,15 @@ export interface NamedProvider {
 }
 
 /** Invert label_map: provider -> the label it had. "(was B)" comes from here. */
-export const labelsByProvider = (labelMap: Record<string, ProviderId> | null): Partial<Record<ProviderId, string>> => {
-	const out: Partial<Record<ProviderId, string>> = {};
+export const labelsByProvider = (labelMap: Record<string, GeneratorId> | null): Partial<Record<GeneratorId, string>> => {
+	const out: Partial<Record<GeneratorId, string>> = {};
 	for (const [label, provider] of Object.entries(labelMap ?? {})) {
 		out[provider] = label;
 	}
 	return out;
 };
 
-export const nameWithLabel = (provider: ProviderId, labelMap: Record<string, ProviderId> | null): NamedProvider => ({
+export const nameWithLabel = (provider: GeneratorId, labelMap: Record<string, GeneratorId> | null): NamedProvider => ({
 	provider,
 	name: PROVIDER_LABELS[provider],
 	label: labelsByProvider(labelMap)[provider] ?? null
@@ -336,7 +351,7 @@ export const nameWithLabel = (provider: ProviderId, labelMap: Record<string, Pro
 /** The verdict line: kind plus the named providers, each with its label. */
 export const verdictHeadline = (
 	mapped: MappedReport,
-	labelMap: Record<string, ProviderId> | null
+	labelMap: Record<string, GeneratorId> | null
 ): { kind: MappedReport['verdict']['kind']; providers: NamedProvider[] } => ({
 	kind: mapped.verdict.kind,
 	providers: mapped.verdict.providers.map((provider) => nameWithLabel(provider, labelMap))
@@ -357,9 +372,9 @@ export interface RenderedSection {
 /** One section per provider in the fixed order, with empty lists dropped. Findings are the judge's own objects. */
 export const answerSections = (
 	mapped: MappedReport,
-	labelMap: Record<string, ProviderId> | null
+	labelMap: Record<string, GeneratorId> | null
 ): RenderedSection[] =>
-	PROVIDER_IDS.filter((provider) => mapped.answers[provider] !== undefined).map((provider) => {
+	GENERATOR_IDS.filter((provider) => mapped.answers[provider] !== undefined).map((provider) => {
 		const section = mapped.answers[provider] as ReportAnswerSection;
 		return {
 			named: nameWithLabel(provider, labelMap),
@@ -369,16 +384,16 @@ export const answerSections = (
 		};
 	});
 
-/** The judge-capable providers, in `PROVIDER_IDS` order — every judge-only loop walks this, not `PROVIDER_IDS`. */
-export const capableJudgeIds = (cards: JudgeCardsState): ProviderId[] =>
-	PROVIDER_IDS.filter((judge) => cards[judge].capable);
+/** The adjudication panel, in fixed order — every judge-only loop walks this. */
+export const capableJudgeIds = (cards: JudgeCardsState): JudgeId[] =>
+	JUDGE_IDS.filter((judge) => cards[judge].capable);
 
 /**
- * The judges "Run all three judges" will actually call: capable, configured,
+ * The judges the adjudication control will actually call: capable, configured,
  * not already running, and not sitting on a state the server would skip
  * anyway. Same reason as `providersToGenerate` — the dialog quotes this count.
  */
-export const judgesToRun = (cards: JudgeCardsState): ProviderId[] =>
+export const judgesToRun = (cards: JudgeCardsState): JudgeId[] =>
 	capableJudgeIds(cards).filter((judge) => {
 		const card = cards[judge];
 		if (card.missing !== null || card.inFlight) return false;

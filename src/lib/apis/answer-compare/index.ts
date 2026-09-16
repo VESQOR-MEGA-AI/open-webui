@@ -20,7 +20,22 @@ import { WEBUI_API_BASE_URL } from '$lib/constants';
  *     guessing that the provider failed.
  */
 
-export type ProviderId = 'chatgpt' | 'gemini' | 'vesqor';
+/**
+ * The compared systems — the candidates whose answers are scored against each
+ * other and shown as A/B/C.
+ */
+export type GeneratorId = 'chatgpt' | 'gemini' | 'vesqor';
+
+/**
+ * The independent adjudicator: the one model that scores the candidates. Kept as
+ * its own type, disjoint from `GeneratorId`, so the compiler enforces what the
+ * design requires — an adjudicator never appears in the field it judges, and a
+ * candidate never scores one.
+ */
+export type JudgeId = 'anthropic';
+
+/** Any provider this page can configure, in either role. */
+export type ProviderId = GeneratorId | JudgeId;
 
 export interface ApiErrorDetail {
 	code: string;
@@ -34,7 +49,7 @@ export interface ProviderConfig {
 	missing: string[];
 	base_url: string | null;
 	model: string | null;
-	/** Whether this provider may be offered as a judge — every provider can be an answer, not every one can score. */
+	/** Whether this provider adjudicates. Structural on the server, not configurable. */
 	can_judge: boolean;
 }
 
@@ -46,7 +61,7 @@ export interface AnswerError {
 export interface AnswerRow {
 	id: string;
 	run_id: string;
-	provider: ProviderId;
+	provider: GeneratorId;
 	revision: number;
 	status: 'pending' | 'complete' | 'failed';
 	requested_model: string | null;
@@ -75,7 +90,7 @@ export interface RunRow {
 }
 
 export interface ProviderInputSize {
-	provider: ProviderId;
+	provider: GeneratorId;
 	limit_chars: number;
 	exceeds: boolean;
 }
@@ -92,7 +107,7 @@ export interface CreateRunResponse {
 }
 
 export interface ProviderAnswers {
-	provider: ProviderId;
+	provider: GeneratorId;
 	current: AnswerRow | null;
 	latest_attempt: AnswerRow | null;
 }
@@ -158,7 +173,7 @@ export interface ClaimSummary {
 /** One candidate's computed result, with the provider resolved from its label. */
 export interface CandidateScore {
 	label: string;
-	provider: ProviderId;
+	provider: GeneratorId;
 	category_scores: Record<string, number>;
 	raw_score: number;
 	penalty_total: number;
@@ -175,9 +190,9 @@ export interface CandidateScore {
 }
 
 export interface PairwiseResult {
-	first: ProviderId;
-	second: ProviderId;
-	stronger: ProviderId | 'tie';
+	first: GeneratorId;
+	second: GeneratorId;
+	stronger: GeneratorId | 'tie';
 	margin: number;
 	reason: string;
 	/** false when the judge's prose disagreed with the computed scores. */
@@ -186,7 +201,7 @@ export interface PairwiseResult {
 
 export interface InjectionSignal {
 	label: string;
-	provider: ProviderId;
+	provider: GeneratorId;
 	kind: string;
 	excerpt: string;
 }
@@ -198,27 +213,27 @@ export interface InjectionSignal {
 export interface MappedAdjudication {
 	engine_version: string;
 	rubric_version: string;
-	scores: Partial<Record<ProviderId, number>>;
-	category_scores: Partial<Record<ProviderId, Record<string, number>>>;
+	scores: Partial<Record<GeneratorId, number>>;
+	category_scores: Partial<Record<GeneratorId, Record<string, number>>>;
 	category_weights: Record<string, number>;
-	category_winners: Record<string, ProviderId[]>;
-	overall_winner: ProviderId | null;
-	overall_ranking: ProviderId[];
-	tied_providers: ProviderId[];
+	category_winners: Record<string, GeneratorId[]>;
+	overall_winner: GeneratorId | null;
+	overall_ranking: GeneratorId[];
+	tied_providers: GeneratorId[];
 	winning_margin: number;
 	tie_break_used: string | null;
 	confidence: 'high' | 'medium' | 'low';
 	confidence_reasons: string[];
 	decisive_reasons: string[];
-	claim_validation_summary: Partial<Record<ProviderId, ClaimSummary>>;
+	claim_validation_summary: Partial<Record<GeneratorId, ClaimSummary>>;
 	pairwise_results: PairwiseResult[];
 	candidate_scores: CandidateScore[];
 	winner_gap_analysis: string[];
-	loser_recovery_analysis: Partial<Record<ProviderId, string[]>>;
+	loser_recovery_analysis: Partial<Record<GeneratorId, string[]>>;
 	unresolved_uncertainty: string[];
 	evidence_complete: boolean;
 	dropped_evidence_ids: string[];
-	truncated_providers: ProviderId[];
+	truncated_providers: GeneratorId[];
 	injection_signals: InjectionSignal[];
 	final_adjudication: string;
 }
@@ -229,8 +244,8 @@ export interface MappedAdjudication {
  * and never maps labels itself.
  */
 export interface MappedReport {
-	answers: Partial<Record<ProviderId, ReportAnswerSection>>;
-	verdict: { kind: VerdictKind; providers: ProviderId[] };
+	answers: Partial<Record<GeneratorId, ReportAnswerSection>>;
+	verdict: { kind: VerdictKind; providers: GeneratorId[] };
 	rationale: string;
 	needs_verification: string[];
 	/**
@@ -244,16 +259,16 @@ export interface MappedReport {
 export interface ReportRow {
 	id: string;
 	run_id: string;
-	judge: ProviderId;
+	judge: JudgeId;
 	revision: number;
 	status: 'pending' | 'complete' | 'failed';
 	requested_model: string | null;
 	model: string | null;
-	label_map: Record<string, ProviderId> | null;
+	label_map: Record<string, GeneratorId> | null;
 	report: RawReport | null;
-	judged_versions: { provider: ProviderId; revision: number }[] | null;
-	blinding_compromised: ProviderId[] | null;
-	missing_providers: ProviderId[];
+	judged_versions: { provider: GeneratorId; revision: number }[] | null;
+	blinding_compromised: GeneratorId[] | null;
+	missing_providers: GeneratorId[];
 	params: Record<string, unknown> | null;
 	mapped: MappedReport | null;
 	mapping_error: string | null;
@@ -261,7 +276,7 @@ export interface ReportRow {
 }
 
 export interface JudgeReports {
-	judge: ProviderId;
+	judge: JudgeId;
 	current: ReportRow | null;
 	latest_attempt: ReportRow | null;
 	/** Derived by the server on read: the current report judged an older answer set. */
@@ -277,16 +292,16 @@ export type ExclusionReason =
 	| 'unmappable';
 
 export interface TallyExcluded {
-	judge: ProviderId;
+	judge: JudgeId;
 	reason: ExclusionReason;
 	/** A failed re-judge on top of an outdated report, when both facts hold. */
 	latest_attempt?: 'failed' | 'malformed';
 }
 
 export interface TallyVerdict {
-	judge: ProviderId;
+	judge: JudgeId;
 	kind: VerdictKind;
-	providers: ProviderId[];
+	providers: GeneratorId[];
 }
 
 /**
@@ -294,19 +309,19 @@ export interface TallyVerdict {
  * renders it and never recounts: counts and kinds only, no confidence figure.
  */
 export interface Tally {
-	current_versions: { provider: ProviderId; revision: number }[];
-	included_reports: { judge: ProviderId; revision: number }[];
-	included_judges: ProviderId[];
+	current_versions: { provider: GeneratorId; revision: number }[];
+	included_reports: { judge: JudgeId; revision: number }[];
+	included_judges: JudgeId[];
 	excluded: TallyExcluded[];
 	partial: boolean;
 	verdicts: TallyVerdict[];
-	votes: Record<ProviderId, number>;
+	votes: Record<GeneratorId, number>;
 	n_included: number;
-	outcome: { kind: 'preferred' | 'no_majority' | 'no_valid_verdicts'; provider: ProviderId | null };
-	ties: { judge: ProviderId; providers: ProviderId[] }[];
-	inconclusive: ProviderId[];
-	self_votes: { judge: ProviderId; kind: VerdictKind }[];
-	self_votes_excluded: { judge: ProviderId; kind: VerdictKind }[];
+	outcome: { kind: 'preferred' | 'no_majority' | 'no_valid_verdicts'; provider: GeneratorId | null };
+	ties: { judge: JudgeId; providers: GeneratorId[] }[];
+	inconclusive: JudgeId[];
+	self_votes: { judge: JudgeId; kind: VerdictKind }[];
+	self_votes_excluded: { judge: JudgeId; kind: VerdictKind }[];
 }
 
 export interface SummaryRow {
@@ -316,9 +331,9 @@ export interface SummaryRow {
 	/** Assembled on the server, in code. The page renders it and changes nothing. */
 	narrative: string;
 	tally: Tally;
-	judged_versions: { provider: ProviderId; revision: number }[];
+	judged_versions: { provider: GeneratorId; revision: number }[];
 	partial: boolean;
-	included_judges: ProviderId[];
+	included_judges: JudgeId[];
 	/** Derived on read across both dimensions: answers moved, or reports moved. */
 	outdated: boolean;
 }
@@ -338,7 +353,7 @@ export interface GetRunResponse {
 }
 
 export interface RunAllEntry {
-	judge: ProviderId;
+	judge: JudgeId;
 	status: 'complete' | 'failed' | 'skipped';
 	report: ReportRow | null;
 	reason: ApiErrorDetail | null;
@@ -449,7 +464,7 @@ export const getRun = async (token: string, runId: string): Promise<GetRunRespon
 export const generateAnswer = async (
 	token: string,
 	runId: string,
-	provider: ProviderId
+	provider: GeneratorId
 ): Promise<AnswerRow> =>
 	request(
 		token,
@@ -460,7 +475,7 @@ export const generateAnswer = async (
 export const judgeRun = async (
 	token: string,
 	runId: string,
-	judge: ProviderId
+	judge: JudgeId
 ): Promise<ReportRow> =>
 	request(token, 'POST', `/runs/${encodeURIComponent(runId)}/reports/${encodeURIComponent(judge)}`);
 

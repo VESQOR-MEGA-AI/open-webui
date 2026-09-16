@@ -49,7 +49,7 @@ from sqlalchemy import select
 REPO = Path(__file__).resolve().parent.parent
 GOLDEN = Path(__file__).parent / 'fixtures' / 'vq25_summary_golden.txt'
 
-PROVIDERS = list(providers.PROVIDER_IDS)
+PROVIDERS = list(providers.GENERATOR_IDS)
 # vesqor is deliberately not label A in either map: a summary that assumed it was
 # would pass a test built on the easy case and target the wrong answer in §8.
 CHATGPT_MAP = {'A': 'chatgpt', 'B': 'vesqor', 'C': 'gemini'}
@@ -238,10 +238,16 @@ def test_golden_narrative_matches_the_fixture_file():
 # not import this test module: that would pull in open_webui.models -> config,
 # which runs `alembic upgrade head` against DATABASE_URL at import time. The
 # fixture therefore travels as JSON on stdin.
+# The child pins the same judge panel the parent does. `build_narrative` reads
+# the panel to size its "partial summary" line, so an unpinned child would
+# differ from the golden for a reason that has nothing to do with hash order —
+# the very thing this test exists to detect.
 SUBPROCESS_SCRIPT = """
 import json, sys
+from open_webui.utils import answer_compare_summary
 from open_webui.utils.answer_compare_summary import SummaryReport, build_narrative
 payload = json.load(sys.stdin)
+answer_compare_summary.resolve_judge_ids = lambda: tuple(payload['panel'])
 reports = [SummaryReport(**item) for item in payload['reports']]
 sys.stdout.write(build_narrative(payload['tally'], reports))
 """
@@ -249,7 +255,11 @@ sys.stdout.write(build_narrative(payload['tally'], reports))
 
 def _assemble_in_subprocess(hash_seed: str) -> bytes:
     payload = json.dumps(
-        {'tally': golden_tally(), 'reports': [r.model_dump() for r in golden_reports()]},
+        {
+            'tally': golden_tally(),
+            'reports': [r.model_dump() for r in golden_reports()],
+            'panel': list(LEGACY_PANEL),
+        },
         sort_keys=False,
     )
     env = {
@@ -300,7 +310,13 @@ def test_the_determinism_subprocess_imports_nothing_that_touches_a_database():
             SUBPROCESS_SCRIPT
             + '\nimport sys; sys.stderr.write(repr(sorted(m for m in sys.modules if "internal.db" in m or m.endswith("open_webui.config"))))',
         ],
-        input=json.dumps({'tally': golden_tally(), 'reports': [r.model_dump() for r in golden_reports()]}).encode(),
+        input=json.dumps(
+            {
+                'tally': golden_tally(),
+                'reports': [r.model_dump() for r in golden_reports()],
+                'panel': list(LEGACY_PANEL),
+            }
+        ).encode(),
         capture_output=True,
         env={
             **os.environ,
@@ -474,6 +490,35 @@ ALL_HEADINGS = (
     summary.HEADING_IMPROVEMENTS,
     summary.HEADING_VERIFICATION,
 )
+
+
+####################
+# The legacy three-judge panel
+####################
+
+# The adjudication panel in the product is ONE independent adjudicator. The
+# tally, the summary and the run-all endpoint are nevertheless written to a
+# panel of unknown size — nothing in them may index `[0]` or assume a length —
+# so the mechanics they implement (strict majority, exclusion, self-votes,
+# freshness, per-judge isolation) still need a multi-judge panel to be
+# exercised at all. Pinning one here keeps these tests testing those mechanics,
+# and is itself the standing proof that no caller assumes a panel of one. Panel
+# *composition* is asserted in test_vq25_answer_compare.py, where it belongs.
+_PANEL_SEAMS = (
+    providers,
+    tally,
+    summary,
+    answer_compare_router,
+)
+
+LEGACY_PANEL = ('chatgpt', 'gemini', 'vesqor')
+
+
+@pytest.fixture(autouse=True)
+def legacy_judge_panel(monkeypatch):
+    for module in _PANEL_SEAMS:
+        monkeypatch.setattr(module, 'resolve_judge_ids', lambda: LEGACY_PANEL)
+    return monkeypatch
 
 
 def test_all_ten_sections_present_in_the_golden_fixture():

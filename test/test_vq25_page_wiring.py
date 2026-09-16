@@ -324,19 +324,19 @@ def test_page_writes_judge_state_only_through_the_module() -> None:
 
 
 def test_judge_role_is_gated_by_can_judge() -> None:
-    """VESQOR must never be offered as a judge.
+    """No compared system may ever be offered as a judge.
 
-    The VESQOR door only reads the user message and always wraps its output in
-    the report envelope, so it cannot return the judge's JSON schema at all
-    (live production probes, 2026-09-14). Judge-only loops therefore walk the
-    judge-CAPABLE set; answer loops still walk every provider, because VESQOR
-    is a first-class subject of the comparison.
+    ChatGPT, Gemini and VESQOR are the candidates; adjudication belongs to one
+    independent model that writes none of the answers it scores. Judge-only
+    loops therefore walk the judge set and answer loops walk the candidate set,
+    and the two lists are disjoint — a provider in both would be marking its own
+    homework.
 
     This asserts the behaviour, not the existence of a test file: an earlier
     version of this gate only checked that `judgeState.test.ts` existed, which
     let a regression back to "every provider judges" pass CI unnoticed.
     """
-    print('\n[judging: judge-only loops walk the capable set, answers walk all providers]')
+    print('\n[judging: judge-only loops walk the panel, answers walk the candidates]')
     component = code_only(read(COMPONENT))
     judge_state = code_only(read(JUDGE_STATE))
 
@@ -354,27 +354,50 @@ def test_judge_role_is_gated_by_can_judge() -> None:
     # The judge-only loops must use it. These are the sites where a regression
     # silently reintroduces a VESQOR judge card / judge button.
     for label, pattern in (
-        ('judgeReasons', r'\$: judgeReasons = capableJudgeIds\('),
-        ('anyJudgeConfigured', r'\$: anyJudgeConfigured = capableJudgeIds\('),
+        ('adjudicateBlocked', r'\$: adjudicateBlocked =\s*\n?\s*capableJudgeIds\('),
         ('anyJudgeInFlight', r'\$: anyJudgeInFlight = capableJudgeIds\('),
     ):
-        check(re.search(pattern, component) is not None, f'{label} walks the capable judge set')
+        check(re.search(pattern, component) is not None, f'{label} walks the judge panel')
 
-    # No judge-only construct may iterate the full provider list.
+    # The disabled reason is derived by the state module, never restated on the
+    # page: two copies of "why is this disabled" drift, and the button and the
+    # card beneath it then disagree in front of the admin.
+    check(
+        'judgeButtonDisabledReason(' in component,
+        'the adjudication control takes its reason from judgeState.ts',
+    )
+
+    # The two lists must be declared separately and disjointly. One undivided
+    # `PROVIDER_IDS` on the page is how a judges-walk and a candidates-walk get
+    # taken for each other, which is the regression this whole gate is about.
+    state = code_only(read(STATE))
+    check('GENERATOR_IDS' in state, 'state.ts declares the candidate list')
+    check('JUDGE_IDS' in state, 'state.ts declares the adjudication panel')
+    generators = set(re.findall(r"'(\w+)'", re.search(r'GENERATOR_IDS[^=]*= \[([^\]]*)\]', state).group(1)))
+    judges = set(re.findall(r"'(\w+)'", re.search(r'JUDGE_IDS[^=]*= \[([^\]]*)\]', state).group(1)))
+    check(
+        generators == {'chatgpt', 'gemini', 'vesqor'},
+        f'the candidates are the compared systems (found: {generators})',
+    )
+    check(bool(judges), f'the panel names at least one adjudicator (found: {judges})')
+    check(
+        not (generators & judges),
+        f'no system both writes an answer and scores it (overlap: {generators & judges})',
+    )
+
+    # No judge-only construct may iterate the candidate list, and no answer-side
+    # construct may iterate the panel.
     offenders = [
         line.strip()
         for line in component.splitlines()
-        if 'PROVIDER_IDS' in line and re.search(r'\bjudge|judging', line, re.I)
+        if 'GENERATOR_IDS' in line and re.search(r'\bjudge|judging|adjudicat', line, re.I)
     ]
-    check(
-        not offenders,
-        f'no judge-only loop walks all providers (offenders: {offenders})',
-    )
+    check(not offenders, f'no judge-only loop walks the candidates (offenders: {offenders})')
 
-    # …while the answer side must still cover every provider, VESQOR included.
+    # …while the answer side still covers every candidate, VESQOR included.
     check(
-        re.search(r'\$: completeAnswers = PROVIDER_IDS\.filter', component) is not None,
-        'the answer-side loop still walks every provider (VESQOR stays a subject)',
+        re.search(r'\$: completeAnswers = GENERATOR_IDS\.filter', component) is not None,
+        'the answer-side loop walks every candidate (VESQOR stays a subject)',
     )
 
 
@@ -386,7 +409,7 @@ def test_judging_ui_wiring() -> None:
     judge_state = read(JUDGE_STATE)
     state = read(STATE)
 
-    check("'Judge with {{name}}'" in component, 'the page renders the three judge buttons through one i18n key')
+    check("'Judge with {{name}}'" not in component, 'the per-candidate judge buttons are gone')
     check('<JudgeCard' in component, 'the page renders a JudgeCard per judge')
     check(os.path.exists(JUDGE_STATE_TEST), 'judgeState.ts has vitest tests')
 
@@ -443,8 +466,16 @@ def test_tally_panel_wiring() -> None:
     panel = read(TALLY_PANEL)
     tally_state = read(TALLY_STATE)
 
-    check("'Run all three judges'" in component, 'the page has the Run all three judges button')
+    check("'Adjudicate'" in component, 'the page has the single Adjudicate button')
+    check("'Run all three judges'" not in component, 'the old multi-judge button is gone')
     check('runAllJudges(' in component, 'the button calls the run-all endpoint')
+    # Exactly one control may start an adjudication, and only one function can.
+    starters = sorted(
+        name for name in ('adjudicate', 'runJudge', 'runAll') if re.search(rf'\b{name}\b', code_only(component))
+    )
+    check(starters == ['adjudicate'], f'one function starts an adjudication (found: {starters})')
+    clicks = re.findall(r'on:click=\{[^}]*\badjudicate\b[^}]*\}', component)
+    check(len(clicks) == 1, f'exactly one button starts an adjudication (found {len(clicks)})')
     check('<TallyPanel' in component, 'the page renders the tally panel')
     check(os.path.exists(TALLY_STATE_TEST), 'tallyState.ts has vitest tests')
 
@@ -481,7 +512,7 @@ def test_tally_panel_wiring() -> None:
         '{{judge}} included its own answer in a tie',
         '{{judge}} judged a tie between {{providers}}.',
         '{{judge}} found no reliable winner.',
-        'Run all three judges',
+        'Adjudicate',
     ):
         check(key in translations, f'i18n carries: {key[:48]}')
 
@@ -550,7 +581,7 @@ def test_cost_confirmation_on_both_bulk_actions_only() -> None:
     # Both bulk buttons route through the confirmation helper...
     confirm_calls = re.findall(r'confirmCost\((.+?),\s*(\w+)\)', code)
     actions = sorted(action for _, action in confirm_calls)
-    check(actions == ['generateAll', 'runAll'], f'both bulk actions go through the dialog (found: {actions})')
+    check(actions == ['adjudicate', 'generateAll'], f'both bulk actions go through the dialog (found: {actions})')
 
     # ...and the count is computed, never hard-coded.
     counts = sorted(count.strip() for count, _ in confirm_calls)
@@ -566,12 +597,15 @@ def test_cost_confirmation_on_both_bulk_actions_only() -> None:
     )
 
     # The single-action paths must not be behind the dialog.
-    for single in ('startProvider(provider, id)', 'runJudge(judge)', 'runJudge(item.judge)'):
+    for single in ('startProvider(provider, id)', 'retry(provider)'):
         check(
             f'confirmCost({single}' not in code and f'confirmCost(() => {single}' not in code,
             f'the single-action path {single} opens no dialog',
         )
-    check('on:click={() => runJudge(item.judge)}' in component, 'single judge buttons call the judge directly')
+    # The judge card's Retry is the SAME action as the button, not a second
+    # adjudication path with its own wiring.
+    check('onRetry={adjudicate}' in component, "the judge card's retry is the one adjudication action")
+    check('runJudge' not in code, 'the second adjudication path stays gone')
     check('onRetry={() => retry(provider)}' in component, 'the answer card retry calls generation directly')
 
     # Cancel does nothing.

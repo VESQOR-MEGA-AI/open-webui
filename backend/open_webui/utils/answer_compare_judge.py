@@ -36,7 +36,7 @@ from open_webui.utils.answer_compare_adjudication import (
     MalformedAdjudication,
     NormalizedAdjudication,
 )
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS
+from open_webui.utils.answer_compare_providers import GENERATOR_IDS
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -135,13 +135,13 @@ def label_map_of(labeled: list[LabeledAnswer]) -> dict[str, str]:
 def judged_versions_of(labeled: list[LabeledAnswer]) -> list[dict[str, Any]]:
     """Exactly which answer versions were judged, in the fixed provider order."""
     by_provider = {item.provider: item.revision for item in labeled}
-    return [{'provider': p, 'revision': by_provider[p]} for p in PROVIDER_IDS if p in by_provider]
+    return [{'provider': p, 'revision': by_provider[p]} for p in GENERATOR_IDS if p in by_provider]
 
 
 def missing_providers_of(judged_versions: list[dict[str, Any]]) -> list[str]:
     """Providers with no complete answer at judging time — derived, never stored."""
     present = {item['provider'] for item in judged_versions}
-    return [p for p in PROVIDER_IDS if p not in present]
+    return [p for p in GENERATOR_IDS if p not in present]
 
 
 def detect_blinding_leaks(labeled: list[LabeledAnswer]) -> list[str]:
@@ -155,7 +155,7 @@ def detect_blinding_leaks(labeled: list[LabeledAnswer]) -> list[str]:
         markers = BLINDING_MARKERS.get(item.provider, ())
         if any(marker in lowered for marker in markers):
             leaks.append(item.provider)
-    return [p for p in PROVIDER_IDS if p in leaks]
+    return [p for p in GENERATOR_IDS if p in leaks]
 
 
 ####################

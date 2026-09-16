@@ -13,7 +13,7 @@ import {
 	ERROR_COPY,
 	initialCards,
 	isRetryDisabled,
-	PROVIDER_IDS,
+	GENERATOR_IDS,
 	startGeneration,
 	UNKNOWN_ERROR_COPY
 } from './state';
@@ -332,11 +332,12 @@ describe('elapsed counter', () => {
 });
 
 describe('initial state', () => {
-	it('starts every provider empty, in the fixed order', () => {
+	it('starts every candidate empty, in the fixed order', () => {
 		const cards = initialCards();
 
-		expect(PROVIDER_IDS).toEqual(['chatgpt', 'gemini', 'vesqor']);
-		for (const provider of PROVIDER_IDS) {
+		// Candidates only: the adjudicator writes no answer, so it gets no card.
+		expect(GENERATOR_IDS).toEqual(['chatgpt', 'gemini', 'vesqor']);
+		for (const provider of GENERATOR_IDS) {
 			expect(cardPhase(cards[provider])).toBe('empty');
 			expect(cards[provider].answer).toBeNull();
 		}

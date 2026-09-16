@@ -42,6 +42,33 @@ from open_webui.utils import answer_compare_providers as providers
 from open_webui.utils.auth import get_current_user
 from sqlalchemy import select
 
+####################
+# The legacy three-judge panel
+####################
+
+# The adjudication panel in the product is ONE independent adjudicator. The
+# tally, the summary and the run-all endpoint are nevertheless written to a
+# panel of unknown size — nothing in them may index `[0]` or assume a length —
+# so the mechanics they implement (strict majority, exclusion, self-votes,
+# freshness, per-judge isolation) still need a multi-judge panel to be
+# exercised at all. Pinning one here keeps these tests testing those mechanics,
+# and is itself the standing proof that no caller assumes a panel of one. Panel
+# *composition* is asserted in test_vq25_answer_compare.py, where it belongs.
+_PANEL_SEAMS = (
+    providers,
+    answer_compare_router,
+)
+
+LEGACY_PANEL = ('chatgpt', 'gemini', 'vesqor')
+
+
+@pytest.fixture(autouse=True)
+def legacy_judge_panel(monkeypatch):
+    for module in _PANEL_SEAMS:
+        monkeypatch.setattr(module, 'resolve_judge_ids', lambda: LEGACY_PANEL)
+    return monkeypatch
+
+
 DUMMY_KEY = 'sk-vq25-judging-secret-do-not-leak'
 PROMPT = 'Compare ChatGPT and Gemini on latency.'  # the admin may name providers; we must not
 REFERENCE = 'Latency is per-request; throughput is per-unit-time.'
@@ -83,7 +110,7 @@ def isolated_env(monkeypatch):
     for names in PROVIDER_ENV.values():
         for name in names:
             monkeypatch.delenv(name, raising=False)
-    for provider_id in providers.PROVIDER_IDS:
+    for provider_id in providers.GENERATOR_IDS:
         monkeypatch.delenv(providers.max_input_chars_env(provider_id), raising=False)
         monkeypatch.delenv(providers.judge_max_input_chars_env(provider_id), raising=False)
     monkeypatch.delenv(provider_client.ENV_REQUEST_TIMEOUT_SECONDS, raising=False)
@@ -213,7 +240,7 @@ def seed_answers(
     run_id: str, texts: Optional[dict[str, str]] = None, statuses: Optional[dict[str, str]] = None
 ) -> None:
     async def _seed():
-        for provider_id in providers.PROVIDER_IDS:
+        for provider_id in providers.GENERATOR_IDS:
             text = (texts or ANSWER_TEXT).get(provider_id)
             if text is None:
                 continue
@@ -270,7 +297,7 @@ def judge_url(run_id: str, judge_id: str) -> str:
 
 
 def labeled_for(seed: int) -> list[judge.LabeledAnswer]:
-    triples = [(p, 1, ANSWER_TEXT[p]) for p in providers.PROVIDER_IDS]
+    triples = [(p, 1, ANSWER_TEXT[p]) for p in providers.GENERATOR_IDS]
     return judge.shuffle_labels(triples, random.Random(seed))
 
 
@@ -544,7 +571,7 @@ def test_each_judge_alone_returns_a_mapped_complete_report(isolated_env):
     seed_answers(run_id)
     api = client_as()
 
-    for judge_id in providers.PROVIDER_IDS:
+    for judge_id in providers.GENERATOR_IDS:
         response = api.post(judge_url(run_id, judge_id))
         assert response.status_code == 200, response.text
         payload = response.json()
@@ -554,7 +581,7 @@ def test_each_judge_alone_returns_a_mapped_complete_report(isolated_env):
         assert payload['requested_model'] == PROVIDER_MODEL[judge_id]
         assert payload['model'] == 'judge-model-2026-01-01'
         assert sorted(payload['label_map']) == ['A', 'B', 'C']
-        assert sorted(payload['label_map'].values()) == sorted(providers.PROVIDER_IDS)
+        assert sorted(payload['label_map'].values()) == sorted(providers.GENERATOR_IDS)
         assert payload['missing_providers'] == []
         assert payload['error'] is None
         # Stored with anonymous labels — the audit trail.
@@ -580,7 +607,8 @@ def test_mapping_holds_on_the_bytes_the_judge_received(isolated_env):
 
     payload = client_as().post(judge_url(run_id, 'gemini')).json()
     label_map = payload['label_map']
-    assert [label_map[label] for label in 'ABC'] != list(providers.PROVIDER_IDS), 'the shuffle must not be the identity'
+    identity = list(providers.GENERATOR_IDS)
+    assert [label_map[label] for label in 'ABC'] != identity, 'the shuffle must not be the identity'
 
     # Invariant: the text under === ANSWER X === in the request IS provider label_map[X]'s answer.
     received = answers_in(double.last)
@@ -623,7 +651,7 @@ def test_no_cross_visibility_between_judges(isolated_env):
             status=STATUS_COMPLETE,
             label_map={'A': 'chatgpt', 'B': 'gemini', 'C': 'vesqor'},
             report=valid_report(['A', 'B', 'C'], rationale=f'secret verdict {marker}'),
-            judged_versions=[{'provider': p, 'revision': 1} for p in providers.PROVIDER_IDS],
+            judged_versions=[{'provider': p, 'revision': 1} for p in providers.GENERATOR_IDS],
         )
 
     asyncio.run(_other_judges_report())
@@ -754,10 +782,10 @@ def test_judged_versions_and_outdated_are_derived_on_read(isolated_env):
     api = client_as()
 
     first = api.post(judge_url(run_id, 'gemini')).json()
-    assert first['judged_versions'] == [{'provider': p, 'revision': 1} for p in providers.PROVIDER_IDS]
+    assert first['judged_versions'] == [{'provider': p, 'revision': 1} for p in providers.GENERATOR_IDS]
 
     reports = {r['judge']: r for r in api.get(f'/api/v1/compare/runs/{run_id}').json()['reports']}
-    assert list(reports) == list(providers.PROVIDER_IDS)  # fixed order
+    assert list(reports) == list(providers.GENERATOR_IDS)  # fixed order
     assert reports['gemini']['outdated'] is False
     assert reports['gemini']['current']['revision'] == 1
     assert reports['chatgpt']['current'] is None and reports['chatgpt']['outdated'] is False
@@ -1077,12 +1105,12 @@ def test_mapped_resolves_every_section_and_the_verdict_in_post_and_get(isolated_
 
     posted = api.post(judge_url(run_id, 'gemini')).json()
     label_map = posted['label_map']
-    assert [label_map[label] for label in 'ABC'] != list(providers.PROVIDER_IDS)
+    assert [label_map[label] for label in 'ABC'] != list(providers.GENERATOR_IDS)
 
     mapped = posted['mapped']
     assert posted['mapping_error'] is None
     # Per-answer sections keyed by provider, each carrying that provider's own note.
-    assert sorted(mapped['answers']) == sorted(providers.PROVIDER_IDS)
+    assert sorted(mapped['answers']) == sorted(providers.GENERATOR_IDS)
     for provider_id, section in mapped['answers'].items():
         assert section['strengths'][0]['note'] == f'saw: {ANSWER_TEXT[provider_id][:24]}'
         assert label_map[section['label']] == provider_id
@@ -1129,7 +1157,7 @@ def test_unmappable_label_is_answered_not_mutated(isolated_env):
             status=STATUS_COMPLETE,
             label_map={'A': 'chatgpt', 'B': 'gemini'},  # no 'C'
             report=valid_report(['A', 'B', 'C']),
-            judged_versions=[{'provider': p, 'revision': 1} for p in providers.PROVIDER_IDS],
+            judged_versions=[{'provider': p, 'revision': 1} for p in providers.GENERATOR_IDS],
         )
 
     row = asyncio.run(_corrupt_row())

@@ -39,7 +39,35 @@ from open_webui.utils import answer_compare_tally as tally
 from open_webui.utils.auth import get_current_user
 from sqlalchemy import select
 
-PROVIDERS = list(providers.PROVIDER_IDS)  # chatgpt, gemini, vesqor
+####################
+# The legacy three-judge panel
+####################
+
+# The adjudication panel in the product is ONE independent adjudicator. The
+# tally, the summary and the run-all endpoint are nevertheless written to a
+# panel of unknown size — nothing in them may index `[0]` or assume a length —
+# so the mechanics they implement (strict majority, exclusion, self-votes,
+# freshness, per-judge isolation) still need a multi-judge panel to be
+# exercised at all. Pinning one here keeps these tests testing those mechanics,
+# and is itself the standing proof that no caller assumes a panel of one. Panel
+# *composition* is asserted in test_vq25_answer_compare.py, where it belongs.
+_PANEL_SEAMS = (
+    providers,
+    tally,
+    answer_compare_router,
+)
+
+LEGACY_PANEL = ('chatgpt', 'gemini', 'vesqor')
+
+
+@pytest.fixture(autouse=True)
+def legacy_judge_panel(monkeypatch):
+    for module in _PANEL_SEAMS:
+        monkeypatch.setattr(module, 'resolve_judge_ids', lambda: LEGACY_PANEL)
+    return monkeypatch
+
+
+PROVIDERS = list(providers.GENERATOR_IDS)  # chatgpt, gemini, vesqor
 V1 = [{'provider': p, 'revision': 1} for p in PROVIDERS]
 V2 = [
     {'provider': 'chatgpt', 'revision': 1},

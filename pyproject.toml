@@ -254,8 +254,9 @@ pydocstyle.convention = "google"
 
 [tool.pytest.ini_options]
 markers = [
-    # Calls real providers over the network. Skipped automatically unless
-    # ANSWER_COMPARE_<PROVIDER>_API_KEY / _MODEL are set, so an ordinary CI run
-    # never silently "passes" live validation it did not perform.
+    # Calls real providers over the network. Skipped automatically unless the
+    # adjudicator (ANSWER_COMPARE_ANTHROPIC_BASE_URL / _API_KEY) is configured,
+    # so an ordinary CI run never silently "passes" live validation it did not
+    # perform.
     "live_provider: hits configured AI providers for real; needs credentials",
 ]
