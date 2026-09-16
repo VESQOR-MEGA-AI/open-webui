@@ -114,7 +114,7 @@
 					<img
 						src="/static/vesqor-logo.png"
 						alt=""
-						class="max-w-[min(34rem,85vw)] w-full h-auto drop-shadow-[0_0_24px_rgba(57,181,74,0.35)]"
+						class="max-w-[min(22rem,55vw)] w-full h-auto drop-shadow-[0_0_24px_rgba(57,181,74,0.35)]"
 					/>
 				</div>
 				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
