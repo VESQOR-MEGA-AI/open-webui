@@ -16,13 +16,13 @@
 		getRun,
 		listRuns,
 		buildSummary,
-		judgeRun,
 		runAllJudges,
 		type CreateRunResponse,
 		type GetRunResponse,
 		type ProviderConfig,
 		type ApiErrorDetail,
-		type ProviderId,
+		type GeneratorId,
+		type JudgeId,
 		type RunAllEntry,
 		type RunRow
 	} from '$lib/apis/answer-compare';
@@ -79,8 +79,9 @@
 		applyProviderConfigs,
 		applyResult,
 		applyRunState,
+		GENERATOR_IDS,
 		initialCards,
-		PROVIDER_IDS,
+		JUDGE_IDS,
 		PROVIDER_LABELS,
 		providersToGenerate,
 		RECOVERY_DELAYS_MS,
@@ -104,12 +105,12 @@
 	/** The open run itself, for the lineage lines and the "nothing generated yet" notice. */
 	let currentRun: RunRow | null = null;
 	let configLoaded = false;
-	let runAllInFlight = false;
+	let adjudicationInFlight = false;
 	let summaryInFlight = false;
 
 	/**
 	 * The cost dialog (owner decision): both bulk actions confirm first, the
-	 * single-provider and single-judge buttons do not — one click, one request.
+	 * single-provider retry buttons do not — one click, one request.
 	 * One ConfirmDialog instance, driven by whichever bulk action opened it.
 	 */
 	let showCostDialog = false;
@@ -135,20 +136,17 @@
 	};
 
 	/** Recovery timers, one per provider, so a cleanup can never miss one. */
-	const recoveryTimers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
-	const judgeRecoveryTimers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
+	const recoveryTimers = new Map<GeneratorId, ReturnType<typeof setTimeout>>();
+	const judgeRecoveryTimers = new Map<JudgeId, ReturnType<typeof setTimeout>>();
 
-	// Answers: every provider can generate one, so this walks PROVIDER_IDS.
-	$: completeAnswers = PROVIDER_IDS.filter((provider) => cards[provider].answer !== null).length;
-	// Judges: only the judge-capable providers get a button/card — VESQOR generates
-	// an answer but never judges, so this walks capableJudgeIds, not PROVIDER_IDS.
-	$: judgeReasons = capableJudgeIds(judgeCards).map((judge) => ({
-		judge,
-		reason: judgeButtonDisabledReason(judgeCards[judge], completeAnswers)
-	}));
-	$: anyJudgeConfigured = capableJudgeIds(judgeCards).some(
-		(judge) => judgeCards[judge].missing === null
-	);
+	// Answers: a CANDIDATES walk — these are the systems being compared.
+	$: completeAnswers = GENERATOR_IDS.filter((provider) => cards[provider].answer !== null).length;
+	// Judging: a JUDGES walk, over the adjudication panel. The two lists are
+	// disjoint, so neither may ever be used for the other's question.
+	$: adjudicateBlocked =
+		capableJudgeIds(judgeCards)
+			.map((judge) => judgeButtonDisabledReason(judgeCards[judge], completeAnswers))
+			.find((reason) => reason !== null) ?? null;
 	$: anyJudgeInFlight = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].inFlight);
 	$: lineage = currentRun ? lineageLines(currentRun) : { parent: null, children: null };
 	// A rerun generates nothing on purpose (the cost dialog owns that); say so, or
@@ -166,16 +164,20 @@
 			? $i18n.t('Generation in progress.')
 			: (summaryButtonDisabledReason(includedVerdicts)?.key ?? '') &&
 				$i18n.t(summaryButtonDisabledReason(includedVerdicts)?.key ?? '');
-	$: runAllReason =
-		completeAnswers < 2
-			? $i18n.t('Judging unlocks once at least two answers exist.')
-			: !anyJudgeConfigured
-				? $i18n.t('No judge is configured yet.')
-				: anyJudgeInFlight || runAllInFlight
-					? $i18n.t('This judge is already running.')
-					: '';
+	// One control, so one reason — and it comes from the state module, like every
+	// other reason on this page, rather than being restated here. A second copy
+	// of "why is this disabled" is how the button and the card underneath it end
+	// up disagreeing, and the module's version also names the missing variables.
+	$: adjudicateReason = adjudicateBlocked
+		? $i18n.t(adjudicateBlocked.key, adjudicateBlocked.params)
+		: adjudicationInFlight
+			? $i18n.t('This judge is already running.')
+			: '';
 
-	$: anyInFlight = PROVIDER_IDS.some((provider) => cards[provider].inFlight);
+	$: anyInFlight = GENERATOR_IDS.some((provider) => cards[provider].inFlight);
+	// Named, not hardcoded: the page states who adjudicated, and that has to
+	// follow the panel rather than a string someone may forget to update.
+	$: adjudicatorName = JUDGE_IDS.map((judge) => PROVIDER_LABELS[judge]).join(', ');
 	$: anyConfigured = providers.some((provider) => provider.configured);
 	$: disabledReason = !prompt.trim()
 		? $i18n.t('Enter a prompt first.')
@@ -194,7 +196,7 @@
 	const isCallFailure = (err: unknown): boolean =>
 		err instanceof CompareApiError || err instanceof CompareConnectionError;
 
-	const clearRecovery = (provider: ProviderId) => {
+	const clearRecovery = (provider: GeneratorId) => {
 		const timer = recoveryTimers.get(provider);
 		if (timer !== undefined) {
 			clearTimeout(timer);
@@ -202,7 +204,7 @@
 		}
 	};
 
-	const clearJudgeRecovery = (judge: ProviderId) => {
+	const clearJudgeRecovery = (judge: JudgeId) => {
 		const timer = judgeRecoveryTimers.get(judge);
 		if (timer !== undefined) {
 			clearTimeout(timer);
@@ -252,7 +254,7 @@
 		}
 	};
 
-	const reportApiError = (provider: ProviderId, err: CompareApiError) => {
+	const reportApiError = (provider: GeneratorId, err: CompareApiError) => {
 		const detail = err.detail;
 
 		if (detail.code === 'not_configured') {
@@ -279,7 +281,7 @@
 	 * make unnecessary: it writes the `pending` row before calling the provider,
 	 * so the answer may already be stored. Ask, a few times, before giving up.
 	 */
-	const recoverFromConnectionLoss = (provider: ProviderId, attempt = 0) => {
+	const recoverFromConnectionLoss = (provider: GeneratorId, attempt = 0) => {
 		clearRecovery(provider);
 
 		if (!runId || attempt >= RECOVERY_DELAYS_MS.length) {
@@ -318,7 +320,7 @@
 	 * card, and the state module replaces only this provider's entry — which is
 	 * what keeps the three cards independent in the code and not just on screen.
 	 */
-	const runProvider = async (provider: ProviderId, id: string) => {
+	const runProvider = async (provider: GeneratorId, id: string) => {
 		clearRecovery(provider);
 
 		try {
@@ -347,7 +349,7 @@
 		}
 	};
 
-	const startProvider = (provider: ProviderId, id: string) => {
+	const startProvider = (provider: GeneratorId, id: string) => {
 		const config = providers.find((item) => item.id === provider);
 		if (config && !config.configured) {
 			cards = applyNotConfigured(cards, provider, config.missing);
@@ -361,11 +363,8 @@
 		return runProvider(provider, id);
 	};
 
-	const reportJudgeApiError = (judge: ProviderId, err: CompareApiError) =>
-		applyJudgeDetail(judge, err.detail);
-
 	/** A typed detail — from an HTTP error or a run-all `skipped` entry — onto the judge's card. */
-	const applyJudgeDetail = (judge: ProviderId, detail: ApiErrorDetail) => {
+	const applyJudgeDetail = (judge: JudgeId, detail: ApiErrorDetail) => {
 		if (detail.code === 'not_configured') {
 			judgeCards = applyJudgeNotConfigured(judgeCards, judge, (detail.missing as string[]) ?? []);
 			return;
@@ -383,7 +382,7 @@
 			judgeCards = applyJudgeNotEnoughAnswers(
 				judgeCards,
 				judge,
-				(detail.complete as ProviderId[]) ?? []
+				(detail.complete as GeneratorId[]) ?? []
 			);
 			return;
 		}
@@ -391,7 +390,7 @@
 	};
 
 	/** Same rule as answers: the backend wrote the pending row first, so ask before guessing. */
-	const recoverJudgeFromConnectionLoss = (judge: ProviderId, attempt = 0) => {
+	const recoverJudgeFromConnectionLoss = (judge: JudgeId, attempt = 0) => {
 		clearJudgeRecovery(judge);
 
 		if (!runId || attempt >= RECOVERY_DELAYS_MS.length) {
@@ -421,39 +420,7 @@
 		judgeRecoveryTimers.set(judge, timer);
 	};
 
-	/** One judge's lifecycle, in its own function with its own try/catch. */
-	const runJudge = async (judge: ProviderId) => {
-		// `judgeButtonDisabledReason` only reaches the button on the next tick, so a
-		// fast double-click would otherwise fire twice before the button disables.
-		// The card's own in-flight flag is set synchronously and is the real guard;
-		// the server's `already_running` 409 is the backstop, not the first line.
-		if (!runId || judgeCards[judge]?.inFlight) return;
-		clearJudgeRecovery(judge);
-		judgeCards = startJudging(judgeCards, judge, Date.now());
-
-		try {
-			const row = await judgeRun(token, runId, judge);
-			judgeCards = applyJudgeResult(judgeCards, judge, row);
-			if (row.status === 'complete') {
-				await refreshRun();
-			}
-		} catch (err) {
-			if (err instanceof CompareApiError) {
-				reportJudgeApiError(judge, err);
-				if (err.code === 'already_running') {
-					recoverJudgeFromConnectionLoss(judge);
-				}
-				return;
-			}
-			if (err instanceof CompareConnectionError) {
-				recoverJudgeFromConnectionLoss(judge);
-				return;
-			}
-			judgeCards = applyJudgeFailure(judgeCards, judge, { code: 'network' });
-		}
-	};
-
-	/** One run-all entry lands on its judge's card through the existing transitions. */
+	/** One adjudication entry lands on its judge's card through the existing transitions. */
 	const applyRunAllEntry = (entry: RunAllEntry) => {
 		const judge = entry.judge;
 		if (entry.status === 'skipped' && entry.reason) {
@@ -467,11 +434,20 @@
 		judgeCards = applyJudgeFailure(judgeCards, judge, { code: entry.reason?.code ?? 'internal' });
 	};
 
-	const runAll = async () => {
-		// `runAllReason` is reactive and stale within the click's own tick; the
+	/**
+	 * The page's ONE adjudication action, and the only thing that starts one —
+	 * the button, the card's Retry and a rerun all land here.
+	 *
+	 * It goes through the panel endpoint rather than the single-judge one even
+	 * though the panel currently holds a single adjudicator: the panel shape is
+	 * what returns the authoritative tally in the same round trip, and nothing
+	 * here assumes the panel has exactly one member.
+	 */
+	const adjudicate = async () => {
+		// `adjudicateReason` is reactive and stale within the click's own tick; the
 		// plain flag is not.
-		if (!runId || runAllInFlight || anyJudgeInFlight || runAllReason) return;
-		runAllInFlight = true;
+		if (!runId || adjudicationInFlight || anyJudgeInFlight || adjudicateReason) return;
+		adjudicationInFlight = true;
 		const started = Date.now();
 		for (const judge of capableJudgeIds(judgeCards)) {
 			clearJudgeRecovery(judge);
@@ -497,7 +473,7 @@
 							judgeCards = applyJudgeNotEnoughAnswers(
 								judgeCards,
 								judge,
-								(err.detail.complete as ProviderId[]) ?? []
+								(err.detail.complete as GeneratorId[]) ?? []
 							);
 						} else {
 							judgeCards = applyJudgeFailure(judgeCards, judge, { code: err.code });
@@ -505,7 +481,7 @@
 					}
 				}
 			} else if (err instanceof CompareConnectionError) {
-				// Three pending rows may already be written: ask, per judge, before guessing.
+				// A pending row may already be written: ask, per judge, before guessing.
 				for (const judge of capableJudgeIds(judgeCards)) {
 					if (judgeCards[judge].inFlight) {
 						recoverJudgeFromConnectionLoss(judge);
@@ -519,7 +495,7 @@
 				}
 			}
 		} finally {
-			runAllInFlight = false;
+			adjudicationInFlight = false;
 		}
 	};
 
@@ -648,13 +624,13 @@
 
 		// Fired in parallel; allSettled so one rejection cannot abort the others.
 		await Promise.allSettled(
-			PROVIDER_IDS.filter((provider) => !oversized.has(provider)).map((provider) =>
+			GENERATOR_IDS.filter((provider) => !oversized.has(provider)).map((provider) =>
 				startProvider(provider, created.run.id)
 			)
 		);
 	};
 
-	const retry = (provider: ProviderId) => {
+	const retry = (provider: GeneratorId) => {
 		if (!runId) return;
 		void startProvider(provider, runId);
 	};
@@ -679,14 +655,16 @@
 			);
 
 			// Anything the server still reports as pending keeps being asked about.
-			// Walks PROVIDER_IDS because it checks both an answer and a report per
-			// provider; a non-capable judge's card is simply never inFlight here.
-			for (const provider of PROVIDER_IDS) {
+			// Two separate walks, not one: answers belong to the candidates and
+			// reports to the adjudication panel, and the two lists are disjoint.
+			for (const provider of GENERATOR_IDS) {
 				if (cards[provider].inFlight) {
 					recoverFromConnectionLoss(provider);
 				}
-				if (judgeCards[provider].inFlight) {
-					recoverJudgeFromConnectionLoss(provider);
+			}
+			for (const judge of capableJudgeIds(judgeCards)) {
+				if (judgeCards[judge].inFlight) {
+					recoverJudgeFromConnectionLoss(judge);
 				}
 			}
 		} catch (err) {
@@ -818,7 +796,7 @@
 	{:else}
 		<!-- Fixed column order, stacked below the breakpoint, equal widths above it. -->
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start min-w-0">
-			{#each PROVIDER_IDS as provider (provider)}
+			{#each GENERATOR_IDS as provider (provider)}
 				<AnswerCard card={cards[provider]} onRetry={() => retry(provider)} />
 			{/each}
 		</div>
@@ -826,22 +804,32 @@
 			{$i18n.t('Generating again keeps the current answer as an earlier version.')}
 		</div>
 
-		<!-- Judging: three secondary buttons, then three independent report cards. -->
+		<!--
+			Adjudication: ONE control, because there is one canonical adjudication
+			and one independent adjudicator. The per-candidate judge buttons are
+			gone with the candidates' judging role — a system that wrote one of the
+			answers must not be offered as a way to score them.
+		-->
 		<div class="flex flex-col gap-3 pt-2">
-			<div class="text-base font-medium">{$i18n.t('Judging')}</div>
+			<div class="text-base font-medium">{$i18n.t('Adjudication')}</div>
+			<div class="text-xs text-gray-500">
+				{$i18n.t('Adjudicated by {{name}}, which writes none of the answers it scores.', {
+					name: adjudicatorName
+				})}
+			</div>
 
 			<div class="flex flex-wrap items-center gap-2">
 				<!-- Strongest within the section, still secondary to "Generate all three answers". -->
 				<Tooltip
-					content={runAllReason ||
+					content={adjudicateReason ||
 						$i18n.t('Judging again keeps the current report as an earlier version.')}
 				>
 					<button
 						class="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-800 dark:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
-						disabled={runAllReason !== ''}
-						on:click={() => confirmCost(judgesToRun(judgeCards).length, runAll)}
+						disabled={adjudicateReason !== ''}
+						on:click={() => confirmCost(judgesToRun(judgeCards).length, adjudicate)}
 					>
-						{$i18n.t('Run all three judges')}
+						{$i18n.t('Adjudicate')}
 					</button>
 				</Tooltip>
 				<Tooltip content={summaryReason || $i18n.t('Summary')}>
@@ -853,39 +841,21 @@
 						{$i18n.t('Build summary')}
 					</button>
 				</Tooltip>
-				{#each judgeReasons as item (item.judge)}
-					<Tooltip
-						content={item.reason
-							? $i18n.t(item.reason.key, item.reason.params)
-							: $i18n.t('Judging again keeps the current report as an earlier version.')}
-					>
-						<button
-							class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
-							disabled={item.reason !== null}
-							on:click={() => runJudge(item.judge)}
-						>
-							{$i18n.t('Judge with {{name}}', { name: PROVIDER_LABELS[item.judge] })}
-						</button>
-					</Tooltip>
-				{/each}
 			</div>
 
 			<!-- Every disabled control states its reason, visibly and not only on hover. -->
-			{#if runAllReason}
-				<div class="text-xs text-gray-500">{runAllReason}</div>
+			{#if adjudicateReason}
+				<div class="text-xs text-gray-500">{adjudicateReason}</div>
 			{/if}
-			{#each judgeReasons.filter((item) => item.reason !== null) as item (item.judge)}
-				<div class="text-xs text-gray-500">
-					{PROVIDER_LABELS[item.judge]}: {$i18n.t(
-						item.reason?.key ?? '',
-						item.reason?.params ?? {}
-					)}
-				</div>
-			{/each}
 
-			<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start min-w-0">
+			<div class="grid grid-cols-1 gap-3 items-start min-w-0">
 				{#each capableJudgeIds(judgeCards) as judge (judge)}
-					<JudgeCard card={judgeCards[judge]} onRetry={() => runJudge(judge)} />
+					<!--
+						Retry is the same action as the button above, not a second one:
+						two ways to start an adjudication is exactly what this change
+						removed.
+					-->
+					<JudgeCard card={judgeCards[judge]} onRetry={adjudicate} />
 				{/each}
 			</div>
 

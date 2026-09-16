@@ -1,5 +1,5 @@
-import type { JudgeReports, ProviderId, Tally } from '$lib/apis/answer-compare';
-import { PROVIDER_IDS, PROVIDER_LABELS } from './state';
+import type { GeneratorId, JudgeId, JudgeReports, ProviderId, Tally } from '$lib/apis/answer-compare';
+import { GENERATOR_IDS, JUDGE_IDS, PROVIDER_LABELS } from './state';
 
 /**
  * Tally panel state, a sibling of `judgeState.ts` with the same discipline:
@@ -52,13 +52,13 @@ export interface Copy {
 }
 
 export interface VoteLine {
-	provider: ProviderId;
+	provider: GeneratorId;
 	name: string;
 	votes: number;
 }
 
 export interface ExcludedLine {
-	judge: ProviderId;
+	judge: JudgeId;
 	name: string;
 	reason: Copy;
 	/** The failed re-judge riding on an outdated entry, when present. */
@@ -68,7 +68,7 @@ export interface ExcludedLine {
 }
 
 export interface VerdictLine {
-	judge: ProviderId;
+	judge: JudgeId;
 	/** A tie or an inconclusive verdict, in plain words. Null for a sole winner. */
 	text: Copy | null;
 	/** The self-vote annotation, visibly a note beside the verdict. */
@@ -85,7 +85,7 @@ export interface TallyView {
 }
 
 const name = (provider: ProviderId): string => PROVIDER_LABELS[provider];
-const names = (providers: ProviderId[]): string => providers.map(name).join(', ');
+const names = (providers: GeneratorId[]): string => providers.map(name).join(', ');
 
 const headlineOf = (tally: Tally): Copy => {
 	const outcome = tally.outcome;
@@ -112,7 +112,7 @@ const headlineOf = (tally: Tally): Copy => {
 	return { key: 'No valid verdicts yet', params: {} };
 };
 
-const selfVoteCopy = (kind: string, judge: ProviderId): Copy =>
+const selfVoteCopy = (kind: string, judge: JudgeId): Copy =>
 	kind === 'tie'
 		? { key: '{{judge}} included its own answer in a tie', params: { judge: name(judge) } }
 		: { key: '{{judge}} judged its own answer the winner', params: { judge: name(judge) } };
@@ -126,7 +126,7 @@ export const tallyView = (tally: Tally): TallyView => {
 
 	return {
 		headline: headlineOf(tally),
-		votes: PROVIDER_IDS.map((provider) => ({
+		votes: GENERATOR_IDS.map((provider) => ({
 			provider,
 			name: name(provider),
 			votes: tally.votes[provider] ?? 0
@@ -134,7 +134,7 @@ export const tallyView = (tally: Tally): TallyView => {
 		partial: tally.partial
 			? {
 					key: 'Partial: {{nIncluded}} of {{total}} judges included',
-					params: { nIncluded: tally.n_included, total: PROVIDER_IDS.length }
+					params: { nIncluded: tally.n_included, total: JUDGE_IDS.length }
 				}
 			: null,
 		excluded: tally.excluded.map((entry) => ({

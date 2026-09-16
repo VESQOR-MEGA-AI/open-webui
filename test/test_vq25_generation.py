@@ -81,7 +81,7 @@ def isolated_env(monkeypatch):
             monkeypatch.delenv(name, raising=False)
     for name in ('OPENAI_API_KEY', 'GEMINI_API_KEY', 'VESQOR_SERVICE_TOKEN', 'VESQOR_API_BASE_URL'):
         monkeypatch.delenv(name, raising=False)
-    for provider_id in providers.PROVIDER_IDS:
+    for provider_id in providers.GENERATOR_IDS:
         monkeypatch.delenv(providers.max_input_chars_env(provider_id), raising=False)
     monkeypatch.delenv(provider_client.ENV_REQUEST_TIMEOUT_SECONDS, raising=False)
 
@@ -337,7 +337,7 @@ def test_one_provider_failing_does_not_touch_the_others(isolated_env, failure, e
 def test_three_providers_generate_concurrently(isolated_env):
     configure(isolated_env, 'chatgpt', 'gemini', 'vesqor')
     double = install_double(isolated_env)
-    for provider_id in providers.PROVIDER_IDS:
+    for provider_id in providers.GENERATOR_IDS:
         double.reply_with(PROVIDER_HOST[provider_id], _completion(f'{provider_id} answer'))
 
     run_id = make_run()
@@ -346,7 +346,7 @@ def test_three_providers_generate_concurrently(isolated_env):
         transport = httpx.ASGITransport(app=_asgi_app())
         async with httpx.AsyncClient(transport=transport, base_url='http://testserver') as api:
             return await asyncio.gather(
-                *(api.post(f'/api/v1/compare/runs/{run_id}/answers/{p}') for p in providers.PROVIDER_IDS)
+                *(api.post(f'/api/v1/compare/runs/{run_id}/answers/{p}') for p in providers.GENERATOR_IDS)
             )
 
     responses = asyncio.run(_fire_all())
@@ -355,7 +355,7 @@ def test_three_providers_generate_concurrently(isolated_env):
 
     stored = read_answers(run_id)
     assert len(stored) == 3
-    assert {row['provider'] for row in stored} == set(providers.PROVIDER_IDS)
+    assert {row['provider'] for row in stored} == set(providers.GENERATOR_IDS)
     assert {row['revision'] for row in stored} == {1}
     assert all(row['status'] == STATUS_COMPLETE for row in stored)
 
@@ -793,15 +793,15 @@ def test_generation_endpoints_reject_a_non_admin(isolated_env):
 def test_every_provider_receives_a_byte_identical_payload(isolated_env):
     configure(isolated_env, 'chatgpt', 'gemini', 'vesqor')
     double = install_double(isolated_env)
-    for provider_id in providers.PROVIDER_IDS:
+    for provider_id in providers.GENERATOR_IDS:
         double.reply_with(PROVIDER_HOST[provider_id], _completion('answer'))
 
     run_id = make_run()
     api = client_as()
-    for provider_id in providers.PROVIDER_IDS:
+    for provider_id in providers.GENERATOR_IDS:
         assert api.post(f'/api/v1/compare/runs/{run_id}/answers/{provider_id}').status_code == 200
 
-    messages = [double.bodies_for(PROVIDER_HOST[p])[0]['messages'] for p in providers.PROVIDER_IDS]
+    messages = [double.bodies_for(PROVIDER_HOST[p])[0]['messages'] for p in providers.GENERATOR_IDS]
 
     # Byte-identical message lists across all three.
     assert messages[0] == messages[1] == messages[2]
@@ -813,8 +813,8 @@ def test_every_provider_receives_a_byte_identical_payload(isolated_env):
     assert REFERENCE in content
 
     # Only the model differs, because only the model is per-provider.
-    bodies = [double.bodies_for(PROVIDER_HOST[p])[0] for p in providers.PROVIDER_IDS]
-    assert [b['model'] for b in bodies] == [PROVIDER_MODEL[p] for p in providers.PROVIDER_IDS]
+    bodies = [double.bodies_for(PROVIDER_HOST[p])[0] for p in providers.GENERATOR_IDS]
+    assert [b['model'] for b in bodies] == [PROVIDER_MODEL[p] for p in providers.GENERATOR_IDS]
     for body in bodies:
         assert body['stream'] is False
         assert set(body) == {'model', 'messages', 'stream'}
@@ -846,7 +846,7 @@ def test_no_key_material_in_stored_rows_or_responses(isolated_env):
 
     run_id = make_run()
     api = client_as()
-    payloads = [api.post(f'/api/v1/compare/runs/{run_id}/answers/{p}').text for p in providers.PROVIDER_IDS]
+    payloads = [api.post(f'/api/v1/compare/runs/{run_id}/answers/{p}').text for p in providers.GENERATOR_IDS]
     payloads.append(api.get(f'/api/v1/compare/runs/{run_id}').text)
     payloads.append(api.get('/api/v1/compare/config').text)
 
@@ -897,7 +897,7 @@ def test_get_run_returns_current_and_latest_attempt_per_provider(isolated_env):
         'rerun_count',
     }
     assert [p['id'] for p in payload['providers']] == list(providers.PROVIDER_IDS)
-    assert [a['provider'] for a in payload['answers']] == list(providers.PROVIDER_IDS)
+    assert [a['provider'] for a in payload['answers']] == list(providers.GENERATOR_IDS)
 
     by_provider = {a['provider']: a for a in payload['answers']}
     # Last good answer plus the failed retry, in one call.

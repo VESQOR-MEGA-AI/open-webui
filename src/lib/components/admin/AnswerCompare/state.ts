@@ -1,4 +1,11 @@
-import type { AnswerRow, ProviderAnswers, ProviderConfig, ProviderId } from '$lib/apis/answer-compare';
+import type {
+	AnswerRow,
+	GeneratorId,
+	JudgeId,
+	ProviderAnswers,
+	ProviderConfig,
+	ProviderId
+} from '$lib/apis/answer-compare';
 
 /**
  * Card state for the answer-comparison page, as a plain module.
@@ -18,13 +25,27 @@ import type { AnswerRow, ProviderAnswers, ProviderConfig, ProviderId } from '$li
  *    be wrong the moment someone added a field.
  */
 
-export const PROVIDER_IDS: ProviderId[] = ['chatgpt', 'gemini', 'vesqor'];
+/**
+ * The compared systems, in fixed column order. Deliberately not one undivided
+ * list of providers any more: the page now knows two kinds, and a single
+ * ambiguous list is exactly how a judges-walk and a candidates-walk get taken
+ * for each other. Every loop has to say which of the two it means.
+ */
+export const GENERATOR_IDS: GeneratorId[] = ['chatgpt', 'gemini', 'vesqor'];
+
+/**
+ * The adjudication panel: one independent model, disjoint from the candidates
+ * above so it never scores its own answer. An array, not a bare id, because
+ * nothing downstream may assume the panel has exactly one member.
+ */
+export const JUDGE_IDS: JudgeId[] = ['anthropic'];
 
 /** Display names. Shown deliberately: this is an admin benchmark of named systems. */
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
 	chatgpt: 'ChatGPT',
 	gemini: 'Gemini',
-	vesqor: 'VESQOR'
+	vesqor: 'VESQOR',
+	anthropic: 'Claude'
 };
 
 /**
@@ -67,7 +88,7 @@ export interface CardFailure {
 }
 
 export interface CardState {
-	provider: ProviderId;
+	provider: GeneratorId;
 	/** The last successfully rendered answer. Replaced only by a newer complete one. */
 	answer: AnswerRow | null;
 	/** A generation is in flight for this provider. */
@@ -80,7 +101,7 @@ export interface CardState {
 	missing: string[] | null;
 }
 
-export type CardsState = Record<ProviderId, CardState>;
+export type CardsState = Record<GeneratorId, CardState>;
 
 export type CardPhase =
 	| 'requires_configuration'
@@ -90,7 +111,7 @@ export type CardPhase =
 	| 'complete'
 	| 'empty';
 
-export const emptyCard = (provider: ProviderId): CardState => ({
+export const emptyCard = (provider: GeneratorId): CardState => ({
 	provider,
 	answer: null,
 	inFlight: false,
@@ -100,7 +121,7 @@ export const emptyCard = (provider: ProviderId): CardState => ({
 });
 
 export const initialCards = (): CardsState =>
-	PROVIDER_IDS.reduce((acc, provider) => {
+	GENERATOR_IDS.reduce((acc, provider) => {
 		acc[provider] = emptyCard(provider);
 		return acc;
 	}, {} as CardsState);
@@ -110,7 +131,7 @@ export const initialCards = (): CardsState =>
  * Every transition in this module goes through here — that is the mechanism by
  * which one card can never disturb another.
  */
-const withCard = (cards: CardsState, provider: ProviderId, next: CardState): CardsState => ({
+const withCard = (cards: CardsState, provider: GeneratorId, next: CardState): CardsState => ({
 	...cards,
 	[provider]: next
 });
@@ -144,7 +165,7 @@ export const isRetryDisabled = (card: CardState): boolean =>
  */
 export const startGeneration = (
 	cards: CardsState,
-	provider: ProviderId,
+	provider: GeneratorId,
 	now: number
 ): CardsState =>
 	withCard(cards, provider, {
@@ -159,7 +180,7 @@ export const startGeneration = (
 /** A provider reported unconfigured: name the variables, never fake an answer. */
 export const applyNotConfigured = (
 	cards: CardsState,
-	provider: ProviderId,
+	provider: GeneratorId,
 	missing: string[]
 ): CardsState =>
 	withCard(cards, provider, {
@@ -172,7 +193,7 @@ export const applyNotConfigured = (
 
 export const applyOversized = (
 	cards: CardsState,
-	provider: ProviderId,
+	provider: GeneratorId,
 	limitChars: number,
 	actualChars: number
 ): CardsState =>
@@ -193,7 +214,7 @@ export const applyOversized = (
 /** A typed failure from our backend, or from a provider via a failed row. */
 export const applyFailure = (
 	cards: CardsState,
-	provider: ProviderId,
+	provider: GeneratorId,
 	failure: CardFailure
 ): CardsState =>
 	withCard(cards, provider, {
@@ -206,7 +227,7 @@ export const applyFailure = (
 	});
 
 /** Apply one answer row, whatever its status. The single entry point for results. */
-export const applyResult = (cards: CardsState, provider: ProviderId, row: AnswerRow): CardsState => {
+export const applyResult = (cards: CardsState, provider: GeneratorId, row: AnswerRow): CardsState => {
 	const card = cards[provider];
 
 	if (row.status === 'complete') {
@@ -238,18 +259,26 @@ export const applyResult = (cards: CardsState, provider: ProviderId, row: Answer
 	});
 };
 
-/** Mark the providers a run reported as unconfigured, leaving the others alone. */
+/**
+ * Mark the candidates a run reported as unconfigured, leaving the others alone.
+ *
+ * Filtered to the candidates, not reduced over every config the server sent:
+ * the config list carries the adjudicator too, and it has no answer card to
+ * mark — writing one would add a fourth column to a three-way comparison.
+ */
 export const applyProviderConfigs = (
 	cards: CardsState,
 	configs: ProviderConfig[]
 ): CardsState =>
-	configs.reduce(
-		(acc, config) =>
-			config.configured
-				? acc
-				: applyNotConfigured(acc, config.id, config.missing),
-		cards
-	);
+	configs
+		.filter((config): config is ProviderConfig & { id: GeneratorId } =>
+			(GENERATOR_IDS as string[]).includes(config.id)
+		)
+		.reduce(
+			(acc, config) =>
+				config.configured ? acc : applyNotConfigured(acc, config.id, config.missing),
+			cards
+		);
 
 /**
  * Adopt the stored state of a run: the current answer, with the latest attempt
@@ -319,5 +348,5 @@ export const RECOVERY_DELAYS_MS = [2000, 6000, 15000];
  * unconfigured provider is never called, and a warning that misstates the cost
  * is worse than no warning.
  */
-export const providersToGenerate = (providers: ProviderConfig[]): ProviderId[] =>
-	PROVIDER_IDS.filter((id) => providers.some((config) => config.id === id && config.configured));
+export const providersToGenerate = (providers: ProviderConfig[]): GeneratorId[] =>
+	GENERATOR_IDS.filter((id) => providers.some((config) => config.id === id && config.configured));

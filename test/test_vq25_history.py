@@ -31,7 +31,7 @@ from open_webui.utils import answer_compare_providers as providers
 from open_webui.utils.auth import get_current_user
 from sqlalchemy import delete, event, select
 
-PROVIDERS = list(providers.PROVIDER_IDS)
+PROVIDERS = list(providers.GENERATOR_IDS)
 DUMMY_KEY = 'sk-vq25-history-secret-do-not-leak'
 
 

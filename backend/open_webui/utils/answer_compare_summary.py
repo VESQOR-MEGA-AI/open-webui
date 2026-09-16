@@ -22,12 +22,17 @@ import logging
 from typing import Any, Optional
 
 from open_webui.utils.answer_compare_judge import UnmappedLabel, map_report
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS, resolve_judge_ids
+from open_webui.utils.answer_compare_providers import GENERATOR_IDS, resolve_judge_ids
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
-PROVIDER_LABELS: dict[str, str] = {'chatgpt': 'ChatGPT', 'gemini': 'Gemini', 'vesqor': 'VESQOR'}
+PROVIDER_LABELS: dict[str, str] = {
+    'chatgpt': 'ChatGPT',
+    'gemini': 'Gemini',
+    'vesqor': 'VESQOR',
+    'anthropic': 'Claude',
+}
 
 # The owner's own system: section 8 collects improvements recorded for it.
 OWNER_PROVIDER = 'vesqor'
@@ -218,7 +223,7 @@ def _section_agreement(tally: dict[str, Any], excluded_judges: list[str]) -> lis
 
     lines: list[str] = []
 
-    for provider in PROVIDER_IDS:
+    for provider in GENERATOR_IDS:
         agreeing = [v for v in verdicts if v['kind'] == 'winner' and v['providers'] == [provider]]
         if len(agreeing) > 1:
             word = COUNT_WORDS.get(len(agreeing), str(len(agreeing)))
@@ -257,7 +262,7 @@ def _finding_line(judge: str, item: dict[str, Any]) -> str:
 def _section_findings(heading: str, field: str, mapped: dict[str, dict[str, Any]], judges: list[str]) -> list[str]:
     """Per provider, every item of one field from every included report, verbatim."""
     blocks: list[str] = []
-    for provider in PROVIDER_IDS:
+    for provider in GENERATOR_IDS:
         lines: list[str] = []
         for judge in judges:
             section = mapped.get(judge, {}).get('answers', {}).get(provider)
@@ -311,7 +316,10 @@ def build_narrative(tally: dict[str, Any], reports: list[SummaryReport]) -> str:
     """The whole narrative. Sections in fixed order; an empty one is omitted."""
     mapped, unmappable = _map_included_reports(reports)
     label_maps = {entry.judge: entry.label_map for entry in reports}
-    judges = [judge for judge in PROVIDER_IDS if judge in mapped]
+    # A JUDGES walk: the fixed order of the adjudication panel, not of the
+    # compared candidates. Walking the candidates here used to work only because
+    # the two lists happened to coincide; they are disjoint now.
+    judges = [judge for judge in resolve_judge_ids() if judge in mapped]
 
     sections: list[list[str]] = [
         _section_outcome(tally, unmappable),

@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 from open_webui.utils import answer_compare_adjudication as adj
+from open_webui.utils import answer_compare_providers as providers
 
 BACKEND = Path(__file__).resolve().parents[3]
 REPO = BACKEND.parent
@@ -237,8 +238,7 @@ def test_21_the_server_refuses_a_second_concurrent_judge_run():
 def test_21_each_judging_handler_guards_re_entry_synchronously():
     """A reactive `disabled` lands a tick late; the guard must not depend on it."""
     source = read(COMPARE_UI)
-    assert 'judgeCards[judge]?.inFlight) return;' in source
-    assert 'runAllInFlight || anyJudgeInFlight' in source
+    assert 'adjudicationInFlight || anyJudgeInFlight' in source
     assert 'summaryInFlight || summaryReason' in source
 
 
@@ -307,10 +307,13 @@ def test_the_stored_report_records_the_engine_version():
 #
 # ADJUDICATIVE handlers ask a model to judge reports and must reach the canonical
 # engine. Everything else must demonstrably not be an adjudication.
+# One adjudication control, and one handler behind it. The per-candidate judge
+# buttons went with the candidates' judging role, and the judge card's Retry is
+# bound to the SAME handler rather than a second path — two ways to start an
+# adjudication is precisely what a single canonical engine exists to prevent.
 ADJUDICATIVE_HANDLERS = {
-    'AnswerCompare.svelte:runAll',  # Judge all -> POST /runs/{id}/reports
-    'AnswerCompare.svelte:runJudge',  # Judge one -> POST /runs/{id}/reports/{judge}
-    'JudgeCard.svelte:onRetry',  # Retry judge -> runJudge -> same endpoint
+    'AnswerCompare.svelte:adjudicate',  # Adjudicate -> POST /runs/{id}/reports
+    'JudgeCard.svelte:onRetry',  # Retry -> the same `adjudicate` -> the same endpoint
 }
 
 NON_ADJUDICATIVE_HANDLERS = {
@@ -351,17 +354,20 @@ def test_every_adjudicative_handler_exists_and_reaches_a_canonical_endpoint():
     api = read(REPO / 'src' / 'lib' / 'apis' / 'answer-compare' / 'index.ts')
     page = read(COMPARE_UI)
 
-    # The only two client functions that may hit a judging endpoint.
+    # The only two client functions that may hit a judging endpoint. Both still
+    # exist because both endpoints do; only one of them is bound to a control.
     assert 'export const judgeRun' in api
     assert 'export const runAllJudges' in api
 
-    assert 'const runAll = async () =>' in page
-    assert 'const runJudge = async (judge: ProviderId) =>' in page
-    assert 'await judgeRun(token, runId, judge)' in page
+    assert 'const adjudicate = async () =>' in page
     assert 'await runAllJudges(token, runId)' in page
 
-    # The judge card's retry is wired to runJudge rather than its own path.
-    assert 'onRetry={() => runJudge(' in page
+    # The page has exactly one function that starts an adjudication.
+    assert 'const runJudge' not in page, 'the second adjudication path came back'
+    assert 'await judgeRun(' not in page, 'the page must reach the engine through one call site'
+
+    # The judge card's retry is the same handler, not a path of its own.
+    assert 'onRetry={adjudicate}' in page
 
 
 def test_no_contextual_menu_or_keyboard_shortcut_invokes_adjudication():
@@ -404,3 +410,57 @@ def test_every_server_route_is_classified():
     unclassified = routes - adjudicative - non_adjudicative
     assert not unclassified, f'unclassified Compare endpoints: {sorted(unclassified)}'
     assert adjudicative <= routes, 'a judging endpoint disappeared'
+
+
+####################
+# Adjudicator independence
+####################
+
+
+def test_the_adjudicator_writes_none_of_the_answers_it_scores():
+    """The property that makes the adjudication independent, asserted directly.
+
+    A system that both produced a candidate answer and scored the field would be
+    marking its own homework — and it would do so *blind*, which is worse than
+    doing it openly, because the blinding machinery would hide the conflict
+    rather than reveal it. The two lists must stay disjoint.
+    """
+    assert set(providers.GENERATOR_IDS) & set(providers.JUDGE_IDS) == set()
+    assert providers.resolve_judge_ids() == providers.JUDGE_IDS
+    for candidate in providers.GENERATOR_IDS:
+        assert providers.resolve_can_judge(candidate) is False, candidate
+
+
+def test_judge_capability_has_no_configuration_seam():
+    """No environment variable may hand a candidate the adjudication role.
+
+    It used to be ``ANSWER_COMPARE_<PROVIDER>_CAN_JUDGE``. A single deployment
+    setting that variable would have undone the independence above with no code
+    change, no review, and nothing visible on the page.
+    """
+    source = read(REPO / 'backend' / 'open_webui' / 'utils' / 'answer_compare_providers.py')
+    assert 'CAN_JUDGE' not in source.replace('_CAN_JUDGE`` variable any more', ''), (
+        'judge capability must stay structural, not configurable'
+    )
+    assert not hasattr(providers, 'can_judge_env')
+
+
+def test_nothing_downstream_assumes_a_panel_of_one():
+    """`resolve_judge_ids()` returns a tuple and callers must treat it as one.
+
+    One adjudicator is a fact about today's configuration, not a licence to
+    index `[0]` — a panel that later grows must not need these modules rewritten.
+    """
+    for name in ('answer_compare_tally', 'answer_compare_summary'):
+        source = read(REPO / 'backend' / 'open_webui' / 'utils' / f'{name}.py')
+        assert 'resolve_judge_ids()[0]' not in source, name
+        assert 'resolve_judge_ids()[-1]' not in source, name
+    router_source = read(ROUTER)
+    assert 'resolve_judge_ids()[0]' not in router_source
+
+
+def test_the_adjudicator_is_not_reachable_through_the_generation_endpoint():
+    """`generate_answer` walks the candidates, so the adjudicator cannot enter the field."""
+    source = read(ROUTER)
+    assert 'if provider not in GENERATOR_IDS:' in source
+    assert 'if provider not in PROVIDER_IDS:' not in source

@@ -4,7 +4,7 @@
 	import type { i18n as i18nType } from 'i18next';
 
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
-	import type { MappedReport, ProviderId } from '$lib/apis/answer-compare';
+	import type { GeneratorId, MappedReport } from '$lib/apis/answer-compare';
 	import { answerSections, verdictHeadline, type NamedProvider } from './judgeState';
 	import AdjudicationPanel from './AdjudicationPanel.svelte';
 
@@ -17,7 +17,8 @@
 	 * provider name is what makes "Answer B is more accurate" readable.
 	 */
 	export let mapped: MappedReport;
-	export let labelMap: Record<string, ProviderId> | null;
+	// Labels map to candidates: A/B/C are the compared answers, never the judge.
+	export let labelMap: Record<string, GeneratorId> | null;
 
 	$: headline = verdictHeadline(mapped, labelMap);
 	$: sections = answerSections(mapped, labelMap);

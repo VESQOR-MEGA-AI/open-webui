@@ -19,11 +19,12 @@ Agreement between judges is not evidence of correctness. This module exposes
 counts and kinds only: there is no confidence or consensus figure, and nothing
 here should be read as one.
 
-The judge panel is the judge-capable providers (``resolve_judge_ids()``), not
-every compared provider: a generator-only provider is never part of the
-denominator, so its absence never makes an otherwise-complete tally read as
-partial. Votes, by contrast, are per ANSWER provider — every compared provider
-can win, tie, or be named unreliable, whether or not it can judge.
+The judge panel is ``resolve_judge_ids()`` — the independent adjudicator, which
+writes none of the answers it scores. A compared system is never part of the
+denominator, so its absence can never make an otherwise-complete tally read as
+partial. Votes, by contrast, are per CANDIDATE (``GENERATOR_IDS``): every
+compared system can win, tie, or be named unreliable. The two lists are
+disjoint, and every loop below says which of them it walks.
 """
 
 import logging
@@ -36,7 +37,7 @@ from open_webui.utils.answer_compare_judge import (
     UnmappedLabel,
     map_report,
 )
-from open_webui.utils.answer_compare_providers import PROVIDER_IDS, resolve_judge_ids
+from open_webui.utils.answer_compare_providers import GENERATOR_IDS, resolve_judge_ids
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -59,8 +60,13 @@ OUTCOME_NO_VALID_VERDICTS = 'no_valid_verdicts'
 MALFORMED_REPORT_CODE = 'malformed_report'
 
 # A preferred answer needs at least this many included verdicts, on top of the
-# strict majority. With one judge the majority test is vacuously true and the
-# result would read as agreement where there was only ever one opinion.
+# strict majority — but only when the panel is actually that large. The rule
+# guards against a *partial* panel speaking for a full one: two of three judges
+# reporting is agreement, one of three is one opinion wearing a majority's
+# clothes. It was never meant to veto a panel that is one adjudicator by design,
+# where the single verdict IS the panel's verdict and reporting "no majority"
+# for it would be false. Hence `min(MIN_JUDGES_FOR_PREFERRED, len(judge_ids))`
+# below rather than a bare comparison.
 MIN_JUDGES_FOR_PREFERRED = 2
 
 
@@ -163,7 +169,8 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
     self_votes_excluded: list[dict[str, Any]] = []
     ties: list[dict[str, Any]] = []
     inconclusive: list[str] = []
-    votes: dict[str, int] = {provider: 0 for provider in PROVIDER_IDS}
+    # A CANDIDATES walk: votes are cast for the compared answers, never for a judge.
+    votes: dict[str, int] = {provider: 0 for provider in GENERATOR_IDS}
 
     for entry in ordered:
         reason = exclusion_reason(entry, current_versions)
@@ -200,14 +207,14 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
             self_votes.append({'judge': entry.judge, 'kind': kind})
 
     n_included = len(included_judges)
-    # A preferred answer needs a strict majority AND at least two included judges
-    # (owner decision, DECISIONS.md#014): one voter is arithmetically a majority
-    # of one, but substantively a single opinion, not a preference.
-    preferred = (
-        next((p for p in PROVIDER_IDS if votes[p] * 2 > n_included), None)
-        if n_included >= MIN_JUDGES_FOR_PREFERRED
-        else None
-    )
+    # A preferred answer needs a strict majority AND a complete panel, where
+    # "complete" means at least two included judges on a panel that has two or
+    # more (owner decision, DECISIONS.md#014): one voter out of three is
+    # arithmetically a majority of one but substantively a single opinion. On a
+    # one-adjudicator panel there is no partial-panel risk to guard against —
+    # that one verdict is the whole panel — so the floor follows the panel size.
+    required = min(MIN_JUDGES_FOR_PREFERRED, len(judge_ids))
+    preferred = next((p for p in GENERATOR_IDS if votes[p] * 2 > n_included), None) if n_included >= required else None
     if n_included == 0:
         outcome = {'kind': OUTCOME_NO_VALID_VERDICTS, 'provider': None}
     elif preferred is not None:
@@ -218,7 +225,7 @@ def compute_tally(current_versions: list[dict[str, Any]], judges: list[TallyJudg
     return {
         'current_versions': [
             {'provider': p, 'revision': r}
-            for p, r in sorted(versions_set(current_versions), key=lambda pr: PROVIDER_IDS.index(pr[0]))
+            for p, r in sorted(versions_set(current_versions), key=lambda pr: GENERATOR_IDS.index(pr[0]))
         ],
         'included_reports': included_reports,
         'included_judges': included_judges,

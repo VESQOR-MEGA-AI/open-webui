@@ -3,6 +3,9 @@ import type { JudgeReports, MappedReport, ProviderConfig, RawReport, ReportRow }
 import { ERROR_COPY } from './state';
 import {
 	answerSections,
+	emptyJudgeCard,
+	type JudgeCardState,
+	type JudgeCardsState,
 	applyJudgeConfigs,
 	applyJudgeFailure,
 	applyJudgeNotConfigured,
@@ -55,11 +58,11 @@ const mappedReport = (): MappedReport => ({
 const reportRow = (overrides: Partial<ReportRow> = {}): ReportRow => ({
 	id: 'report-1',
 	run_id: 'run-1',
-	judge: 'gemini',
+	judge: 'anthropic',
 	revision: 1,
 	status: 'complete',
-	requested_model: 'gemini-test-1',
-	model: 'gemini-test-1-002',
+	requested_model: 'claude-sonnet-5',
+	model: 'claude-sonnet-5',
 	label_map: { ...LABEL_MAP },
 	report: rawReport(),
 	judged_versions: [
@@ -77,41 +80,61 @@ const reportRow = (overrides: Partial<ReportRow> = {}): ReportRow => ({
 });
 
 const config = (overrides: Partial<ProviderConfig> = {}): ProviderConfig => ({
-	id: 'gemini',
+	id: 'anthropic',
 	configured: true,
 	missing: [],
 	base_url: 'https://x',
-	model: 'gemini-test-1',
+	model: 'claude-sonnet-5',
+	can_judge: true,
 	...overrides
 });
 
-const withReport = () => applyJudgeResult(initialJudgeCards(), 'gemini', reportRow());
+const withReport = () => applyJudgeResult(initialJudgeCards(), 'anthropic', reportRow());
+
+/**
+ * A hand-built panel of three.
+ *
+ * The product's panel is one independent adjudicator, so there are no siblings
+ * left for the real state to preserve — but every transition in `judgeState.ts`
+ * is still written to a panel of any size, and sibling identity is the rule
+ * that keeps it that way. Building the wider panel here exercises that
+ * mechanism directly instead of letting it go untested the day the panel
+ * became a single card.
+ */
+const SECOND = 'second' as never;
+const THIRD = 'third' as never;
+const widePanel = (base: JudgeCardsState): JudgeCardsState =>
+	({
+		...base,
+		[SECOND]: { ...emptyJudgeCard('anthropic'), judge: SECOND } as JudgeCardState,
+		[THIRD]: { ...emptyJudgeCard('anthropic'), judge: THIRD } as JudgeCardState
+	}) as JudgeCardsState;
 
 describe('judge-card independence', () => {
 	it('leaves the other judges identical by reference on a failure', () => {
-		const before = initialJudgeCards();
-		const after = applyJudgeFailure(before, 'chatgpt', { code: 'timeout' });
+		const before = widePanel(initialJudgeCards());
+		const after = applyJudgeFailure(before, SECOND, { code: 'timeout' });
 
-		expect(after.gemini).toBe(before.gemini);
-		expect(after.vesqor).toBe(before.vesqor);
-		expect(after.chatgpt).not.toBe(before.chatgpt);
+		expect(after.anthropic).toBe(before.anthropic);
+		expect(after[THIRD]).toBe(before[THIRD]);
+		expect(after[SECOND]).not.toBe(before[SECOND]);
 	});
 
 	it('leaves the other judges identical on every transition', () => {
-		const before = withReport();
+		const before = widePanel(withReport());
 		const transitions = [
-			() => startJudging(before, 'chatgpt', 1000),
-			() => applyJudgeNotConfigured(before, 'chatgpt', ['ANSWER_COMPARE_CHATGPT_MODEL']),
-			() => applyJudgeOversized(before, 'chatgpt', 400000, 500000),
-			() => applyJudgeNotEnoughAnswers(before, 'chatgpt', ['gemini']),
-			() => applyJudgeFailure(before, 'chatgpt', { code: 'malformed_report' }),
-			() => applyJudgeResult(before, 'chatgpt', reportRow({ judge: 'chatgpt' })),
-			() => applyJudgeResult(before, 'chatgpt', reportRow({ judge: 'chatgpt', status: 'pending', report: null, mapped: null }))
+			() => startJudging(before, SECOND, 1000),
+			() => applyJudgeNotConfigured(before, SECOND, ['ANSWER_COMPARE_ANTHROPIC_MODEL']),
+			() => applyJudgeOversized(before, SECOND, 400000, 500000),
+			() => applyJudgeNotEnoughAnswers(before, SECOND, ['gemini']),
+			() => applyJudgeFailure(before, SECOND, { code: 'malformed_report' }),
+			() => applyJudgeResult(before, SECOND, reportRow({ judge: SECOND })),
+			() => applyJudgeResult(before, SECOND, reportRow({ judge: SECOND, status: 'pending', report: null, mapped: null }))
 		];
 		for (const transition of transitions) {
 			const after = transition();
-			expect(after.gemini).toBe(before.gemini);
-			expect(after.vesqor).toBe(before.vesqor);
+			expect(after.anthropic).toBe(before.anthropic);
+			expect(after[THIRD]).toBe(before[THIRD]);
 		}
 	});
 });
@@ -121,13 +144,13 @@ describe('a report is removed by nothing but a successful new version', () => {
 		const before = withReport();
 		const after = applyJudgeResult(
 			before,
-			'gemini',
+			'anthropic',
 			reportRow({ id: 'report-2', revision: 2, status: 'failed', report: null, mapped: null, error: { code: 'malformed_report', message: 'x' } })
 		);
 
-		expect(after.gemini.report).toBe(before.gemini.report);
-		expect(after.gemini.failure).toEqual({ code: 'malformed_report' });
-		expect(judgePhase(after.gemini)).toBe('failed');
+		expect(after.anthropic.report).toBe(before.anthropic.report);
+		expect(after.anthropic.failure).toEqual({ code: 'malformed_report' });
+		expect(judgePhase(after.anthropic)).toBe('failed');
 	});
 
 	it('keeps the report, by identity, on every failure path the page takes', () => {
@@ -136,32 +159,32 @@ describe('a report is removed by nothing but a successful new version', () => {
 		// none of which go through applyJudgeResult. Same rule, same guard.
 		const before = withReport();
 		for (const code of ['network', 'unauthorized', 'auth', 'malformed_report', 'teapot']) {
-			const after = applyJudgeFailure(before, 'gemini', { code });
-			expect(after.gemini.report).toBe(before.gemini.report);
-			expect(after.gemini.failure).toEqual({ code });
-			expect(after.gemini.inFlight).toBe(false);
-			expect(judgePhase(after.gemini)).toBe('failed');
+			const after = applyJudgeFailure(before, 'anthropic', { code });
+			expect(after.anthropic.report).toBe(before.anthropic.report);
+			expect(after.anthropic.failure).toEqual({ code });
+			expect(after.anthropic.inFlight).toBe(false);
+			expect(judgePhase(after.anthropic)).toBe('failed');
 		}
-		const oversized = applyJudgeOversized(before, 'gemini', 400000, 500000);
-		expect(oversized.gemini.report).toBe(before.gemini.report);
-		const notEnough = applyJudgeNotEnoughAnswers(before, 'gemini', ['chatgpt']);
-		expect(notEnough.gemini.report).toBe(before.gemini.report);
+		const oversized = applyJudgeOversized(before, 'anthropic', 400000, 500000);
+		expect(oversized.anthropic.report).toBe(before.anthropic.report);
+		const notEnough = applyJudgeNotEnoughAnswers(before, 'anthropic', ['chatgpt']);
+		expect(notEnough.anthropic.report).toBe(before.anthropic.report);
 	});
 
 	it('does not clear the existing report when a re-judge starts', () => {
 		const before = withReport();
-		const after = startJudging(before, 'gemini', 5000);
+		const after = startJudging(before, 'anthropic', 5000);
 
-		expect(after.gemini.report).toBe(before.gemini.report);
-		expect(judgePhase(after.gemini)).toBe('rejudging');
-		expect(judgePhase(startJudging(initialJudgeCards(), 'gemini', 5000).gemini)).toBe('judging');
+		expect(after.anthropic.report).toBe(before.anthropic.report);
+		expect(judgePhase(after.anthropic)).toBe('rejudging');
+		expect(judgePhase(startJudging(initialJudgeCards(), 'anthropic', 5000).anthropic)).toBe('judging');
 	});
 
 	it('keeps a rendered report when the server has no complete row for it', () => {
 		const before = withReport();
 		const reports: JudgeReports[] = [
 			{
-				judge: 'gemini',
+				judge: 'anthropic',
 				current: null,
 				latest_attempt: reportRow({ id: 'report-2', revision: 2, status: 'failed', report: null, mapped: null, error: { code: 'stale', message: 'x' } }),
 				outdated: false
@@ -169,57 +192,57 @@ describe('a report is removed by nothing but a successful new version', () => {
 		];
 		const after = applyJudgeRunState(before, reports);
 
-		expect(after.gemini.report).toBe(before.gemini.report);
-		expect(after.gemini.failure).toEqual({ code: 'stale' });
+		expect(after.anthropic.report).toBe(before.anthropic.report);
+		expect(after.anthropic.failure).toEqual({ code: 'stale' });
 	});
 
 	it('keeps the rendered report when the server reports nothing at all', () => {
 		const before = withReport();
-		const after = applyJudgeRunState(before, [{ judge: 'gemini', current: null, latest_attempt: null, outdated: false }]);
-		expect(after.gemini.report).toBe(before.gemini.report);
-		expect(judgePhase(after.gemini)).toBe('complete');
+		const after = applyJudgeRunState(before, [{ judge: 'anthropic', current: null, latest_attempt: null, outdated: false }]);
+		expect(after.anthropic.report).toBe(before.anthropic.report);
+		expect(judgePhase(after.anthropic)).toBe('complete');
 	});
 
 	it('replaces the report only with a newer complete one', () => {
 		const before = withReport();
 		const newer = reportRow({ id: 'report-3', revision: 3 });
-		const after = applyJudgeResult(before, 'gemini', newer);
-		expect(after.gemini.report).toBe(newer);
-		expect(after.gemini.failure).toBeNull();
+		const after = applyJudgeResult(before, 'anthropic', newer);
+		expect(after.anthropic.report).toBe(newer);
+		expect(after.anthropic.failure).toBeNull();
 	});
 });
 
 describe('outdated', () => {
 	it('is set from the server and cleared by a later false', () => {
 		const entry = (outdated: boolean): JudgeReports => ({
-			judge: 'gemini',
+			judge: 'anthropic',
 			current: reportRow(),
 			latest_attempt: reportRow(),
 			outdated
 		});
 		const flagged = applyJudgeRunState(initialJudgeCards(), [entry(true)]);
-		expect(flagged.gemini.outdated).toBe(true);
+		expect(flagged.anthropic.outdated).toBe(true);
 
 		const cleared = applyJudgeRunState(flagged, [entry(false)]);
-		expect(cleared.gemini.outdated).toBe(false);
+		expect(cleared.anthropic.outdated).toBe(false);
 	});
 
 	it('is never true without a current report', () => {
 		const after = applyJudgeRunState(initialJudgeCards(), [
-			{ judge: 'gemini', current: null, latest_attempt: null, outdated: true }
+			{ judge: 'anthropic', current: null, latest_attempt: null, outdated: true }
 		]);
-		expect(after.gemini.outdated).toBe(false);
+		expect(after.anthropic.outdated).toBe(false);
 	});
 
 	it('is not inherited by a new complete report', () => {
 		const flagged = applyJudgeRunState(initialJudgeCards(), [
-			{ judge: 'gemini', current: reportRow(), latest_attempt: reportRow(), outdated: true }
+			{ judge: 'anthropic', current: reportRow(), latest_attempt: reportRow(), outdated: true }
 		]);
-		expect(flagged.gemini.outdated).toBe(true);
+		expect(flagged.anthropic.outdated).toBe(true);
 
-		const rejudged = applyJudgeResult(flagged, 'gemini', reportRow({ id: 'report-2', revision: 2 }));
-		expect(rejudged.gemini.outdated).toBe(false);
-		expect(rejudged.gemini.report?.revision).toBe(2);
+		const rejudged = applyJudgeResult(flagged, 'anthropic', reportRow({ id: 'report-2', revision: 2 }));
+		expect(rejudged.anthropic.outdated).toBe(false);
+		expect(rejudged.anthropic.report?.revision).toBe(2);
 	});
 });
 
@@ -278,30 +301,32 @@ describe('copy and controls', () => {
 	});
 
 	it('oversized copy is the judging one, carrying both numbers and the judge', () => {
-		const after = applyJudgeOversized(initialJudgeCards(), 'vesqor', 400000, 512000);
-		const described = describeJudgeFailure(after.vesqor.failure!);
+		const after = applyJudgeOversized(initialJudgeCards(), 'anthropic', 400000, 512000);
+		const described = describeJudgeFailure(after.anthropic.failure!);
 		expect(described.key).toBe(JUDGE_ERROR_COPY.oversized);
-		expect(described.params).toMatchObject({ judge: 'VESQOR', limitChars: 400000, actualChars: 512000 });
-		expect(isJudgeRetryDisabled(after.vesqor)).toBe(true);
+		expect(described.params).toMatchObject({ judge: 'Claude', limitChars: 400000, actualChars: 512000 });
+		expect(isJudgeRetryDisabled(after.anthropic)).toBe(true);
 	});
 
 	it('not_enough_answers names the available providers', () => {
-		const after = applyJudgeNotEnoughAnswers(initialJudgeCards(), 'chatgpt', ['gemini']);
-		expect(describeJudgeFailure(after.chatgpt.failure!).params.providers).toBe('Gemini');
+		// The judge is the adjudicator; the names listed are the CANDIDATES that
+		// do have an answer, which is what makes the message actionable.
+		const after = applyJudgeNotEnoughAnswers(initialJudgeCards(), 'anthropic', ['gemini']);
+		expect(describeJudgeFailure(after.anthropic.failure!).params.providers).toBe('Gemini');
 	});
 
 	it('button reason: unlock at two answers, then configuration, then running', () => {
 		const cards = initialJudgeCards();
-		expect(judgeButtonDisabledReason(cards.gemini, 1)?.key).toBe('Judging unlocks once at least two answers exist.');
-		expect(judgeButtonDisabledReason(cards.gemini, 2)).toBeNull();
+		expect(judgeButtonDisabledReason(cards.anthropic, 1)?.key).toBe('Judging unlocks once at least two answers exist.');
+		expect(judgeButtonDisabledReason(cards.anthropic, 2)).toBeNull();
 
-		const unconfigured = applyJudgeConfigs(cards, [config({ configured: false, missing: ['ANSWER_COMPARE_GEMINI_MODEL'] })]);
-		expect(judgeButtonDisabledReason(unconfigured.gemini, 3)).toEqual({
+		const unconfigured = applyJudgeConfigs(cards, [config({ configured: false, missing: ['ANSWER_COMPARE_ANTHROPIC_BASE_URL'] })]);
+		expect(judgeButtonDisabledReason(unconfigured.anthropic, 3)).toEqual({
 			key: 'Requires configuration: {{missing}}',
-			params: { missing: 'ANSWER_COMPARE_GEMINI_MODEL' }
+			params: { missing: 'ANSWER_COMPARE_ANTHROPIC_BASE_URL' }
 		});
 
-		const running = startJudging(cards, 'gemini', 1);
-		expect(judgeButtonDisabledReason(running.gemini, 3)?.key).toBe('This judge is already running.');
+		const running = startJudging(cards, 'anthropic', 1);
+		expect(judgeButtonDisabledReason(running.anthropic, 3)?.key).toBe('This judge is already running.');
 	});
 });

@@ -10,10 +10,10 @@
 import type {
 	ClaimClassification,
 	MappedAdjudication,
-	ProviderId,
+	GeneratorId,
 	VerdictKind
 } from '$lib/apis/answer-compare';
-import { PROVIDER_IDS, PROVIDER_LABELS } from './state';
+import { GENERATOR_IDS, PROVIDER_LABELS } from './state';
 
 /** Category keys in rubric order, with their display titles. Mirrors the engine. */
 export const CATEGORY_ORDER: { key: string; title: string }[] = [
@@ -43,14 +43,14 @@ export const CLASSIFICATION_ORDER: { classification: ClaimClassification; title:
 	{ classification: 'NOT_VERIFIABLE', title: 'not verifiable' }
 ];
 
-export const providerName = (provider: ProviderId | string): string =>
-	PROVIDER_LABELS[provider as ProviderId] ?? provider;
+export const providerName = (provider: GeneratorId | string): string =>
+	PROVIDER_LABELS[provider as GeneratorId] ?? provider;
 
 export const confidenceWords = (level: string): string => level;
 
 export interface VerdictLine {
 	kind: VerdictKind;
-	providers: ProviderId[];
+	providers: GeneratorId[];
 }
 
 export const verdictLine = (adjudication: MappedAdjudication): VerdictLine => {
@@ -64,7 +64,7 @@ export const verdictLine = (adjudication: MappedAdjudication): VerdictLine => {
 };
 
 export interface ScoreRow {
-	provider: ProviderId;
+	provider: GeneratorId;
 	score: number;
 	winner: boolean;
 	integrityCapped: boolean;
@@ -78,14 +78,14 @@ export const scoreRows = (adjudication: MappedAdjudication): ScoreRow[] => {
 	const capped = new Map(
 		adjudication.candidate_scores.map((entry) => [entry.provider, entry.integrity_capped])
 	);
-	const winners = new Set<ProviderId>(
+	const winners = new Set<GeneratorId>(
 		adjudication.overall_winner ? [adjudication.overall_winner] : adjudication.tied_providers
 	);
 
 	const ranked = adjudication.overall_ranking.filter((provider) => provider in adjudication.scores);
 	// Anything the ranking somehow omits still gets a row: a provider that was
 	// scored but not ranked must not vanish from the page.
-	const missing = PROVIDER_IDS.filter(
+	const missing = GENERATOR_IDS.filter(
 		(provider) => provider in adjudication.scores && !ranked.includes(provider)
 	);
 
@@ -98,7 +98,7 @@ export const scoreRows = (adjudication: MappedAdjudication): ScoreRow[] => {
 };
 
 export interface CategoryCell {
-	provider: ProviderId;
+	provider: GeneratorId;
 	score: number;
 	best: boolean;
 }
@@ -108,7 +108,7 @@ export interface CategoryRow {
 	title: string;
 	weight: number;
 	cells: CategoryCell[];
-	winners: ProviderId[];
+	winners: GeneratorId[];
 }
 
 export const categoryRows = (adjudication: MappedAdjudication): CategoryRow[] => {
@@ -137,7 +137,7 @@ export interface ClaimCount {
 }
 
 export interface ClaimRow {
-	provider: ProviderId;
+	provider: GeneratorId;
 	counts: ClaimCount[];
 	accuracyRatio: number | null;
 	criticalCoverage: number | null;
