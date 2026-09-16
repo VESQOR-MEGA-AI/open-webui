@@ -1,0 +1,4 @@
+Using only the incident log and the change record supplied as source material,
+report what caused the 2026-03-11 checkout outage, state whether the rollback
+completed, and say what still needs to be verified. Do not speculate beyond the
+evidence. Name the root cause explicitly.

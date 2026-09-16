@@ -1,0 +1,21 @@
+Root cause: migration 0142 added a NOT NULL constraint to orders.promo_code while
+3.1% of existing rows still held NULL. Checkout began returning HTTP 500 at 02:14
+UTC on 2026-03-11.
+
+The rollback did not complete. It was started at 02:41 UTC and aborted at 02:47
+UTC with a lock timeout on the orders table. Service was restored at 03:05 UTC by
+disabling the constraint manually — the rollback itself never finished, so the
+schema was left in a hand-patched state rather than a known-good one.
+
+Contributing factor: the change record shows 0142 was approved with no backfill
+step, on the reviewer's stated assumption that promo_code was always populated.
+Staging held zero NULL promo_code rows, so the migration passed there and the
+gap was invisible until production.
+
+Two retries were attempted before the rollback, at 02:22 and 02:31 UTC; both
+failed with the same constraint violation.
+
+Still to verify: whether the manually disabled constraint has since been
+reinstated with a backfill, and whether any orders written between 02:14 and
+03:05 UTC were lost rather than merely rejected. Neither is settled by the
+supplied material.

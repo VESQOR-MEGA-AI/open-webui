@@ -1,0 +1,18 @@
+CRITICAL: At 02:14 UTC on 2026-03-11 the checkout service began returning HTTP 500. The
+incident log attributes the failure to migration 0142, which added a NOT NULL
+constraint to orders.promo_code while 3.1% of existing rows held NULL.
+
+CRITICAL: The rollback was started at 02:41 UTC and did NOT complete. The log records
+"rollback aborted: lock timeout on orders" at 02:47 UTC. The service was restored
+at 03:05 UTC by disabling the constraint manually, not by the rollback.
+
+HIGH: Two retry attempts were made against the migration before the rollback was
+started, at 02:22 UTC and 02:31 UTC. Both failed with the same constraint violation.
+
+HIGH: The change record shows migration 0142 was approved without a backfill step. The
+reviewer comment reads "assuming promo_code is always populated".
+
+The staging database contained 0 rows with a NULL promo_code, which is why the
+migration passed staging.
+
+LOW: The incident was declared resolved at 03:20 UTC after a 15-minute observation window.

@@ -32,7 +32,12 @@
 	import AnswerCard from './AnswerCompare/AnswerCard.svelte';
 	import JudgeCard from './AnswerCompare/JudgeCard.svelte';
 	import TallyPanel from './AnswerCompare/TallyPanel.svelte';
-	import { applyTally, clearTally, initialTallyState, type TallyPanelState } from './AnswerCompare/tallyState';
+	import {
+		applyTally,
+		clearTally,
+		initialTallyState,
+		type TallyPanelState
+	} from './AnswerCompare/tallyState';
 	import SummaryPanel from './AnswerCompare/SummaryPanel.svelte';
 	import HistoryList from './AnswerCompare/HistoryList.svelte';
 	import {
@@ -141,14 +146,19 @@
 		judge,
 		reason: judgeButtonDisabledReason(judgeCards[judge], completeAnswers)
 	}));
-	$: anyJudgeConfigured = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].missing === null);
+	$: anyJudgeConfigured = capableJudgeIds(judgeCards).some(
+		(judge) => judgeCards[judge].missing === null
+	);
 	$: anyJudgeInFlight = capableJudgeIds(judgeCards).some((judge) => judgeCards[judge].inFlight);
 	$: lineage = currentRun ? lineageLines(currentRun) : { parent: null, children: null };
 	// A rerun generates nothing on purpose (the cost dialog owns that); say so, or
 	// the empty cards after "Run again" read as a failure. It goes as soon as an
 	// answer exists.
 	$: showRerunNotice =
-		currentRun !== null && currentRun.rerun_of_run_id !== null && completeAnswers === 0 && !anyInFlight;
+		currentRun !== null &&
+		currentRun.rerun_of_run_id !== null &&
+		completeAnswers === 0 &&
+		!anyInFlight;
 	$: includedVerdicts = tallyState.tally?.n_included ?? 0;
 	$: summaryReason = !runId
 		? $i18n.t('Enter a prompt and generate three answers to compare.')
@@ -351,7 +361,8 @@
 		return runProvider(provider, id);
 	};
 
-	const reportJudgeApiError = (judge: ProviderId, err: CompareApiError) => applyJudgeDetail(judge, err.detail);
+	const reportJudgeApiError = (judge: ProviderId, err: CompareApiError) =>
+		applyJudgeDetail(judge, err.detail);
 
 	/** A typed detail — from an HTTP error or a run-all `skipped` entry — onto the judge's card. */
 	const applyJudgeDetail = (judge: ProviderId, detail: ApiErrorDetail) => {
@@ -369,7 +380,11 @@
 			return;
 		}
 		if (detail.code === 'not_enough_answers') {
-			judgeCards = applyJudgeNotEnoughAnswers(judgeCards, judge, (detail.complete as ProviderId[]) ?? []);
+			judgeCards = applyJudgeNotEnoughAnswers(
+				judgeCards,
+				judge,
+				(detail.complete as ProviderId[]) ?? []
+			);
 			return;
 		}
 		judgeCards = applyJudgeFailure(judgeCards, judge, { code: detail.code });
@@ -408,7 +423,11 @@
 
 	/** One judge's lifecycle, in its own function with its own try/catch. */
 	const runJudge = async (judge: ProviderId) => {
-		if (!runId) return;
+		// `judgeButtonDisabledReason` only reaches the button on the next tick, so a
+		// fast double-click would otherwise fire twice before the button disables.
+		// The card's own in-flight flag is set synchronously and is the real guard;
+		// the server's `already_running` 409 is the backstop, not the first line.
+		if (!runId || judgeCards[judge]?.inFlight) return;
 		clearJudgeRecovery(judge);
 		judgeCards = startJudging(judgeCards, judge, Date.now());
 
@@ -449,7 +468,9 @@
 	};
 
 	const runAll = async () => {
-		if (!runId || runAllReason) return;
+		// `runAllReason` is reactive and stale within the click's own tick; the
+		// plain flag is not.
+		if (!runId || runAllInFlight || anyJudgeInFlight || runAllReason) return;
 		runAllInFlight = true;
 		const started = Date.now();
 		for (const judge of capableJudgeIds(judgeCards)) {
@@ -473,7 +494,11 @@
 				for (const judge of capableJudgeIds(judgeCards)) {
 					if (judgeCards[judge].inFlight) {
 						if (err.code === 'not_enough_answers') {
-							judgeCards = applyJudgeNotEnoughAnswers(judgeCards, judge, (err.detail.complete as ProviderId[]) ?? []);
+							judgeCards = applyJudgeNotEnoughAnswers(
+								judgeCards,
+								judge,
+								(err.detail.complete as ProviderId[]) ?? []
+							);
 						} else {
 							judgeCards = applyJudgeFailure(judgeCards, judge, { code: err.code });
 						}
@@ -554,7 +579,7 @@
 
 	/** Assembles server-side from evidence already gathered: no provider call, no dialog. */
 	const buildRunSummary = async () => {
-		if (!runId || summaryReason) return;
+		if (!runId || summaryInFlight || summaryReason) return;
 		summaryInFlight = true;
 		try {
 			summaryState = applySummaryRow(summaryState, await buildSummary(token, runId));
@@ -642,7 +667,11 @@
 			prompt = stored.run.prompt;
 			reference = stored.run.reference ?? '';
 			providers = stored.providers;
-			cards = applyRunState(applyProviderConfigs(initialCards(), stored.providers), stored.answers, stored.providers);
+			cards = applyRunState(
+				applyProviderConfigs(initialCards(), stored.providers),
+				stored.answers,
+				stored.providers
+			);
 			judgeCards = applyJudgeRunState(
 				applyJudgeConfigs(initialJudgeCards(stored.providers), stored.providers),
 				stored.reports,
@@ -803,7 +832,10 @@
 
 			<div class="flex flex-wrap items-center gap-2">
 				<!-- Strongest within the section, still secondary to "Generate all three answers". -->
-				<Tooltip content={runAllReason || $i18n.t('Judging again keeps the current report as an earlier version.')}>
+				<Tooltip
+					content={runAllReason ||
+						$i18n.t('Judging again keeps the current report as an earlier version.')}
+				>
 					<button
 						class="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-800 dark:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-40 disabled:cursor-not-allowed"
 						disabled={runAllReason !== ''}
@@ -844,7 +876,10 @@
 			{/if}
 			{#each judgeReasons.filter((item) => item.reason !== null) as item (item.judge)}
 				<div class="text-xs text-gray-500">
-					{PROVIDER_LABELS[item.judge]}: {$i18n.t(item.reason?.key ?? '', item.reason?.params ?? {})}
+					{PROVIDER_LABELS[item.judge]}: {$i18n.t(
+						item.reason?.key ?? '',
+						item.reason?.params ?? {}
+					)}
 				</div>
 			{/each}
 
@@ -872,7 +907,9 @@
 <ConfirmDialog
 	bind:show={showCostDialog}
 	title={$i18n.t('Paid requests')}
-	message={$i18n.t('This will send {{count}} paid AI requests. Continue?', { count: pendingRequestCount })}
+	message={$i18n.t('This will send {{count}} paid AI requests. Continue?', {
+		count: pendingRequestCount
+	})}
 	confirmLabel={$i18n.t('Continue')}
 	cancelLabel={$i18n.t('Cancel')}
 	on:confirm={runPendingBulkAction}
