@@ -1803,8 +1803,6 @@ def fingerprint(request: AdjudicationRequest, judge_id: str, model: str) -> str:
     rubric change or an engine bump all invalidate it. Anything that could move
     a score must be in here.
     """
-    import hashlib
-
     payload = {
         'engine_version': ADJUDICATION_ENGINE_VERSION,
         'rubric_version': ADJUDICATION_RUBRIC_VERSION,
@@ -1821,5 +1819,34 @@ def fingerprint(request: AdjudicationRequest, judge_id: str, model: str) -> str:
         'evidence': [item.model_dump() for item in request.evidence],
         'candidates': request.candidates,
     }
+    return _digest(payload)
+
+
+def evidence_fingerprint(request: AdjudicationRequest) -> str:
+    """A digest of the authoritative corpus and the task alone.
+
+    Recorded alongside the full fingerprint so an auditor can tell *which* input
+    moved between two adjudications. The full fingerprint changing tells you
+    something changed; this one changing tells you it was the evidence or the
+    task rather than a candidate, a model or the rubric — which is the first
+    question anyone asks when two runs disagree.
+    """
+    return _digest(
+        {
+            'task_requirements': request.task_requirements,
+            'acceptance_criteria': request.acceptance_criteria,
+            'evidence': [item.model_dump() for item in request.evidence],
+        }
+    )
+
+
+def candidate_fingerprints(request: AdjudicationRequest) -> dict[str, str]:
+    """Per-candidate digests, so a changed candidate is identifiable by label."""
+    return {label: _digest({'text': text}) for label, text in request.candidates.items()}
+
+
+def _digest(payload: dict[str, Any]) -> str:
+    import hashlib
+
     encoded = json.dumps(payload, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
     return hashlib.sha256(encoded.encode('utf-8')).hexdigest()

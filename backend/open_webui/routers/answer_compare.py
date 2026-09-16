@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -843,6 +844,10 @@ async def judge_once(
         )
 
     # Fresh random order per call; the RNG is the system one outside tests.
+    # One id for this adjudication attempt, minted before anything can fail so
+    # the same value appears in the logs and in the stored audit record.
+    correlation_id = str(uuid.uuid4())
+
     labeled = judge.shuffle_labels([(a.provider, a.revision, a.text or '') for a in complete])
     labels = [item.label for item in labeled]
 
@@ -917,7 +922,10 @@ async def judge_once(
         status=STATUS_COMPLETE,
         model=called.model,
         report=report,
-        params={**called.params, **_audit_params(request, judge_id, called.model or config.model, budget)},
+        params={
+            **called.params,
+            **_audit_params(request, judge_id, called.model or config.model, budget, correlation_id),
+        },
     )
     return await _settled_report_response(report_row, settled)
 
@@ -927,18 +935,29 @@ def _audit_params(
     judge_id: str,
     model: str,
     budget: adjudication.BudgetOutcome,
+    correlation_id: str,
 ) -> dict[str, Any]:
     """What a later reader needs to understand — and reproduce — this adjudication.
 
     The fingerprint covers every material input (candidates, evidence,
     requirements, rubric, engine version, judge and model), so it doubles as the
-    cache key: nothing can be reused across a change to any of them. No secret,
-    provider key or base URL goes in here — only the identity of what ran.
+    cache key: nothing can be reused across a change to any of them. The
+    narrower evidence and per-candidate digests sit beside it so an auditor can
+    tell *which* input moved between two runs, not merely that one did.
+
+    No secret, provider key or base URL goes in here, and no model reasoning —
+    only the identity of what ran and the findings it produced.
     """
     return {
+        'adjudication_correlation_id': correlation_id,
+        'adjudicated_at': int(time.time()),
         'adjudication_engine_version': adjudication.ADJUDICATION_ENGINE_VERSION,
         'adjudication_rubric_version': adjudication.ADJUDICATION_RUBRIC_VERSION,
         'adjudication_fingerprint': adjudication.fingerprint(request, judge_id, model),
+        'evidence_fingerprint': adjudication.evidence_fingerprint(request),
+        'candidate_fingerprints': adjudication.candidate_fingerprints(request),
+        'judge_provider': judge_id,
+        'judge_model': model,
         'evidence_item_ids': [item.id for item in request.evidence],
         'critical_evidence_ids': adjudication.critical_evidence_ids(request.evidence),
         'evidence_complete': budget.complete,

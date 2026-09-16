@@ -916,3 +916,53 @@ def test_an_unknown_projection_is_refused():
     result = parse(adjudication_output([candidate('A'), candidate('B')], declared_winner='A'))
     with pytest.raises(ValueError):
         adj.project(result, 'vibes')
+
+
+####################
+# Audit fingerprints — telling WHICH input moved
+####################
+
+
+def test_evidence_fingerprint_isolates_the_corpus():
+    """Changing a candidate must not move the evidence fingerprint."""
+    base = make_request(candidates={'A': 'a', 'B': 'b'}, reference=REFERENCE)
+    other_candidate = make_request(candidates={'A': 'changed', 'B': 'b'}, reference=REFERENCE)
+    assert adj.evidence_fingerprint(base) == adj.evidence_fingerprint(other_candidate)
+
+
+def test_evidence_fingerprint_changes_with_the_corpus():
+    base = make_request(candidates={'A': 'a', 'B': 'b'}, reference=REFERENCE)
+    changed = make_request(candidates={'A': 'a', 'B': 'b'}, reference=REFERENCE + '\n\nCRITICAL: and a rollback.')
+    assert adj.evidence_fingerprint(base) != adj.evidence_fingerprint(changed)
+
+
+def test_evidence_fingerprint_changes_with_the_requirements():
+    base = make_request(candidates={'A': 'a'}, requirements='one')
+    changed = make_request(candidates={'A': 'a'}, requirements='two')
+    assert adj.evidence_fingerprint(base) != adj.evidence_fingerprint(changed)
+
+
+def test_candidate_fingerprints_identify_which_candidate_changed():
+    """The point of per-candidate digests: naming the one that moved."""
+    base = make_request(candidates={'A': 'a', 'B': 'b', 'C': 'c'}, reference=REFERENCE)
+    changed = make_request(candidates={'A': 'a', 'B': 'REVISED', 'C': 'c'}, reference=REFERENCE)
+
+    before = adj.candidate_fingerprints(base)
+    after = adj.candidate_fingerprints(changed)
+
+    assert before['A'] == after['A']
+    assert before['C'] == after['C']
+    assert before['B'] != after['B']
+
+
+def test_candidate_fingerprints_cover_every_label():
+    request = make_request(candidates={'A': 'a', 'B': 'b', 'C': 'c'}, reference=REFERENCE)
+    assert sorted(adj.candidate_fingerprints(request)) == ['A', 'B', 'C']
+
+
+def test_identical_inputs_produce_identical_fingerprints():
+    """Reproducibility: the digests are a function of the inputs alone."""
+    first = make_request(candidates={'A': 'a', 'B': 'b'}, reference=REFERENCE)
+    second = make_request(candidates={'A': 'a', 'B': 'b'}, reference=REFERENCE)
+    assert adj.evidence_fingerprint(first) == adj.evidence_fingerprint(second)
+    assert adj.candidate_fingerprints(first) == adj.candidate_fingerprints(second)
