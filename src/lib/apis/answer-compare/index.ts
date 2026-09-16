@@ -121,6 +121,106 @@ export interface RawReport {
 	verdict: { kind: VerdictKind; labels: string[] };
 	rationale: string;
 	needs_verification: string[];
+	engine_version?: string;
+	rubric_version?: string;
+	raw?: Record<string, unknown>;
+	normalized?: Record<string, unknown>;
+}
+
+/** The six claim classifications of the adjudication specification. */
+export type ClaimClassification =
+	| 'VERIFIED'
+	| 'PARTIALLY_VERIFIED'
+	| 'UNSUPPORTED'
+	| 'CONTRADICTED'
+	| 'FABRICATED_OR_HALLUCINATED'
+	| 'NOT_VERIFIABLE';
+
+export type PenaltySeverity = 'MINOR' | 'MODERATE' | 'SEVERE';
+
+export interface AppliedPenalty {
+	kind: string;
+	severity: PenaltySeverity;
+	/** Deducted by the server from its own table — never a figure the model chose. */
+	points: number;
+	passage: string;
+	note: string;
+	evidence_ids: string[];
+}
+
+export interface ClaimSummary {
+	total: number;
+	material: number;
+	by_classification: Partial<Record<ClaimClassification, number>>;
+	material_by_classification: Partial<Record<ClaimClassification, number>>;
+}
+
+/** One candidate's computed result, with the provider resolved from its label. */
+export interface CandidateScore {
+	label: string;
+	provider: ProviderId;
+	category_scores: Record<string, number>;
+	raw_score: number;
+	penalty_total: number;
+	integrity_capped: boolean;
+	final_score: number;
+	penalties: AppliedPenalty[];
+	claim_summary: ClaimSummary;
+	/** null when nothing was verifiable — not the same as zero accuracy. */
+	accuracy_confidence_ratio: number | null;
+	/** null when the corpus marks nothing CRITICAL. */
+	critical_coverage_rate: number | null;
+	covered_evidence_ids: string[];
+	missed_evidence_ids: string[];
+}
+
+export interface PairwiseResult {
+	first: ProviderId;
+	second: ProviderId;
+	stronger: ProviderId | 'tie';
+	margin: number;
+	reason: string;
+	/** false when the judge's prose disagreed with the computed scores. */
+	agrees_with_scores: boolean;
+}
+
+export interface InjectionSignal {
+	label: string;
+	provider: ProviderId;
+	kind: string;
+	excerpt: string;
+}
+
+/**
+ * The normalized adjudication, label-resolved. Every number here was computed
+ * by the server from the judge's findings; nothing is a total the model wrote.
+ */
+export interface MappedAdjudication {
+	engine_version: string;
+	rubric_version: string;
+	scores: Partial<Record<ProviderId, number>>;
+	category_scores: Partial<Record<ProviderId, Record<string, number>>>;
+	category_weights: Record<string, number>;
+	category_winners: Record<string, ProviderId[]>;
+	overall_winner: ProviderId | null;
+	overall_ranking: ProviderId[];
+	tied_providers: ProviderId[];
+	winning_margin: number;
+	tie_break_used: string | null;
+	confidence: 'high' | 'medium' | 'low';
+	confidence_reasons: string[];
+	decisive_reasons: string[];
+	claim_validation_summary: Partial<Record<ProviderId, ClaimSummary>>;
+	pairwise_results: PairwiseResult[];
+	candidate_scores: CandidateScore[];
+	winner_gap_analysis: string[];
+	loser_recovery_analysis: Partial<Record<ProviderId, string[]>>;
+	unresolved_uncertainty: string[];
+	evidence_complete: boolean;
+	dropped_evidence_ids: string[];
+	truncated_providers: ProviderId[];
+	injection_signals: InjectionSignal[];
+	final_adjudication: string;
 }
 
 /**
@@ -133,6 +233,12 @@ export interface MappedReport {
 	verdict: { kind: VerdictKind; providers: ProviderId[] };
 	rationale: string;
 	needs_verification: string[];
+	/**
+	 * Absent on reports stored before the canonical engine existed. The page
+	 * renders the narrative sections either way and only adds the scored view
+	 * when this is present, so old rows stay readable rather than breaking.
+	 */
+	adjudication?: MappedAdjudication;
 }
 
 export interface ReportRow {
@@ -351,7 +457,11 @@ export const generateAnswer = async (
 		`/runs/${encodeURIComponent(runId)}/answers/${encodeURIComponent(provider)}`
 	);
 
-export const judgeRun = async (token: string, runId: string, judge: ProviderId): Promise<ReportRow> =>
+export const judgeRun = async (
+	token: string,
+	runId: string,
+	judge: ProviderId
+): Promise<ReportRow> =>
 	request(token, 'POST', `/runs/${encodeURIComponent(runId)}/reports/${encodeURIComponent(judge)}`);
 
 export const runAllJudges = async (token: string, runId: string): Promise<RunAllResponse> =>

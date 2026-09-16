@@ -6,6 +6,7 @@
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 	import type { MappedReport, ProviderId } from '$lib/apis/answer-compare';
 	import { answerSections, verdictHeadline, type NamedProvider } from './judgeState';
+	import AdjudicationPanel from './AdjudicationPanel.svelte';
 
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
@@ -22,22 +23,35 @@
 	$: sections = answerSections(mapped, labelMap);
 
 	const named = (item: NamedProvider) =>
-		item.label ? $i18n.t('{{name}} (was {{label}})', { name: item.name, label: item.label }) : item.name;
+		item.label
+			? $i18n.t('{{name}} (was {{label}})', { name: item.name, label: item.label })
+			: item.name;
 </script>
 
 <div class="flex flex-col gap-3 text-sm">
-	<div>
-		<div class="font-medium">
-			{#if headline.kind === 'winner'}
-				{$i18n.t('Winner: {{providers}}', { providers: headline.providers.map(named).join(', ') })}
-			{:else if headline.kind === 'tie'}
-				{$i18n.t('Tie: {{providers}}', { providers: headline.providers.map(named).join(', ') })}
-			{:else}
-				{$i18n.t('No reliable winner')}
-			{/if}
+	{#if mapped.adjudication}
+		<!-- The scored view. Reports stored before the canonical engine have no
+		     adjudication block and fall back to the narrative headline below. -->
+		<AdjudicationPanel adjudication={mapped.adjudication} />
+		{#if mapped.rationale}
+			<div class="report-text text-gray-700 dark:text-gray-300">{mapped.rationale}</div>
+		{/if}
+	{:else}
+		<div>
+			<div class="font-medium">
+				{#if headline.kind === 'winner'}
+					{$i18n.t('Winner: {{providers}}', {
+						providers: headline.providers.map(named).join(', ')
+					})}
+				{:else if headline.kind === 'tie'}
+					{$i18n.t('Tie: {{providers}}', { providers: headline.providers.map(named).join(', ') })}
+				{:else}
+					{$i18n.t('No reliable winner')}
+				{/if}
+			</div>
+			<div class="report-text mt-1 text-gray-700 dark:text-gray-300">{mapped.rationale}</div>
 		</div>
-		<div class="report-text mt-1 text-gray-700 dark:text-gray-300">{mapped.rationale}</div>
-	</div>
+	{/if}
 
 	{#each sections as section (section.named.provider)}
 		<!-- Header goes through the default slot: Collapsible types `title` as null. -->
@@ -53,7 +67,9 @@
 				{/if}
 				{#each section.lists as list (list.field)}
 					<div>
-						<div class="text-xs font-medium text-gray-500 uppercase tracking-wide">{$i18n.t(list.title)}</div>
+						<div class="text-xs font-medium text-gray-500 uppercase tracking-wide">
+							{$i18n.t(list.title)}
+						</div>
 						<ul class="mt-1 flex flex-col gap-1.5">
 							{#each list.items as item}
 								<li class="flex flex-col gap-0.5">

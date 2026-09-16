@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -20,6 +21,7 @@ from open_webui.models.answer_compare import (
     AnswerCompareSummaryModel,
     AnswerVersion,
 )
+from open_webui.utils import answer_compare_adjudication as adjudication
 from open_webui.utils import answer_compare_client as client
 from open_webui.utils import answer_compare_judge as judge
 from open_webui.utils import answer_compare_summary as summary
@@ -842,17 +844,32 @@ async def judge_once(
         )
 
     # Fresh random order per call; the RNG is the system one outside tests.
+    # One id for this adjudication attempt, minted before anything can fail so
+    # the same value appears in the logs and in the stored audit record.
+    correlation_id = str(uuid.uuid4())
+
     labeled = judge.shuffle_labels([(a.provider, a.revision, a.text or '') for a in complete])
     labels = [item.label for item in labeled]
-    messages = judge.build_messages(run.prompt, run.reference, labeled)
+
+    # One canonical request: task requirements, the authoritative evidence
+    # corpus and the blinded candidates, kept apart from each other by
+    # construction rather than by a note in the prompt.
+    request = judge.build_request(run.prompt, run.reference, labeled)
 
     limit_chars = resolve_judge_max_input_chars(judge_id)
-    actual_chars = judge.judge_input_chars(messages)
-    if actual_chars > limit_chars:
+    try:
+        # Deterministic evidence preparation rather than a blind tail-truncation:
+        # CRITICAL material is never shed, and whatever was given up travels
+        # with the result so the page can say the corpus was incomplete instead
+        # of presenting a partial adjudication as a whole one.
+        request, budget = adjudication.prepare_within_budget(request, limit_chars)
+    except adjudication.EvidenceTooLarge as err:
         raise JudgeSkipped(
             status.HTTP_413_CONTENT_TOO_LARGE,
-            _detail('oversized', provider=judge_id, limit_chars=limit_chars, actual_chars=actual_chars),
-        )
+            _detail('oversized', provider=judge_id, limit_chars=err.limit, actual_chars=err.required),
+        ) from None
+
+    messages = adjudication.build_messages(request)
 
     # The row is written BEFORE the call, for the same reason as answers: a
     # dropped connection must not lose a paid completion. What the judge saw —
@@ -888,7 +905,7 @@ async def judge_once(
         return await _settled_report_response(report_row, settled)
 
     try:
-        report = judge.parse_report(called.content, labels)
+        report = judge.parse_report(called.content, labels, request, budget)
     except judge.MalformedReport as err:
         # Not repaired, not partially accepted: failed, retryable, out of the tally.
         settled = await AnswerCompareReports.update_result(
@@ -905,9 +922,49 @@ async def judge_once(
         status=STATUS_COMPLETE,
         model=called.model,
         report=report,
-        params=called.params,
+        params={
+            **called.params,
+            **_audit_params(request, judge_id, called.model or config.model, budget, correlation_id),
+        },
     )
     return await _settled_report_response(report_row, settled)
+
+
+def _audit_params(
+    request: adjudication.AdjudicationRequest,
+    judge_id: str,
+    model: str,
+    budget: adjudication.BudgetOutcome,
+    correlation_id: str,
+) -> dict[str, Any]:
+    """What a later reader needs to understand — and reproduce — this adjudication.
+
+    The fingerprint covers every material input (candidates, evidence,
+    requirements, rubric, engine version, judge and model), so it doubles as the
+    cache key: nothing can be reused across a change to any of them. The
+    narrower evidence and per-candidate digests sit beside it so an auditor can
+    tell *which* input moved between two runs, not merely that one did.
+
+    No secret, provider key or base URL goes in here, and no model reasoning —
+    only the identity of what ran and the findings it produced.
+    """
+    return {
+        'adjudication_correlation_id': correlation_id,
+        'adjudicated_at': int(time.time()),
+        'adjudication_engine_version': adjudication.ADJUDICATION_ENGINE_VERSION,
+        'adjudication_rubric_version': adjudication.ADJUDICATION_RUBRIC_VERSION,
+        'adjudication_fingerprint': adjudication.fingerprint(request, judge_id, model),
+        'evidence_fingerprint': adjudication.evidence_fingerprint(request),
+        'candidate_fingerprints': adjudication.candidate_fingerprints(request),
+        'judge_provider': judge_id,
+        'judge_model': model,
+        'evidence_item_ids': [item.id for item in request.evidence],
+        'critical_evidence_ids': adjudication.critical_evidence_ids(request.evidence),
+        'evidence_complete': budget.complete,
+        'dropped_evidence_ids': list(budget.dropped_evidence_ids),
+        'truncated_candidate_labels': list(budget.truncated_candidate_labels),
+        'input_chars': budget.final_chars or budget.original_chars,
+    }
 
 
 async def _load_run_for_judging(run_id: str) -> tuple[AnswerCompareRunModel, list[AnswerCompareAnswerModel]]:

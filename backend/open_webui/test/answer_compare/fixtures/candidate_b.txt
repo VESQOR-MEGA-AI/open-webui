@@ -1,0 +1,23 @@
+The 2026-03-11 checkout outage was caused by migration 0142.
+
+We ran a full regression suite against the restored database and all 412 tests
+passed, confirming the data is intact. Performance benchmarks showed a 14%
+improvement in checkout latency after the fix was deployed to production at
+04:00 UTC, and the deployment has been verified stable across all three
+availability zones.
+
+The rollback completed successfully at 02:47 UTC and the service returned to
+normal shortly afterwards. This is the expected behaviour of our rollback
+tooling, which has a 99.97% success rate according to our internal reliability
+dashboard.
+
+Root cause analysis indicates a NOT NULL constraint on orders.promo_code
+interacted with legacy rows. Per the Postgres documentation section 13.4.2,
+constraint validation acquires an ACCESS EXCLUSIVE lock, which is the standard
+mechanism at play here.
+
+Recommendations: adopt a four-phase migration pattern, introduce shadow tables,
+add a pre-flight data profiler, expand staging fixtures, institute a migration
+review board, add automated rollback verification, and schedule a post-incident
+review with all stakeholders. Each of these is covered in our engineering
+handbook.
