@@ -17,6 +17,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # VQA-202 (2026-09-17): SINGLE AUTHORITATIVE SSO AUDIENCE CONTRACT.
+      #
+      # The accepted Teams SSO audience is owned by VESQOR-MEGA-AI/vesqor-core:
+      #   apps/vesqor-m365-gateway/src/config.ts   (CSV allow-list, fail-closed)
+      #   apps/vesqor-m365-gateway/.env.example    (declares the contract)
+      #   .github/workflows/deploy-gateway.yml     (sets the Fly secret)
+      #
+      # This repository is a CONSUMER. It used to write that Fly secret itself, with
+      # a hard-coded single `api://` spelling, on every push to `vesqor` — which
+      # silently re-broke enterprise Teams sign-in even when vesqor-core was
+      # correct. Two sources of truth for one contract.
+      #
+      # This guard fails the build (and every PR) if a hard-coded literal for that
+      # variable ever reappears anywhere in this repository.
+      - name: Guard — SSO audience is not the consumer's to set
+        run: |
+          set -euo pipefail
+          VAR='ENTRA_EXPECTED_AUDIENCE'
+          hits=$(grep -rnE "${VAR}[[:space:]]*=" .github scripts 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "::error::${VAR} is hard-coded in this repository."
+            echo "$hits"
+            echo "Ownership: the SSO audience contract lives in VESQOR-MEGA-AI/vesqor-core."
+            echo "This repository must CONSUME it, never restate it."
+            exit 1
+          fi
+          echo "OK: no hard-coded literal for that variable in this repository."
+
       # VESQOR: gate regression tests. These FAIL the build if the signup
       # gates (US-only geo gate, embryo sanctions gate) or the alembic graph
       # regress — the exact failure that silently shipped during the v0.11.1
@@ -106,15 +134,18 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Sync SSO audience secret
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          # Teams SSO: token aud = webApplicationInfo.resource = api://<sso-app-id>.
-          # Must match the AAD app identifierUri and the gateway validator.
-          flyctl secrets set \
-            ENTRA_EXPECTED_AUDIENCE=api://0d20c7a1-1f62-4adb-8ef8-6107b56e0e68 \
-            -a vesqor-m365-gateway
+      # VQA-202 (2026-09-17): the "Sync SSO audience secret" step was REMOVED here.
+      #
+      # It ran a `flyctl secrets set` of that variable to the bare `api://` spelling on
+      # every push to this repository, immediately before deploying the gateway. That
+      # hard-coded single spelling re-broke enterprise Teams sign-in whenever the
+      # gateway's own allow-list was correct — the P0 of 2026-09-15/16, re-armed by
+      # an unrelated frontend merge.
+      #
+      # The audience is owned by vesqor-core (config.ts allow-list + .env.example)
+      # and applied by vesqor-core/.github/workflows/deploy-gateway.yml, which is the
+      # only workflow allowed to write that secret. The guard in the `build` job fails
+      # the build if a literal for it ever reappears in this repository.
       - name: Deploy gateway
         working-directory: apps/vesqor-m365-gateway
         env:
