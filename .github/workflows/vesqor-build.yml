@@ -71,12 +71,42 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=6144"
         run: npx vite build
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vesqor-webui-build
-          path: build/
-          retention-days: 3
+      # VQA-301 (2026-09-17): the `Upload build artifact` step was REMOVED.
+      #
+      # It uploaded the vite `build/` directory as `vesqor-webui-build` on EVERY
+      # push to `vesqor`, every pull_request into `vesqor`/`main`, and every
+      # workflow_dispatch — at ~39 MB each. Nothing ever consumed it:
+      #
+      #   * `fly deploy` below uses LOCAL files (the step after this one), so the
+      #     build output reaches the image without any artifact transport. The
+      #     Dockerfile's `COPY build /app/build` picks it up from the checkout.
+      #   * A full-org scan of every workflow on every branch found exactly three
+      #     `download-artifact` jobs in the entire organisation — docker.yaml's
+      #     digest merge (which consumes `digests-*`) and vesqor-core/deploy.yml
+      #     (which consumes `vesqor-core-build` by digest). NONE consumed
+      #     `vesqor-webui-build`.
+      #
+      # So this step bought nothing and cost quota. It was the dominant producer
+      # in an allowance SHARED with vesqor-core (GitHub Team: artifact storage is
+      # shared with Packages and is account-wide, not per-repository). By
+      # 2026-09-17 the org was over the ceiling — 2234.4 MB unexpired against a
+      # 2048 MB allowance — and the overflow showed up as
+      #
+      #   verify -> "Upload build artifact (promotion source)"
+      #   Failed to CreateArtifact: Artifact storage quota has been hit.
+      #
+      # ...which is a REQUIRED status check on vesqor-core/main, so it blocked
+      # every promotion-artifact build, including the Teams SSO fix.
+      #
+      # retention-days: 3 was already the short end and did not help: with this
+      # many runs the 3-day window alone (38 artifacts / 1502.8 MB) exceeded the
+      # allowance. The fix is to stop producing an artifact that has no consumer,
+      # not to shave its lifetime further.
+      #
+      # Deliberately NOT removed or weakened: every gate above (signup-geo,
+      # sanctions, seal-UI, page-wiring, consent/static, three-assistant,
+      # frontend unit tests, vite build) still runs and still fails the job.
+      # This change removes only dead output storage.
 
       # The Dockerfile copies the pre-built build/ into the image (vite build
       # OOMs on Fly's build machines). build/ is gitignored but present in the
