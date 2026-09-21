@@ -92,8 +92,7 @@ def send_password_reset_email(to_email: str, reset_url: str) -> bool:
     )
     html_body = _shell(
         'Reset your password',
-        'We received a request to reset your VESQOR MEGA AI password. '
-        'Click below to choose a new one:',
+        'We received a request to reset your VESQOR MEGA AI password. Click below to choose a new one:',
         _button(reset_url, 'Reset password'),
         'This link is valid for 24 hours and can be used once. If you did not request a '
         'password reset, you can safely ignore this email — your password stays unchanged.',

@@ -42,22 +42,24 @@ def check(condition: bool, message: str) -> None:
 # --- 1. Consent Mode v2 -------------------------------------------------
 html = APP_HTML.read_text(encoding='utf-8')
 
-check("gtag('consent', 'default', {" in html,
-      "src/app.html: missing gtag('consent','default',{...}) — GA4 would fire without consent")
-for flag in ('ad_storage: \'denied\'', 'analytics_storage: \'denied\''):
-    check(flag in html, f"src/app.html: consent default missing {flag}")
+check(
+    "gtag('consent', 'default', {" in html,
+    "src/app.html: missing gtag('consent','default',{...}) — GA4 would fire without consent",
+)
+for flag in ("ad_storage: 'denied'", "analytics_storage: 'denied'"):
+    check(flag in html, f'src/app.html: consent default missing {flag}')
 check('consent-banner' in html, 'src/app.html: consent banner markup missing')
-check("localStorage.setItem(KEY, 'accepted')" in html,
-      'src/app.html: accept handler does not persist consent')
-check("localStorage.setItem(KEY, 'declined')" in html,
-      'src/app.html: decline handler does not persist consent')
+check("localStorage.setItem(KEY, 'accepted')" in html, 'src/app.html: accept handler does not persist consent')
+check("localStorage.setItem(KEY, 'declined')" in html, 'src/app.html: decline handler does not persist consent')
 check("pushConsent('granted')" in html, 'src/app.html: analytics never granted on accept')
 
 # Consent default must be declared before the loader script is injected.
 consent_idx = html.find("gtag('consent', 'default'")
 gtag_load_idx = html.find("s.src = 'https://www.googletagmanager.com/gtag/js?id='")
-check(consent_idx != -1 and gtag_load_idx != -1 and consent_idx < gtag_load_idx,
-      'src/app.html: consent default must be set BEFORE gtag.js is loaded')
+check(
+    consent_idx != -1 and gtag_load_idx != -1 and consent_idx < gtag_load_idx,
+    'src/app.html: consent default must be set BEFORE gtag.js is loaded',
+)
 
 # --- 1b. the consent UPDATE must use the gtag command form ---------------
 # Regression (found live on chat.vesqorai.com 2026-09-14): the banner pushed a
@@ -66,13 +68,18 @@ check(consent_idx != -1 and gtag_load_idx != -1 and consent_idx < gtag_load_idx,
 # analytics_storage stayed denied even after the visitor clicked Accept
 # (google_tag_data.ics.usedUpdate === false). The documented form is
 # gtag('consent','update',{...}) and requires window.gtag to exist.
-check("window.gtag = function" in html or 'window.gtag =' in html,
-      'src/app.html: gtag must be exposed on window so the banner can call it')
-check(re.search(r"gtag\(\s*'consent'\s*,\s*'update'", html) is not None,
-      "src/app.html: consent update must call gtag('consent','update',{...}) — "
-      "a flat dataLayer object is ignored by Consent Mode")
-check("event: 'consent_update'" not in html,
-      'src/app.html: flat {event:consent_update} push does not reach Consent Mode')
+check(
+    'window.gtag = function' in html or 'window.gtag =' in html,
+    'src/app.html: gtag must be exposed on window so the banner can call it',
+)
+check(
+    re.search(r"gtag\(\s*'consent'\s*,\s*'update'", html) is not None,
+    "src/app.html: consent update must call gtag('consent','update',{...}) — "
+    'a flat dataLayer object is ignored by Consent Mode',
+)
+check(
+    "event: 'consent_update'" not in html, 'src/app.html: flat {event:consent_update} push does not reach Consent Mode'
+)
 
 # --- 2. Static assets must ship ------------------------------------------
 # Every /static/<file> referenced anywhere in the frontend must exist under
@@ -97,14 +104,17 @@ for name in sorted(referenced):
     if not shipped:
         failures.append(
             f'a frontend file references /static/{name} but static/static/{name} is missing '
-            f'(backend copy present: {backend}) — the Docker image will 404 it')
+            f'(backend copy present: {backend}) — the Docker image will 404 it'
+        )
 
 # --- 3. Dockerfile still copies static/static -----------------------------
 dockerfile = (ROOT / 'Dockerfile').read_text(encoding='utf-8')
 # re.search (not re.match): the COPY line is not at position 0, and re.match
 # only anchors at the start of the whole string even with re.M.
-check(re.search(r'^COPY\s+static/static\s+/app/build/static\s*$', dockerfile, re.M) is not None,
-      'Dockerfile: COPY static/static /app/build/static missing — shipped assets lost')
+check(
+    re.search(r'^COPY\s+static/static\s+/app/build/static\s*$', dockerfile, re.M) is not None,
+    'Dockerfile: COPY static/static /app/build/static missing — shipped assets lost',
+)
 
 # --- report ---------------------------------------------------------------
 if failures:

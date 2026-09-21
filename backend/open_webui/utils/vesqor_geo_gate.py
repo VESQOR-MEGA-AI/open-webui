@@ -22,14 +22,11 @@ import logging
 
 log = logging.getLogger(__name__)
 
-GEO_LOOKUP_URL = "https://ipapi.co/{ip}/country/"
+GEO_LOOKUP_URL = 'https://ipapi.co/{ip}/country/'
 GEO_LOOKUP_TIMEOUT = 5
 
-DENY_OUT_OF_REGION = "Signup is currently available in the United States only."
-DENY_LOOKUP_UNAVAILABLE = (
-    "Signup is temporarily unavailable (region could not be verified). "
-    "Please try again later."
-)
+DENY_OUT_OF_REGION = 'Signup is currently available in the United States only.'
+DENY_LOOKUP_UNAVAILABLE = 'Signup is temporarily unavailable (region could not be verified). Please try again later.'
 
 
 def parse_allowed_countries(raw: str) -> set[str]:

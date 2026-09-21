@@ -33,9 +33,9 @@ session). The router forwards to the brain and injects:
 
 ```python
 headers = {
-    "Authorization": f"Bearer {VESQOR_SERVICE_TOKEN}",
-    "X-VESQOR-User-Email": user.email,
-    "Content-Type": "application/json",
+    'Authorization': f'Bearer {VESQOR_SERVICE_TOKEN}',
+    'X-VESQOR-User-Email': user.email,
+    'Content-Type': 'application/json',
 }
 ```
 
@@ -76,8 +76,8 @@ Implementation notes:
 
 Add:
 ```python
-VESQOR_SERVICE_TOKEN: str = os.environ.get("VESQOR_SERVICE_TOKEN", "")
-VESQOR_API_BASE_URL: str = os.environ.get("VESQOR_API_BASE_URL", "https://api.vesqorai.com")
+VESQOR_SERVICE_TOKEN: str = os.environ.get('VESQOR_SERVICE_TOKEN', '')
+VESQOR_API_BASE_URL: str = os.environ.get('VESQOR_API_BASE_URL', 'https://api.vesqorai.com')
 ```
 
 ## Frontend (Svelte)

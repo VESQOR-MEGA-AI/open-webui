@@ -28,47 +28,47 @@ import logging
 
 log = logging.getLogger(__name__)
 
-_CRITICAL_LEVELS = {"critical"}
+_CRITICAL_LEVELS = {'critical'}
 
 # Consumer mailbox providers — never screened as organisations.
 _FREEMAIL_DOMAINS = {
-    "gmail.com",
-    "googlemail.com",
-    "outlook.com",
-    "hotmail.com",
-    "hotmail.co.uk",
-    "live.com",
-    "msn.com",
-    "yahoo.com",
-    "yahoo.co.uk",
-    "ymail.com",
-    "icloud.com",
-    "me.com",
-    "mac.com",
-    "proton.me",
-    "protonmail.com",
-    "gmx.com",
-    "gmx.de",
-    "gmx.net",
-    "mail.com",
-    "aol.com",
-    "zoho.com",
-    "yandex.ru",
-    "yandex.com",
-    "mail.ru",
-    "inbox.ru",
-    "list.ru",
-    "bk.ru",
-    "qq.com",
-    "163.com",
-    "126.com",
-    "web.de",
-    "t-online.de",
-    "webmail.com",
+    'gmail.com',
+    'googlemail.com',
+    'outlook.com',
+    'hotmail.com',
+    'hotmail.co.uk',
+    'live.com',
+    'msn.com',
+    'yahoo.com',
+    'yahoo.co.uk',
+    'ymail.com',
+    'icloud.com',
+    'me.com',
+    'mac.com',
+    'proton.me',
+    'protonmail.com',
+    'gmx.com',
+    'gmx.de',
+    'gmx.net',
+    'mail.com',
+    'aol.com',
+    'zoho.com',
+    'yandex.ru',
+    'yandex.com',
+    'mail.ru',
+    'inbox.ru',
+    'list.ru',
+    'bk.ru',
+    'qq.com',
+    '163.com',
+    '126.com',
+    'web.de',
+    't-online.de',
+    'webmail.com',
     # own domains — screening them is pure noise
-    "vesqor.com",
-    "vesqorai.com",
-    "vesqor.co",
+    'vesqor.com',
+    'vesqorai.com',
+    'vesqor.co',
 }
 
 
@@ -78,11 +78,11 @@ def email_domain_candidates(email: str | None) -> list[str]:
     Pure function (no network) so it can be unit-tested in CI. Free mailbox
     providers and malformed addresses yield an empty list.
     """
-    if not email or "@" not in email:
+    if not email or '@' not in email:
         return []
 
-    domain = email.rsplit("@", 1)[1].strip().lower().rstrip(".")
-    if not domain or "." not in domain:
+    domain = email.rsplit('@', 1)[1].strip().lower().rstrip('.')
+    if not domain or '.' not in domain:
         return []
     if domain in _FREEMAIL_DOMAINS:
         return []
@@ -90,13 +90,13 @@ def email_domain_candidates(email: str | None) -> list[str]:
     # Screen both the full domain and its registrable label: "mail.sberbank.com"
     # -> {"sberbank.com", "sberbank"}; the label catches lists that store the
     # bare organisation name.
-    labels = [part for part in domain.split(".") if part]
+    labels = [part for part in domain.split('.') if part]
     if len(labels) < 2:
         return []
     label = labels[-2]
     # "sberbank.co.uk" -> second-to-last is "co"; fall back one more when the
     # label is a public-suffix-style token ("co", "com").
-    if label in {"co", "com", "org", "net", "gov", "edu", "ac"} and len(labels) >= 3:
+    if label in {'co', 'com', 'org', 'net', 'gov', 'edu', 'ac'} and len(labels) >= 3:
         label = labels[-3]
 
     candidates = [domain]
@@ -127,9 +127,9 @@ async def _screen_one(session, entity: str) -> tuple[int, dict | None]:
     """
     _, api_base, service_token = _runtime()
     async with session.post(
-        f"{api_base.rstrip('/')}/api/v1/compliance/screen",
-        json={"name": entity},
-        headers={"Authorization": f"Bearer {service_token}"},
+        f'{api_base.rstrip("/")}/api/v1/compliance/screen',
+        json={'name': entity},
+        headers={'Authorization': f'Bearer {service_token}'},
     ) as resp:
         if resp.status != 200:
             return resp.status, None
@@ -154,8 +154,8 @@ async def screen_embryo(
     """
     aiohttp, _, service_token = _runtime()
     if not service_token:
-        log.error("Compliance screen skipped: VESQOR_SERVICE_TOKEN is not configured (fail-closed)")
-        return False, "unconfigured", []
+        log.error('Compliance screen skipped: VESQOR_SERVICE_TOKEN is not configured (fail-closed)')
+        return False, 'unconfigured', []
 
     entities: list[str] = []
     if name:
@@ -178,32 +178,32 @@ async def screen_embryo(
                 return_exceptions=True,
             )
     except Exception as e:  # noqa: BLE001
-        log.error("Compliance screen failed (%s); rejecting signup (fail-closed)", e)
-        return False, "unavailable", []
+        log.error('Compliance screen failed (%s); rejecting signup (fail-closed)', e)
+        return False, 'unavailable', []
 
     for entity, result in zip(entities, results):
         if isinstance(result, BaseException):
             log.error(
-                "Compliance screen failed for %r (%s); rejecting signup (fail-closed)",
+                'Compliance screen failed for %r (%s); rejecting signup (fail-closed)',
                 entity,
                 result,
             )
-            return False, "unavailable", []
+            return False, 'unavailable', []
 
         status, data = result
         if status != 200 or data is None:
             log.error(
-                "Compliance screen returned %s for %r; rejecting signup (fail-closed)",
+                'Compliance screen returned %s for %r; rejecting signup (fail-closed)',
                 status,
                 entity,
             )
-            return False, "unavailable", []
+            return False, 'unavailable', []
 
-        level = data.get("level")
-        matches = data.get("matches") or []
+        level = data.get('level')
+        matches = data.get('matches') or []
         if level in _CRITICAL_LEVELS:
             log.warning(
-                "Embryo rejected by compliance screen: entity=%r level=%s matches=%s",
+                'Embryo rejected by compliance screen: entity=%r level=%s matches=%s',
                 entity,
                 level,
                 matches,

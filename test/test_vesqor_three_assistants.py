@@ -46,22 +46,24 @@ except SyntaxError as e:
 
 # --- 1. public read grant on every preset --------------------------------
 check('PUBLIC_READ_GRANT' in source, 'three_assistants.py: PUBLIC_READ_GRANT missing')
-check("'principal_id': '*'" in source,
-      'three_assistants.py: public read grant must target principal_id "*"')
-check('access_grants=PUBLIC_READ_GRANT' in source,
-      'three_assistants.py: ModelForm is built without access_grants — presets '
-      'would be invisible to non-admin roles (403 Model not found)')
-check('set_access_grants' in source,
-      'three_assistants.py: no set_access_grants call to re-assert the grant')
+check("'principal_id': '*'" in source, 'three_assistants.py: public read grant must target principal_id "*"')
+check(
+    'access_grants=PUBLIC_READ_GRANT' in source,
+    'three_assistants.py: ModelForm is built without access_grants — presets '
+    'would be invisible to non-admin roles (403 Model not found)',
+)
+check('set_access_grants' in source, 'three_assistants.py: no set_access_grants call to re-assert the grant')
 
 # --- 2. fallback base model id -------------------------------------------
 m = re.search(r"FALLBACK_BASE_MODEL_ID\s*=\s*'([^']+)'", source)
 check(m is not None, 'three_assistants.py: FALLBACK_BASE_MODEL_ID not found')
 if m:
     fb = m.group(1)
-    check(fb.startswith('vesqor-'),
-          f'three_assistants.py: fallback {fb!r} is not a provider-served vesqor-* id '
-          '(the provider exposes vesqor-reasoning/… , not openai/*)')
+    check(
+        fb.startswith('vesqor-'),
+        f'three_assistants.py: fallback {fb!r} is not a provider-served vesqor-* id '
+        '(the provider exposes vesqor-reasoning/… , not openai/*)',
+    )
 
 # --- 3. no vendor impersonation ------------------------------------------
 # Check the actual string literals in code, excluding the module docstring
@@ -72,27 +74,29 @@ if tree.body and isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].
         docstring_node = tree.body[0].value
 
 literals = [
-    node.value for node in ast.walk(tree)
+    node.value
+    for node in ast.walk(tree)
     if isinstance(node, ast.Constant) and isinstance(node.value, str) and node is not docstring_node
 ]
 joined = ' | '.join(literals)
 for vendor in ('Microsoft Copilot', 'You are ChatGPT', 'Microsoft 365'):
-    check(vendor not in joined,
-          f'three_assistants.py: prompt asserts another vendor identity ({vendor!r})')
-check('_NO_IMPERSONATION' in source,
-      'three_assistants.py: presets missing the no-impersonation guard')
+    check(vendor not in joined, f'three_assistants.py: prompt asserts another vendor identity ({vendor!r})')
+check('_NO_IMPERSONATION' in source, 'three_assistants.py: presets missing the no-impersonation guard')
 
 # --- the three preset ids -------------------------------------------------
 for pid in ('vesqor-copilot', 'vesqor-chatgpt', 'vesqor-vesqor'):
     check(f"'{pid}'" in source, f'three_assistants.py: preset {pid} missing')
 
 # --- wiring: imported and called, bounded --------------------------------
-check('from open_webui.utils.three_assistants import seed_three_assistants' in main_src,
-      'main.py: seed_three_assistants not imported')
-check('seed_three_assistants(app)' in main_src,
-      'main.py: seed_three_assistants is never called in lifespan')
-check('asyncio.wait_for(seed_three_assistants(app)' in main_src,
-      'main.py: seed call is unbounded — a slow seed could delay startup')
+check(
+    'from open_webui.utils.three_assistants import seed_three_assistants' in main_src,
+    'main.py: seed_three_assistants not imported',
+)
+check('seed_three_assistants(app)' in main_src, 'main.py: seed_three_assistants is never called in lifespan')
+check(
+    'asyncio.wait_for(seed_three_assistants(app)' in main_src,
+    'main.py: seed call is unbounded — a slow seed could delay startup',
+)
 
 if failures:
     print(f'FAILED: {len(failures)} three-assistant gate violation(s):')

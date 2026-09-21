@@ -33,7 +33,7 @@ def upgrade() -> None:
     if 'verified' not in auth_cols:
         op.add_column('auth', sa.Column('verified', sa.Boolean(), nullable=False, server_default=sa.text('false')))
         # Existing accounts (created before verification existed) are trusted.
-        op.execute("UPDATE auth SET verified = true")
+        op.execute('UPDATE auth SET verified = true')
 
     # 2. email_verification table — one-time tokens
     if 'email_verification' not in existing_tables:

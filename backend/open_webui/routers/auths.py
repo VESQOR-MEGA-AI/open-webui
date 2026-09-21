@@ -70,7 +70,8 @@ from open_webui.utils.auth import (
     create_api_key,
     create_token,
     decode_token,
-    get_admin_user, get_current_user,
+    get_admin_user,
+    get_current_user,
     get_http_authorization_cred,
     get_password_hash,
     get_verified_user,
@@ -849,16 +850,16 @@ async def signin(
                 # is a placeholder — authdb is the credential source of truth.
                 local = await Auths.insert_new_auth(
                     email=form_data.email.lower(),
-                    password="!authdb-projection!",
-                    name=authdb_user["name"] or form_data.email.lower().split("@")[0],
-                    role=authdb_user["role"] if authdb_user["role"] in {'admin', 'user', 'pending'} else 'user',
+                    password='!authdb-projection!',
+                    name=authdb_user['name'] or form_data.email.lower().split('@')[0],
+                    role=authdb_user['role'] if authdb_user['role'] in {'admin', 'user', 'pending'} else 'user',
                     db=db,
-                    user_id_override=authdb_user["id"],
+                    user_id_override=authdb_user['id'],
                 )
             # Mirror the verified status from authdb — a verified account
             # must not be gated by the local email-verification check.
             # Idempotent: runs on every sign-in, not just first projection.
-            if authdb_user.get("email_verified"):
+            if authdb_user.get('email_verified'):
                 await Auths.mark_verified_by_id(local.id, db=db)
             user = local
         else:
@@ -1012,9 +1013,7 @@ async def signup(
         # The `auth` database is the single source of truth. The local
         # Open WebUI `user` row is a projection with the SAME id, so the
         # account works in chat.vesqorai.com AND tryon.vesqorai.com.
-        authdb_user = vesqor_authdb_create_user(
-            form_data.email.lower(), form_data.password, form_data.name
-        )
+        authdb_user = vesqor_authdb_create_user(form_data.email.lower(), form_data.password, form_data.name)
 
         user = await signup_handler(
             request,
@@ -1023,7 +1022,7 @@ async def signup(
             form_data.name,
             form_data.profile_image_url,
             db=db,
-            authdb_id=authdb_user["id"],
+            authdb_id=authdb_user['id'],
             company_name=form_data.company_name,
         )
 
@@ -1202,9 +1201,7 @@ async def verify_email(
     if user:
         info = dict(user.info or {})
         company = info.get('company_name') if isinstance(info.get('company_name'), str) else None
-        allowed, level, matches = await screen_embryo(
-            user.name or user.email, company, email=user.email
-        )
+        allowed, level, matches = await screen_embryo(user.name or user.email, company, email=user.email)
         if not allowed:
             log.warning(
                 'Embryo %s rejected at birth: compliance level=%s matches=%s',
@@ -1419,9 +1416,7 @@ async def reset_password(
     # Only accounts that live there get an authdb write; legacy local-only
     # accounts fall through to the local row alone.
     if vesqor_authdb_get_user(user.email):
-        updated = vesqor_authdb_update_password(
-            user.email, vesqor_authdb_hash_password(form_data.new_password)
-        )
+        updated = vesqor_authdb_update_password(user.email, vesqor_authdb_hash_password(form_data.new_password))
         if not updated:
             log.error(f'authdb password update failed for {user.email}')
             raise HTTPException(

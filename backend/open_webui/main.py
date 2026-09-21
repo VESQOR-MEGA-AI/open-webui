@@ -2538,19 +2538,14 @@ async def get_app_bootstrap(request: Request):
     )
 
     async with get_async_db() as db:
-        result = await db.execute(
-            sql, {'user_id': user.id, 'config_keys': config_keys}
-        )
+        result = await db.execute(sql, {'user_id': user.id, 'config_keys': config_keys})
         row = result.scalar_one()
 
     bootstrap = dict(row) if row else {}
 
     # config rows → {key: value} with defaults for keys not stored in DB
     config_rows = bootstrap.get('config') or []
-    config = {
-        key: Config.default_value(key)
-        for key in config_keys
-    }
+    config = {key: Config.default_value(key) for key in config_keys}
     for c in config_rows:
         config[c['key']] = c['value']
 
@@ -2559,9 +2554,7 @@ async def get_app_bootstrap(request: Request):
     if user_row:
         from open_webui.utils.access_control import get_permissions
 
-        user_permissions = await get_permissions(
-            user.id, await Config.get('user.permissions')
-        )
+        user_permissions = await get_permissions(user.id, await Config.get('user.permissions'))
         user_row['permissions'] = user_permissions
 
     return {
