@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-09-24
+
+- 🚀 **Redeploy marker** — chat + gateway + brain repointed at vesqor-core@main (`438b8a3`): EVL-0 request-evidence isolation + shield audit chain + audit retention (PR #97), truthful outputFormat contract (PR #88), Teams v2-audience sign-in fix (PR #53).
+
 ## [0.11.0] - 2026-07-27
 
 ### Added
