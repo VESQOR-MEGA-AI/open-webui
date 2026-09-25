@@ -106,6 +106,13 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
+      # CICD-01: bake the vesqor-core commit into the image so /health can prove
+      # which source is answering. Without this the Dockerfile default
+      # (ARG GIT_SHA=unknown) is baked and production can never be verified
+      # against a commit — a green deploy was indistinguishable from a stale one.
+      - name: Resolve vesqor-core provenance
+        id: prov
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Sync SSO audience secret
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -119,7 +126,7 @@ jobs:
         working-directory: apps/vesqor-m365-gateway
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --strategy rolling
+        run: flyctl deploy --remote-only --strategy rolling --build-arg "GIT_SHA=${{ steps.prov.outputs.sha }}"
 
   deploy-brain:
     if: github.event_name == 'push'
@@ -133,6 +140,10 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
+      # CICD-01: see the deploy-gateway job — same provenance requirement.
+      - name: Resolve vesqor-core provenance
+        id: prov
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Set brain notify env secrets
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -153,7 +164,7 @@ jobs:
         working-directory: apps/vesqor-mega-ai
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy -a vesqor-brain --remote-only --strategy rolling
+        run: flyctl deploy -a vesqor-brain --remote-only --strategy rolling --build-arg "GIT_SHA=${{ steps.prov.outputs.sha }}"
 
   gateway-logs:
     if: github.event_name == 'push'
