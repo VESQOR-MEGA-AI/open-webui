@@ -106,13 +106,16 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
-      # CICD-01: bake the vesqor-core commit into the image so /health can prove
-      # which source is answering. Without this the Dockerfile default
-      # (ARG GIT_SHA=unknown) is baked and production can never be verified
-      # against a commit — a green deploy was indistinguishable from a stale one.
+      # CICD-01 (landed in PR #33) + VQA-302-T2 (this PR): capture the resolved
+      # commit ONCE, at deploy time, from the checked-out tree — never
+      # ${{ github.sha }} (open-webui's own commit) and never the moving
+      # `ref: main` itself. Both the deploy and its health check read this same
+      # value, so "what was built" and "what is serving" cannot disagree.
       - name: Resolve vesqor-core provenance
-        id: prov
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "CORE_SHA=$SHA" >> "$GITHUB_ENV"
+          echo "TRIGGER_EVENT=$GITHUB_EVENT_NAME" >> "$GITHUB_ENV"
       - name: Sync SSO audience secret
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -126,7 +129,55 @@ jobs:
         working-directory: apps/vesqor-m365-gateway
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --strategy rolling --build-arg "GIT_SHA=${{ steps.prov.outputs.sha }}"
+        run: |
+          echo "==> deploying vesqor-core@$CORE_SHA"
+          # Two independent provenance channels, both deliberately set here:
+          #
+          # 1. build-arg GIT_SHA -> Dockerfile ARG -> ENV -> /health gitSha.
+          #    The gateway's Dockerfile already plumbs this; only the value was
+          #    missing.
+          # 2. the image's GH_* labels, read with `flyctl image show`. These are
+          #    NOT ours to set: flyctl injects them from GITHUB_REPOSITORY /
+          #    GITHUB_SHA whenever GITHUB_ACTIONS is truthy
+          #    (internal/command/deploy/deploy_build.go — labels["GH_SHA"] and
+          #    labels["GH_REPO"] are assigned from env.GitCommitSHA() /
+          #    env.GitRepoAndOwner(), and env.IS_GH_ACTION() is
+          #    IsTruthy("GITHUB_ACTIONS")). It does this AFTER parsing --label,
+          #    so `--label GH_REPO=...` is silently OVERWRITTEN. GitHub itself
+          #    forbids redefining GITHUB_* (they cannot be shadowed per-step), so
+          #    there is no way to correct them by assignment.
+          #
+          #    Unsetting GITHUB_ACTIONS makes flyctl take its non-Actions path, so
+          #    --label survives. This skips ALL FOUR injected labels, so all four
+          #    are supplied here explicitly rather than losing two. Nothing else
+          #    depends on it: IS_CI() uses IsSet() over a list of CI markers and
+          #    the runner's own `CI=true` still satisfies it
+          #    (internal/env/env.go), so builder selection is unchanged. The only
+          #    other reader is flyctl's error-annotation formatting
+          #    (internal/cli/cli.go), which by definition no longer applies.
+          env -u GITHUB_ACTIONS -u GITHUB_REPOSITORY -u GITHUB_SHA -u GITHUB_EVENT_NAME \
+            flyctl deploy --remote-only --strategy rolling \
+              --build-arg "GIT_SHA=$CORE_SHA" \
+              --label "GH_REPO=VESQOR-MEGA-AI/vesqor-core" \
+              --label "GH_SHA=$CORE_SHA" \
+              --label "GH_EVENT_NAME=$TRIGGER_EVENT" \
+              --label "GH_ACTION_NAME=$GITHUB_RUN_ID"
+
+      - name: Health check (gateway)
+        run: |
+          # CICD-01: a 200 from an OLD machine proves nothing during a rolling
+          # deploy — require the health body to report THIS vesqor-core commit.
+          for i in $(seq 1 12); do
+            BODY=$(curl -s "https://vesqor-m365-gateway.fly.dev/health" || true)
+            if printf '%s' "$BODY" | grep -q "\"gitSha\":\"$CORE_SHA\""; then
+              echo "health OK: gateway is serving $CORE_SHA"
+              exit 0
+            fi
+            echo "attempt $i: not yet serving $CORE_SHA (health: ${BODY:0:120})"
+            sleep 10
+          done
+          echo "::error::health check failed after 120s"
+          exit 1
 
   deploy-brain:
     if: github.event_name == 'push'
@@ -140,10 +191,16 @@ jobs:
           token: ${{ secrets.VESQOR_CORE_PAT }}
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
-      # CICD-01: see the deploy-gateway job — same provenance requirement.
+      # CICD-01 (landed in PR #33) + VQA-302-T2 (this PR): see the deploy-gateway
+      # job — capture the resolved commit once, from the checked-out tree, and
+      # use the SAME value for the deploy and its health check.
       - name: Resolve vesqor-core provenance
         id: prov
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "CORE_SHA=$SHA" >> "$GITHUB_ENV"
+          echo "TRIGGER_EVENT=$GITHUB_EVENT_NAME" >> "$GITHUB_ENV"
       - name: Set brain notify env secrets
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -164,7 +221,39 @@ jobs:
         working-directory: apps/vesqor-mega-ai
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy -a vesqor-brain --remote-only --strategy rolling --build-arg "GIT_SHA=${{ steps.prov.outputs.sha }}"
+        run: |
+          # VQA-302-T2 (provenance truth). This is the job that produced
+          # gitSha="unknown": the brain's Dockerfile already plumbed
+          # ARG GIT_SHA -> ENV GIT_SHA and app/api/health/route.ts already
+          # reported it — the value was simply never supplied on this deploy
+          # path. Supplying it is the whole fix. Same label reasoning as the
+          # gateway job above.
+          echo "==> deploying vesqor-core@$CORE_SHA"
+          env -u GITHUB_ACTIONS -u GITHUB_REPOSITORY -u GITHUB_SHA -u GITHUB_EVENT_NAME \
+            flyctl deploy -a vesqor-brain --remote-only --strategy rolling \
+              --build-arg "GIT_SHA=$CORE_SHA" \
+              --label "GH_REPO=VESQOR-MEGA-AI/vesqor-core" \
+              --label "GH_SHA=$CORE_SHA" \
+              --label "GH_EVENT_NAME=$TRIGGER_EVENT" \
+              --label "GH_ACTION_NAME=$GITHUB_RUN_ID"
+
+      - name: Health check (brain)
+        run: |
+          # Old machines answer /api/health during a rolling deploy, so a bare
+          # 200 proves nothing — poll until the reported gitSha IS the commit
+          # just deployed (same discipline as apps/vesqor-mega-ai/deploy/deploy-brain.sh).
+          for i in $(seq 1 24); do
+            BODY=$(curl -sf https://api.vesqorai.com/api/health || true)
+            if printf '%s' "$BODY" | grep -q "\"gitSha\":\"$CORE_SHA\""; then
+              echo "$BODY"
+              echo " — brain OK, running $CORE_SHA"
+              exit 0
+            fi
+            echo "attempt $i: not yet serving $CORE_SHA"
+            sleep 5
+          done
+          echo "::error::health check failed: /api/health never reported gitSha=$CORE_SHA"
+          exit 1
 
   gateway-logs:
     if: github.event_name == 'push'
