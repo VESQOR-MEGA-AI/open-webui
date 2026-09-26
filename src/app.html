@@ -28,40 +28,11 @@
 			name="viewport"
 			content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
 		/>
-		<meta name="theme-color" content="#020914" />
-		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="theme-color" content="#171717" />
 		<meta name="robots" content="noindex,nofollow" />
 
-		<!-- Open Graph / social share (2026-08-17) -->
-		<meta property="og:site_name" content="VESQOR MEGA AI" />
-		<meta property="og:title" content="VESQOR MEGA AI — business intelligence engine" />
-		<meta
-			property="og:description"
-			content="Turn a messy client problem into a decision memo you can send today. VESQOR MEGA AI turns a half-formed question into one structured report."
-		/>
-		<meta property="og:type" content="website" />
-		<meta property="og:url" content="https://chat.vesqorai.com" />
-		<meta
-			property="og:image"
-			content="https://vesqor-public-images.t3.tigrisbucket.io/vesqor-chat-open-graph-image.png"
-		/>
-		<meta property="og:image:width" content="1200" />
-		<meta property="og:image:height" content="630" />
-		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="twitter:title" content="VESQOR MEGA AI — business intelligence engine" />
-		<meta
-			name="twitter:description"
-			content="Turn a messy client problem into a decision memo you can send today."
-		/>
-		<meta
-			name="twitter:image"
-			content="https://vesqor-public-images.t3.tigrisbucket.io/vesqor-chat-open-graph-image.png"
-		/>
-
 		<script src="/static/loader.js" defer crossorigin="use-credentials"></script>
-		<link rel="stylesheet" href="/static/custom.css?v=20260914-5" crossorigin="use-credentials" />
-		<link rel="stylesheet" href="/static/vq25.css?v=20260914-4" crossorigin="use-credentials" />
+		<link rel="stylesheet" href="/static/custom.css" crossorigin="use-credentials" />
 
 		<!-- Google Analytics 4 — Chat stream G-NRF1DRN448 (2026-09-05) -->
 		<script>
@@ -106,12 +77,8 @@
 				const metaThemeColorTag = document.querySelector('meta[name="theme-color"]');
 				const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-				if (!localStorage?.theme || localStorage.theme === 'system') {
-					// VESQOR default skin is dark (Navy/Black/Emerald custom.css).
-					// 'system' was the old default — migrate it to the VESQOR skin
-					// so every user sees the branded theme unless they explicitly
-					// picked light/oled/her.
-					localStorage.theme = 'dark';
+				if (!localStorage?.theme) {
+					localStorage.theme = 'system';
 				}
 
 				if (localStorage.theme === 'system') {
@@ -132,15 +99,25 @@
 					metaThemeColorTag.setAttribute('content', '#983724');
 				} else {
 					document.documentElement.classList.add('dark');
-					metaThemeColorTag.setAttribute('content', '#020914');
+					metaThemeColorTag.setAttribute('content', '#171717');
 				}
+
+				const preloadHref = document.documentElement.classList.contains('dark')
+					? '/static/splash-dark.png'
+					: '/static/splash.png';
+				const preload = document.createElement('link');
+				preload.rel = 'preload';
+				preload.as = 'image';
+				preload.href = preloadHref;
+				preload.setAttribute('fetchpriority', 'high');
+				document.head.appendChild(preload);
 
 				window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
 					if (localStorage.theme === 'system') {
 						if (e.matches) {
 							document.documentElement.classList.add('dark');
 							document.documentElement.classList.remove('light');
-							metaThemeColorTag.setAttribute('content', '#020914');
+							metaThemeColorTag.setAttribute('content', '#171717');
 						} else {
 							document.documentElement.classList.add('light');
 							document.documentElement.classList.remove('dark');
@@ -148,98 +125,90 @@
 						}
 					}
 				});
+				const isDarkMode = document.documentElement.classList.contains('dark');
+
+				const logo = document.createElement('img');
+				logo.id = 'logo';
+				logo.style =
+					'position: absolute; width: auto; height: 6rem; top: 44%; left: 50%; transform: translateX(-50%); display:block;';
+				logo.loading = 'eager';
+				logo.fetchPriority = 'high';
+				logo.src = isDarkMode ? '/static/splash-dark.png' : '/static/splash.png';
+
+				document.addEventListener('DOMContentLoaded', function () {
+					const splash = document.getElementById('splash-screen');
+					if (document.documentElement.classList.contains('her')) {
+						return;
+					}
+
+					if (splash) splash.prepend(logo);
+				});
 			})();
 		</script>
 
-		<title>VESQOR MEGA AI</title>
+		<title>Open WebUI</title>
 
 		%sveltekit.head%
 	</head>
 
 	<body data-sveltekit-preload-data="hover">
-		<script>
-		// VESQOR living-background states.
-		// TWO independent flags (owner 2026-09-14: дождь стоит на паузе, пока
-		// работаем с чатом; после 2 минут бездействия рейн продолжает):
-		//   body.vesqor-active       — ЛЮБАЯ активность (клик, скролл, клавиша,
-		//                               фокус во ввод). Ставит дождь на паузу.
-		//                               Снимается через 2 минуты бездействия.
-		//   body.vesqor-interacting  — реальный ввод (печать/фокус в input,
-		//                               textarea, contenteditable). Включает
-		//                               матовое стекло. Снимается через 6с.
-		(function () {
-			var body = document.body;
-			var activeTimer = null;
-			var glassTimer = null;
-			var ACTIVE_RESET_MS = 120000; // 2 мин без активности → рейн оживает
-			var GLASS_RESET_MS = 6000; // матовое стекло гаснет через 6с после ввода
-
-			function isRealInput(el) {
-				if (!el || el === document.body) return false;
-				if (el.isContentEditable) return true;
-				var t = el.tagName;
-				if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT') return true;
-				return false;
-			}
-			function setActive(on) {
-				if (on) {
-					body.classList.add('vesqor-active');
-					clearTimeout(activeTimer);
-					activeTimer = setTimeout(function () { setActive(false); }, ACTIVE_RESET_MS);
-				} else {
-					body.classList.remove('vesqor-active');
-				}
-			}
-			function setInteracting(on) {
-				if (on) {
-					body.classList.add('vesqor-interacting');
-					clearTimeout(glassTimer);
-					glassTimer = setTimeout(function () { setInteracting(false); }, GLASS_RESET_MS);
-				} else {
-					body.classList.remove('vesqor-interacting');
-				}
-			}
-			function onActivity(e) {
-				setActive(true);
-				if (isRealInput(e.target)) setInteracting(true);
-			}
-			// ЛЮБАЯ физическая активность ставит дождь на паузу (active).
-			document.addEventListener('pointerdown', onActivity, true);
-			document.addEventListener('keydown', onActivity, true);
-			document.addEventListener('wheel', function () { setActive(true); }, { passive: true, capture: true });
-			document.addEventListener('touchstart', onActivity, { passive: true, capture: true });
-			// Реальный ввод (фокус в поле) — матовое стекло (interacting).
-			document.addEventListener('focusin', function (e) {
-				if (isRealInput(e.target)) setInteracting(true);
-			}, true);
-			window.addEventListener('blur', function () {
-				setInteracting(false);
-				setActive(false);
-			});
-			document.addEventListener('focusout', function (e) {
-				var next = e.relatedTarget;
-				if (!next) {
-					requestAnimationFrame(function () {
-						var active = document.activeElement;
-						if (!active || active === document.body || !body.contains(active) || !isRealInput(active)) {
-							setInteracting(false);
-						}
-					});
-				}
-			});
-		})();
-		</script>
-
 		<!-- Cookie consent banner (GDPR) — analytics stay denied until the
 		     visitor explicitly accepts (Consent Mode v2). -->
-		<div id="consent-banner" style="display: none; position: fixed; bottom: 1rem; left: 1rem; right: 1rem; z-index: 9999; max-width: 36rem; margin: 0 auto; background: #171717; border: 1px solid rgba(255,255,255,0.15); border-radius: 0.75rem; padding: 1rem 1.25rem; box-shadow: 0 8px 30px rgba(0,0,0,0.5); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e5e5e5; font-size: 0.875rem; line-height: 1.5;">
-			<p style="margin: 0 0 0.75rem;">
+		<div
+			id="consent-banner"
+			style="
+				display: none;
+				position: fixed;
+				bottom: 1rem;
+				left: 1rem;
+				right: 1rem;
+				z-index: 9999;
+				max-width: 36rem;
+				margin: 0 auto;
+				background: #171717;
+				border: 1px solid rgba(255, 255, 255, 0.15);
+				border-radius: 0.75rem;
+				padding: 1rem 1.25rem;
+				box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+				color: #e5e5e5;
+				font-size: 0.875rem;
+				line-height: 1.5;
+			"
+		>
+			<p style="margin: 0 0 0.75rem">
 				We use cookies to understand how visitors use this site and to improve the product.
 				Analytics are only enabled with your consent.
 			</p>
-			<div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-				<button id="consent-accept" style="background: #10a37f; color: #fff; border: none; border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.875rem; cursor: pointer;">Accept</button>
-				<button id="consent-decline" style="background: transparent; color: #e5e5e5; border: 1px solid rgba(255,255,255,0.3); border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.875rem; cursor: pointer;">Decline</button>
+			<div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+				<button
+					id="consent-accept"
+					style="
+						background: #10a37f;
+						color: #fff;
+						border: none;
+						border-radius: 0.5rem;
+						padding: 0.5rem 1rem;
+						font-size: 0.875rem;
+						cursor: pointer;
+					"
+				>
+					Accept
+				</button>
+				<button
+					id="consent-decline"
+					style="
+						background: transparent;
+						color: #e5e5e5;
+						border: 1px solid rgba(255, 255, 255, 0.3);
+						border-radius: 0.5rem;
+						padding: 0.5rem 1rem;
+						font-size: 0.875rem;
+						cursor: pointer;
+					"
+				>
+					Decline
+				</button>
 			</div>
 		</div>
 		<script>
@@ -251,8 +220,6 @@
 				// bare {event:'consent_update', consent:{...}} dataLayer object does
 				// NOT reach Consent Mode: Google Tag ignores it because the
 				// 'consent' command is a gtag.js *command*, not a dataLayer event.
-				// Verified live: the flat-object form left analytics_storage
-				// denied (ics.usedUpdate === false) even after the visitor accepted.
 				function pushConsent(analytics) {
 					if (typeof window.gtag === 'function') {
 						window.gtag('consent', 'update', {
@@ -265,7 +232,9 @@
 					}
 				}
 				var stored = null;
-				try { stored = localStorage.getItem(KEY); } catch (e) {}
+				try {
+					stored = localStorage.getItem(KEY);
+				} catch (e) {}
 				if (stored === 'accepted') {
 					pushConsent('granted');
 				} else if (stored === 'declined') {
@@ -274,12 +243,16 @@
 					banner.style.display = 'block';
 				}
 				document.getElementById('consent-accept').addEventListener('click', function () {
-					try { localStorage.setItem(KEY, 'accepted'); } catch (e) {}
+					try {
+						localStorage.setItem(KEY, 'accepted');
+					} catch (e) {}
 					pushConsent('granted');
 					banner.style.display = 'none';
 				});
 				document.getElementById('consent-decline').addEventListener('click', function () {
-					try { localStorage.setItem(KEY, 'declined'); } catch (e) {}
+					try {
+						localStorage.setItem(KEY, 'declined');
+					} catch (e) {}
 					pushConsent('denied');
 					banner.style.display = 'none';
 				});
@@ -287,5 +260,138 @@
 		</script>
 
 		<div style="display: contents">%sveltekit.body%</div>
+
+		<div
+			id="splash-screen"
+			style="position: fixed; z-index: 100; top: 0; left: 0; width: 100%; height: 100%"
+		>
+			<style type="text/css" nonce="">
+				html {
+					overflow-y: scroll !important;
+				}
+			</style>
+
+			<div
+				style="
+					position: absolute;
+					top: 33%;
+					left: 50%;
+
+					width: 24rem;
+					transform: translateX(-50%);
+
+					display: flex;
+					flex-direction: column;
+					align-items: center;
+				"
+			>
+				<img
+					id="logo-her"
+					style="width: auto; height: 13rem"
+					src="/static/splash.png"
+					loading="eager"
+					fetchpriority="high"
+					class="animate-pulse-fast"
+				/>
+
+				<div style="position: relative; width: 24rem; margin-top: 0.5rem">
+					<div
+						id="progress-background"
+						style="
+							position: absolute;
+							width: 100%;
+							height: 0.75rem;
+
+							border-radius: 9999px;
+							background-color: #fafafa9a;
+						"
+					></div>
+
+					<div
+						id="progress-bar"
+						style="
+							position: absolute;
+							width: 0%;
+							height: 0.75rem;
+							border-radius: 9999px;
+							background-color: #fff;
+						"
+						class="bg-white"
+					></div>
+				</div>
+			</div>
+
+			<!-- <span style="position: absolute; bottom: 32px; left: 50%; margin: -36px 0 0 -36px">
+				Footer content
+			</span> -->
+		</div>
 	</body>
+
+	<style type="text/css" nonce="">
+		html {
+			overflow-y: hidden !important;
+			overscroll-behavior-y: none;
+		}
+
+		#splash-screen {
+			background: #fff;
+		}
+
+		html.dark #splash-screen {
+			background: #000;
+		}
+
+		html.her #splash-screen {
+			background: #983724;
+		}
+
+		#logo-her {
+			display: none;
+		}
+
+		#progress-background {
+			display: none;
+		}
+
+		#progress-bar {
+			display: none;
+		}
+
+		html.her #logo {
+			display: none;
+		}
+
+		html.her #logo-her {
+			display: block;
+			filter: invert(1);
+		}
+
+		html.her #progress-background {
+			display: block;
+		}
+
+		html.her #progress-bar {
+			display: block;
+		}
+
+		@media (max-width: 24rem) {
+			html.her #progress-background {
+				display: none;
+			}
+
+			html.her #progress-bar {
+				display: none;
+			}
+		}
+
+		@keyframes pulse {
+			50% {
+				opacity: 0.65;
+			}
+		}
+
+		.animate-pulse-fast {
+			animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+		}
+	</style>
 </html>

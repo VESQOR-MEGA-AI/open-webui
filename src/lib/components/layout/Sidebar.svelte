@@ -14,7 +14,6 @@
 		folders as _folders,
 		showSidebar,
 		showSearch,
-		showSettings,
 		mobile,
 		pinnedChats,
 		pinnedNotes,
@@ -83,7 +82,6 @@
 	import ClockIcon from './Sidebar/icons/Clock.svelte';
 	import CodeIcon from './Sidebar/icons/Code.svelte';
 	import EditPencilIcon from './Sidebar/icons/EditPencil.svelte';
-	import LibraryIcon from './Sidebar/icons/Folder.svelte';
 	import NotesIcon from './Sidebar/icons/Notes.svelte';
 	import SearchIcon from './Sidebar/icons/Search.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
@@ -198,8 +196,7 @@
 		workspace: '/workspace',
 		calendar: '/calendar',
 		automations: '/automations',
-		playground: '/playground',
-		library: '/library'
+		playground: '/playground'
 	};
 
 	const getActiveMenuItemId = (pathname) => {
@@ -667,14 +664,6 @@
 			showSidebar.subscribe(async (value) => {
 				localStorage.sidebar = value;
 
-				// VQ-25 (owner 2026-09-14): настройки «пришиты» к боковой
-				// панели — передаём реальный offset: ширину панели, либо
-				// 42px когда остаётся только рельс с иконками.
-				document.documentElement.style.setProperty(
-					'--vq25-sb',
-					value ? 'var(--sidebar-width)' : '42px'
-				);
-
 				// nav element is not available on the first render
 				const navElement = document.getElementsByTagName('nav')[0];
 
@@ -829,15 +818,10 @@
 			await temporaryChatEnabled.set(false);
 		}
 
-		// VQ-25 (owner 2026-09-14): начать новый чат — закрываем модалки
-		// настроек и поиска (URL не меняется, подписка на pathname не сработает).
-		showSettings.set(false);
-		showSearch.set(false);
-
-		// VQ-25 (owner 2026-09-14): панель сама скрывается после выбора
-		// действия — на любой ширине экрана, не только на мобильном.
 		setTimeout(() => {
-			showSidebar.set(false);
+			if ($mobile) {
+				showSidebar.set(false);
+			}
 		}, 0);
 	};
 
@@ -845,13 +829,9 @@
 		selectedChatId = null;
 		chatId.set('');
 
-		// VQ-25 (owner 2026-09-14): выбор действия в панели закрывает модалки.
-		showSettings.set(false);
-		showSearch.set(false);
-
-		// VQ-25 (owner 2026-09-14): панель сама скрывается после выбора
-		// действия — на любой ширине экрана, не только на мобильном.
-		showSidebar.set(false);
+		if ($mobile) {
+			showSidebar.set(false);
+		}
 
 		await tick();
 	};
@@ -976,8 +956,8 @@
 							class=" self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 						>
 							<img
-								src="{WEBUI_BASE_URL}/static/vesqor-mark.png"
-								class="sidebar-new-chat-icon size-5 group-hover:hidden"
+								src="{WEBUI_BASE_URL}/static/favicon.png"
+								class="sidebar-new-chat-icon size-5 rounded-full group-hover:hidden"
 								alt=""
 							/>
 
@@ -1006,7 +986,7 @@
 							<div
 								class=" self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 							>
-								<EditPencilIcon className="size-5" strokeWidth="1.5" />
+								<EditPencilIcon className="size-4" strokeWidth="1.5" />
 							</div>
 						</a>
 					</Tooltip>
@@ -1021,9 +1001,6 @@
 								e.preventDefault();
 
 								showSearch.set(true);
-								// VQ-25 (owner 2026-09-14): при открытии поиска
-								// боковая панель уходит.
-								showSidebar.set(false);
 							}}
 							draggable="false"
 							aria-label={$i18n.t('Search')}
@@ -1031,37 +1008,9 @@
 							<div
 								class=" self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-50 dark:group-hover:bg-gray-900"
 							>
-								<SearchIcon className="size-5" strokeWidth="1.5" />
+								<SearchIcon className="size-4" strokeWidth="1.5" />
 							</div>
 						</button>
-					</Tooltip>
-				</div>
-
-				<div>
-					<Tooltip content={$i18n.t('Library')} placement="right">
-						<a
-							class=" cursor-pointer flex size-8 items-center justify-center transition group"
-							href="/library"
-							on:click={async (e) => {
-								e.stopImmediatePropagation();
-								e.preventDefault();
-								goto('/library');
-								itemClickHandler();
-							}}
-							draggable="false"
-							aria-label={$i18n.t('Library')}
-						>
-							<div
-								class=" self-center flex size-[30px] items-center justify-center rounded-lg transition {activeMenuItemId ===
-								'library'
-									? ($settings?.highContrastMode ?? false)
-										? 'bg-black/[0.035] dark:bg-white/[0.06]'
-										: 'bg-black/[0.035] dark:bg-white/[0.045]'
-									: 'group-hover:bg-gray-50 dark:group-hover:bg-gray-900'}"
-							>
-								<LibraryIcon className="size-5" strokeWidth="1.5" />
-							</div>
-						</a>
 					</Tooltip>
 				</div>
 
@@ -1091,15 +1040,15 @@
 											: 'group-hover:bg-gray-50 dark:group-hover:bg-gray-900'}"
 									>
 										{#if itemId === 'notes'}
-											<NotesIcon className="size-5" strokeWidth="1.5" />
+											<NotesIcon className="size-4" strokeWidth="1.5" />
 										{:else if itemId === 'workspace'}
-											<WorkspaceIcon className="size-5" strokeWidth="1.5" />
+											<WorkspaceIcon className="size-4" strokeWidth="1.5" />
 										{:else if itemId === 'automations'}
-											<ClockIcon className="size-5" strokeWidth="1.5" />
+											<ClockIcon className="size-4" strokeWidth="1.5" />
 										{:else if itemId === 'calendar'}
-											<CalendarIcon className="size-5" strokeWidth="1.5" />
+											<CalendarIcon className="size-4" strokeWidth="1.5" />
 										{:else if itemId === 'playground'}
-											<CodeIcon className="size-5" strokeWidth="1.5" />
+											<CodeIcon className="size-4" strokeWidth="1.5" />
 										{/if}
 									</div>
 								</a>
@@ -1164,7 +1113,7 @@
 			? `${$mobile ? 'bg-gray-50 dark:bg-gray-950' : 'bg-gray-50/70 dark:bg-gray-950/70'} z-50`
 			: ' bg-transparent z-0 '} {$isApp
 			? `ml-[4.5rem] md:ml-0 `
-			: ' transition-all duration-300 '} shrink-0 text-gray-700 dark:text-gray-300 text-sm leading-6 fixed top-0 left-0 overflow-x-hidden
+			: ' transition-all duration-300 '} shrink-0 text-gray-700 dark:text-gray-300 text-[13px] leading-5 fixed top-0 left-0 overflow-x-hidden
         "
 		transition:slide={{ duration: 250, axis: 'x' }}
 		data-state={$showSidebar}
@@ -1185,8 +1134,8 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/vesqor-mark.png"
-						class="sidebar-new-chat-icon size-5"
+						src="{WEBUI_BASE_URL}/static/favicon.png"
+						class="sidebar-new-chat-icon size-5 rounded-full"
 						alt=""
 					/>
 				</a>
@@ -1199,11 +1148,6 @@
 						{$WEBUI_NAME}
 					</div>
 				</a>
-				<span
-					class="pointer-events-none self-center text-xs font-medium text-gray-400 dark:text-gray-500 shrink-0"
-				>
-					(beta)
-				</span>
 				<Tooltip
 					content={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 					placement="bottom"
@@ -1218,7 +1162,7 @@
 						aria-label={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 					>
 						<div class=" self-center">
-							<Sidebar className="size-5" />
+							<Sidebar className="size-4" />
 						</div>
 					</button>
 				</Tooltip>
@@ -1255,7 +1199,7 @@
 							</div>
 
 							<div class="flex flex-1 self-center translate-y-[0.5px]">
-								<div class=" self-center text-sm leading-6">{$i18n.t('New Chat')}</div>
+								<div class=" self-center text-[13px] leading-5">{$i18n.t('New Chat')}</div>
 							</div>
 
 							<HotkeyHint name="newChat" className=" group-hover:visible invisible" />
@@ -1268,46 +1212,19 @@
 							class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900 transition outline-none"
 							on:click={() => {
 								showSearch.set(true);
-								// VQ-25 (owner 2026-09-14): при открытии поиска
-								// боковая панель уходит.
-								showSidebar.set(false);
 							}}
 							draggable="false"
 							aria-label={$i18n.t('Search')}
 						>
 							<div class="self-center flex size-4 shrink-0 items-center justify-center">
-								<SearchIcon strokeWidth="1.5" className="size-5" />
+								<SearchIcon strokeWidth="1.5" className="size-4" />
 							</div>
 
 							<div class="flex flex-1 self-center translate-y-[0.5px]">
-								<div class=" self-center text-sm leading-6">{$i18n.t('Search')}</div>
+								<div class=" self-center text-[13px] leading-5">{$i18n.t('Search')}</div>
 							</div>
 							<HotkeyHint name="search" className=" group-hover:visible invisible" />
 						</button>
-					</div>
-
-					<div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
-						<a
-							id="sidebar-library-button"
-							class="grow flex items-center space-x-2 rounded-xl px-2 py-1.5 transition {activeMenuItemId ===
-							'library'
-								? ($settings?.highContrastMode ?? false)
-									? 'bg-black/[0.035] dark:bg-white/[0.06]'
-									: 'bg-black/[0.035] dark:bg-white/[0.045]'
-								: 'hover:bg-gray-50 dark:hover:bg-gray-900'}"
-							href="/library"
-							on:click={itemClickHandler}
-							draggable="false"
-							aria-label={$i18n.t('Library')}
-						>
-							<div class="self-center flex size-4 shrink-0 items-center justify-center">
-								<LibraryIcon className="size-5" strokeWidth="1.5" />
-							</div>
-
-							<div class="flex self-center translate-y-[0.5px]">
-								<div class=" self-center text-sm leading-6">{$i18n.t('Library')}</div>
-							</div>
-						</a>
 					</div>
 
 					<div id="pinned-menu-items-list">
@@ -1333,20 +1250,20 @@
 									>
 										<div class="self-center flex size-4 shrink-0 items-center justify-center">
 											{#if itemId === 'notes'}
-												<NotesIcon className="size-5" strokeWidth="1.5" />
+												<NotesIcon className="size-4" strokeWidth="1.5" />
 											{:else if itemId === 'workspace'}
-												<WorkspaceIcon className="size-5" strokeWidth="1.5" />
+												<WorkspaceIcon className="size-4" strokeWidth="1.5" />
 											{:else if itemId === 'automations'}
-												<ClockIcon className="size-5" strokeWidth="1.5" />
+												<ClockIcon className="size-4" strokeWidth="1.5" />
 											{:else if itemId === 'calendar'}
-												<CalendarIcon className="size-5" strokeWidth="1.5" />
+												<CalendarIcon className="size-4" strokeWidth="1.5" />
 											{:else if itemId === 'playground'}
-												<CodeIcon className="size-5" strokeWidth="1.5" />
+												<CodeIcon className="size-4" strokeWidth="1.5" />
 											{/if}
 										</div>
 
 										<div class="flex self-center translate-y-[0.5px]">
-											<div class=" self-center text-sm leading-6">{$i18n.t(meta.label)}</div>
+											<div class=" self-center text-[13px] leading-5">{$i18n.t(meta.label)}</div>
 										</div>
 									</a>
 								</div>
@@ -1562,7 +1479,7 @@
 							<div slot="content">
 								<DropdownMenu className="min-w-[170px]">
 									<button
-										class="flex h-10 w-full items-center gap-2 rounded-xl px-2 text-sm select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+										class="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[13px] select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
 										on:click={markAllChatsReadHandler}
 									>
 										<CheckIcon className="size-3.5" />
