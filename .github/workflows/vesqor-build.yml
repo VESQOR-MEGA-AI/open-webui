@@ -116,15 +116,30 @@ jobs:
           SHA=$(git rev-parse HEAD)
           echo "CORE_SHA=$SHA" >> "$GITHUB_ENV"
           echo "TRIGGER_EVENT=$GITHUB_EVENT_NAME" >> "$GITHUB_ENV"
-      - name: Sync SSO audience secret
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # VQA-202 (relanded 2026-09-26 from PR #25): SINGLE AUTHORITATIVE SSO AUDIENCE CONTRACT.
+      #
+      # The accepted Teams SSO audience is owned by VESQOR-MEGA-AI/vesqor-core:
+      #   apps/vesqor-m365-gateway/src/config.ts   (CSV allow-list, fail-closed)
+      #   apps/vesqor-m365-gateway/.env.example    (declares the contract)
+      #   .github/workflows/deploy-gateway.yml     (sets the Fly secret)
+      #
+      # This repository is a CONSUMER. It used to write that Fly secret itself,
+      # with a single hard-coded `api://` spelling, on every push to `vesqor` —
+      # NARROWING the gateway's accepted audience below the authoritative CSV
+      # allow-list and silently re-breaking enterprise Teams sign-in even when
+      # vesqor-core was correct. Two sources of truth for one contract.
+      - name: Guard — SSO audience is not the consumer's to set
         run: |
-          # Teams SSO: token aud = webApplicationInfo.resource = api://<sso-app-id>.
-          # Must match the AAD app identifierUri and the gateway validator.
-          flyctl secrets set \
-            ENTRA_EXPECTED_AUDIENCE=api://0d20c7a1-1f62-4adb-8ef8-6107b56e0e68 \
-            -a vesqor-m365-gateway
+          set -euo pipefail
+          VAR='ENTRA_EXPECTED_AUDIENCE'
+          hits=$(grep -rnE "${VAR}[[:space:]]*=" .github scripts 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "::error::${VAR} is hard-coded in this repository."
+            echo "$hits"
+            echo "Own it in vesqor-core (deploy-gateway.yml). This repo must not set it."
+            exit 1
+          fi
+          echo "OK: ${VAR} is not set by this repository."
       - name: Deploy gateway
         working-directory: apps/vesqor-m365-gateway
         env:
