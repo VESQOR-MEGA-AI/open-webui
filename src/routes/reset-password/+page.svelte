@@ -64,13 +64,13 @@
 			id="logo"
 			crossorigin="anonymous"
 			src="{WEBUI_BASE_URL}/static/favicon.png"
-			class="size-24 rounded-full dark:hidden"
+			class="size-[7.5rem] rounded-full dark:hidden"
 			alt="VESQOR MEGA AI logo"
 		/>
 		<img
 			crossorigin="anonymous"
 			src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
-			class="size-24 rounded-full hidden dark:block"
+			class="size-[7.5rem] rounded-full hidden dark:block"
 			alt="VESQOR MEGA AI logo"
 		/>
 
