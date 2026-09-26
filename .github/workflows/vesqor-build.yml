@@ -71,12 +71,21 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=6144"
         run: npx vite build
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vesqor-webui-build
-          path: build/
-          retention-days: 3
+      # VQA-301 (relanded 2026-09-26 from PR #26): the `Upload build artifact`
+      # step was REMOVED. It uploaded the vite `build/` directory as
+      # `vesqor-webui-build` on EVERY push to `vesqor`, every PR into
+      # `vesqor`/`main`, and every workflow_dispatch — ~39 MB each.
+      #
+      # Nothing consumed it: `fly deploy` below uses LOCAL files (the Dockerfile
+      # COPYs build/ from the checkout), and an org-wide scan found the only
+      # `download-artifact` consumers are docker.yaml (digests-*) and
+      # vesqor-core/deploy.yml (vesqor-core-build). None consumed this one.
+      #
+      # It was the dominant producer in an artifact allowance SHARED with
+      # vesqor-core (GitHub Team is account-wide), and by 2026-09-17 the org was
+      # over the ceiling — surfacing as
+      #   verify -> "Upload build artifact (promotion source)"
+      #   Failed to CreateArtifact: Artifact storage quota has been hit.
 
       # The Dockerfile copies the pre-built build/ into the image (vite build
       # OOMs on Fly's build machines). build/ is gitignored but present in the
