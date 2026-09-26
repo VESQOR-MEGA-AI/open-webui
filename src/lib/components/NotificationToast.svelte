@@ -109,7 +109,16 @@
 	</button>
 
 	<div class="shrink-0 self-top -translate-y-0.5">
-		<img src="{WEBUI_BASE_URL}/static/favicon.png" alt="favicon" class="size-6 rounded-full" />
+		<img
+			src="{WEBUI_BASE_URL}/static/favicon.png"
+			alt="favicon"
+			class="size-6 rounded-full dark:hidden"
+		/>
+		<img
+			src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
+			alt="favicon"
+			class="size-6 rounded-full hidden dark:block"
+		/>
 	</div>
 
 	<div>

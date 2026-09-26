@@ -307,7 +307,13 @@
 											id="logo"
 											crossorigin="anonymous"
 											src="{WEBUI_BASE_URL}/static/favicon.png"
-											class="size-24 rounded-full"
+											class="size-24 rounded-full dark:hidden"
+											alt="{$WEBUI_NAME} logo"
+										/>
+										<img
+											crossorigin="anonymous"
+											src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
+											class="size-24 rounded-full hidden dark:block"
 											alt="{$WEBUI_NAME} logo"
 										/>
 									</div>
@@ -344,7 +350,13 @@
 										id="logo"
 										crossorigin="anonymous"
 										src="{WEBUI_BASE_URL}/static/favicon.png"
-										class="size-24 rounded-full shadow-lg"
+										class="size-24 rounded-full shadow-lg dark:hidden"
+										alt="{$WEBUI_NAME} logo"
+									/>
+									<img
+										crossorigin="anonymous"
+										src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
+										class="size-24 rounded-full shadow-lg hidden dark:block"
 										alt="{$WEBUI_NAME} logo"
 									/>
 								</div>
