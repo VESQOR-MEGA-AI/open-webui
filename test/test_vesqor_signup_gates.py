@@ -193,9 +193,7 @@ def test_alembic_single_head() -> None:
     print('\n[alembic graph has a single head and no broken links]')
     versions = os.path.join(REPO, 'backend', 'open_webui', 'migrations', 'versions')
     pat_r = re.compile(r"^revision(?::\s*[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]", re.M)
-    pat_d = re.compile(
-        r"^down_revision(?::\s*[^=]+)?\s*=\s*(?:\(([^)]*)\)|['\"]([^'\"]+)['\"])", re.M
-    )
+    pat_d = re.compile(r"^down_revision(?::\s*[^=]+)?\s*=\s*(?:\(([^)]*)\)|['\"]([^'\"]+)['\"])", re.M)
     revs: dict[str, str] = {}
     downs: dict[str, object] = {}
     for name in sorted(os.listdir(versions)):
@@ -208,7 +206,7 @@ def test_alembic_single_head() -> None:
         revs[m.group(1)] = name
         if d:
             downs[m.group(1)] = (
-                tuple(x.strip().strip("'\"").strip() for x in d.group(1).split(',') if x.strip())
+                tuple(x.strip().strip('\'"').strip() for x in d.group(1).split(',') if x.strip())
                 if d.group(1) is not None
                 else d.group(2)
             )
@@ -219,10 +217,7 @@ def test_alembic_single_head() -> None:
     check(len(revs) > 0, f'migration versions discovered ({len(revs)})')
     check(len(heads) == 1, f'exactly one alembic head (found {len(heads)}: {heads})')
     broken = [
-        f'{k} -> {x}'
-        for k, v in downs.items()
-        for x in (v if isinstance(v, tuple) else (v,))
-        if x and x not in revs
+        f'{k} -> {x}' for k, v in downs.items() for x in (v if isinstance(v, tuple) else (v,)) if x and x not in revs
     ]
     check(not broken, f'no broken down_revision links (broken: {broken})')
 
@@ -237,7 +232,7 @@ def test_full_name_required() -> None:
     print('\n[full-name rule: first AND last name required]')
     src_path = os.path.join(REPO, 'backend', 'open_webui', 'models', 'auths.py')
     src = read(src_path)
-    check('@field_validator(\'name\')' in src, 'SignupForm declares a name validator')
+    check("@field_validator('name')" in src, 'SignupForm declares a name validator')
 
     # Extract the validator body and execute it standalone.
     m = re.search(
@@ -287,7 +282,7 @@ def test_full_name_required() -> None:
     accepts('Basil Berking', 'a plain two-token name')
     accepts('Yuliya Veys', 'a first+last name')
     accepts('Тигран Яхиев', 'a Cyrillic first+last name')
-    accepts('Anne-Marie O\'Brien', 'hyphen + apostrophe')
+    accepts("Anne-Marie O'Brien", 'hyphen + apostrophe')
     accepts('  Sergey   Veys  ', 'extra whitespace (collapsed)')
 
 

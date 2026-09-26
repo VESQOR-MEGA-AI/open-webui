@@ -949,6 +949,7 @@ async def update_user_by_id(
                 # the next authdb projection doesn't flip the user back.
                 try:
                     from open_webui.utils.vesqor_authdb import vesqor_authdb_mark_verified
+
                     if not vesqor_authdb_mark_verified(user.email, role=new_role):
                         log.warning(
                             'Admin approved user %s (%s) but authdb update '

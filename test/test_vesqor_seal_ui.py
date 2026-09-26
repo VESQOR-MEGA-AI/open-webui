@@ -94,14 +94,11 @@ def test_backend_never_reads_inbound_seal_header() -> None:
     # Flag any attempt to read the same header name back off request.headers
     # (which would let a caller forge the seal by setting it directly).
     check(
-        re.search(r"request\.headers(\.get)?\(?\s*\)?\s*\[?\s*['\"]X-VESQOR-Security-Seal['\"]", src, re.I)
-        is None,
+        re.search(r"request\.headers(\.get)?\(?\s*\)?\s*\[?\s*['\"]X-VESQOR-Security-Seal['\"]", src, re.I) is None,
         'no read of request.headers[...] / request.headers.get(...) for X-VESQOR-Security-Seal',
     )
     check(
-        'X-VESQOR-Security-Seal' not in read(
-            os.path.join(REPO, 'backend', 'open_webui', 'utils', 'headers.py')
-        ),
+        'X-VESQOR-Security-Seal' not in read(os.path.join(REPO, 'backend', 'open_webui', 'utils', 'headers.py')),
         'utils/headers.py (the JWT/user-info header bridge) is untouched by the seal feature',
     )
 
@@ -118,7 +115,7 @@ def test_confirmation_header_reaches_browser_on_both_paths() -> None:
     # the confirmation header when upstream sent one.
     m = re.search(
         r"confirmed_seal\s*=\s*r\.headers\.get\(\s*['\"]X-VESQOR-Security-Seal-Confirmed['\"]\s*\)"
-        r"(.*?)return\s+response\b",
+        r'(.*?)return\s+response\b',
         src,
         re.S,
     )
@@ -129,11 +126,13 @@ def test_confirmation_header_reaches_browser_on_both_paths() -> None:
             'non-streaming path returns JSONResponse(..., headers={...Confirmed: ...}) when upstream sent it',
         )
     check(
-        "'X-VESQOR-Security-Seal-Confirmed'" not in read(OPENAI_ROUTER).split('_STRIP_PROXY_HEADERS = frozenset({')[1].split('})')[0],
+        "'X-VESQOR-Security-Seal-Confirmed'"
+        not in read(OPENAI_ROUTER).split('_STRIP_PROXY_HEADERS = frozenset({')[1].split('})')[0],
         'X-VESQOR-Security-Seal-Confirmed is not added to _STRIP_PROXY_HEADERS',
     )
     check(
-        "'X-VESQOR-Security-Seal'" not in read(OPENAI_ROUTER).split('_STRIP_PROXY_HEADERS = frozenset({')[1].split('})')[0],
+        "'X-VESQOR-Security-Seal'"
+        not in read(OPENAI_ROUTER).split('_STRIP_PROXY_HEADERS = frozenset({')[1].split('})')[0],
         'X-VESQOR-Security-Seal is not added to _STRIP_PROXY_HEADERS',
     )
 
@@ -147,7 +146,7 @@ def test_chat_svelte_sends_vq_seal_default_standard() -> None:
         "the vq_seal field is gated on $selectedSeal !== 'STANDARD' (STANDARD is never sent)",
     )
     check(
-        re.search(r"vq_seal\s*:\s*\$selectedSeal", src) is not None,
+        re.search(r'vq_seal\s*:\s*\$selectedSeal', src) is not None,
         'vq_seal is populated from $selectedSeal (client intent)',
     )
     check(
@@ -168,7 +167,7 @@ def test_indicator_reads_confirmed_never_assigned_from_selected() -> None:
 
     # RULE 0.2: sealConfirmed must be a server-only signal. Scan every source
     # file that mentions it and make sure it is never set FROM selectedSeal.
-    forbidden = re.compile(r"sealConfirmed\.set\(\s*\$?selectedSeal\b")
+    forbidden = re.compile(r'sealConfirmed\.set\(\s*\$?selectedSeal\b')
     offenders = []
     for path in (SEAL_MENU, CHAT_SVELTE, MESSAGE_INPUT, STORES, OPENAI_API):
         if os.path.exists(path) and forbidden.search(read(path)):
@@ -176,7 +175,7 @@ def test_indicator_reads_confirmed_never_assigned_from_selected() -> None:
     check(not offenders, f'no file assigns sealConfirmed from selectedSeal (offenders: {offenders})')
 
     check(
-        re.search(r"sealConfirmed\.set\(\s*confirmed\s*\)", read(OPENAI_API)) is not None,
+        re.search(r'sealConfirmed\.set\(\s*confirmed\s*\)', read(OPENAI_API)) is not None,
         'sealConfirmed is set from the server response header in apis/openai/index.ts',
     )
     check(
@@ -190,14 +189,11 @@ def test_stores_shape() -> None:
     print('\n[stores/index.ts: selectedSeal (intent) and sealConfirmed (server) are distinct stores]')
     src = read(STORES)
     check(
-        re.search(
-            r"selectedSeal[^=]*=\s*writable\(\s*['\"]STANDARD['\"]\s*\)", src
-        )
-        is not None,
+        re.search(r"selectedSeal[^=]*=\s*writable\(\s*['\"]STANDARD['\"]\s*\)", src) is not None,
         "selectedSeal is a writable store defaulting to 'STANDARD'",
     )
     check(
-        re.search(r"sealConfirmed[^=]*=\s*writable\(\s*null\s*\)", src) is not None,
+        re.search(r'sealConfirmed[^=]*=\s*writable\(\s*null\s*\)', src) is not None,
         'sealConfirmed is a writable store defaulting to null',
     )
 

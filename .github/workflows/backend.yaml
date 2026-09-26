@@ -1,15 +1,23 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Backend CI — Python formatting checks via Ruff
 # Runs on pushes and PRs to main/dev when backend files change
+#
+# VQA-307 (2026-09-21): the branch list was MISSING `vesqor`. `main` in this fork
+# is pristine upstream (256 .py files, zero VESQOR customisation), so this
+# workflow could only ever check code that never ships — while the 49 customised
+# Python files that DO ship live only on `vesqor`. That is why the Python quality
+# signal was absent on the product line. `vesqor` is now covered; no requirement
+# was relaxed, skipped or removed. See the PR body for the measurements, the AST
+# equivalence proof and the fault-injection negative controls.
 # ─────────────────────────────────────────────────────────────────────────────
 name: Python CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, vesqor]
     paths: ['backend/**', 'pyproject.toml', 'uv.lock', '.github/workflows/backend.yaml']
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, vesqor]
     paths: ['backend/**', 'pyproject.toml', 'uv.lock', '.github/workflows/backend.yaml']
 
 concurrency:

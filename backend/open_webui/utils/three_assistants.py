@@ -46,50 +46,39 @@ log = logging.getLogger(__name__)
 FALLBACK_BASE_MODEL_ID = 'vesqor-reasoning'
 
 # Public read grant applied to every preset, so non-admin roles can use them.
-PUBLIC_READ_GRANT = [
-    {'principal_type': 'user', 'principal_id': '*', 'permission': 'read'}
-]
+PUBLIC_READ_GRANT = [{'principal_type': 'user', 'principal_id': '*', 'permission': 'read'}]
 
 # Model ids that are not suitable as a chat base model.
 _SKIP_KEYWORDS = ('embedding', 'image', 'whisper', 'tts', 'rerank', 'moderation')
 
 # Shared guard: the preset must answer in a style, not impersonate a vendor.
 _NO_IMPERSONATION = (
-    'Answer in the style described above. Never claim to be, or speak as, '
-    "another company's product or assistant."
+    "Answer in the style described above. Never claim to be, or speak as, another company's product or assistant."
 )
 
 ASSISTANT_PRESETS = [
     {
         'id': 'vesqor-copilot',
         'name': 'Copilot',
-        'description': (
-            'Concise office-assistant style — short summary plus 3-5 bullet recommendations.'
-        ),
+        'description': ('Concise office-assistant style — short summary plus 3-5 bullet recommendations.'),
         'system': (
-            'Answer the user\'s business question in a concise, practical style: '
-            'a short summary followed by 3-5 bullet-point recommendations. '
-            + _NO_IMPERSONATION
+            "Answer the user's business question in a concise, practical style: "
+            'a short summary followed by 3-5 bullet-point recommendations. ' + _NO_IMPERSONATION
         ),
     },
     {
         'id': 'vesqor-chatgpt',
         'name': 'ChatGPT',
-        'description': (
-            'Direct conversational style — general-purpose answers in short paragraphs.'
-        ),
+        'description': ('Direct conversational style — general-purpose answers in short paragraphs.'),
         'system': (
-            'Answer the user\'s business question directly and conversationally. '
-            'Use short paragraphs and a few bullet points where helpful. '
-            + _NO_IMPERSONATION
+            "Answer the user's business question directly and conversationally. "
+            'Use short paragraphs and a few bullet points where helpful. ' + _NO_IMPERSONATION
         ),
     },
     {
         'id': 'vesqor-vesqor',
         'name': 'VESQOR',
-        'description': (
-            'VESQOR MEGA AI style — structured decision report with confidence score.'
-        ),
+        'description': ('VESQOR MEGA AI style — structured decision report with confidence score.'),
         'system': (
             'You are VESQOR MEGA AI, a governed business-analysis engine. Produce a '
             'structured decision report: "Summary" (2-3 sentences), "Key findings" '
@@ -150,12 +139,8 @@ async def seed_three_assistants(app=None) -> None:
                 # insert_new_model already applies form.access_grants; re-assert
                 # so a variant that skips them can never leave the preset
                 # invisible to non-admins (the 2026-08-26 failure mode).
-                await AccessGrants.set_access_grants(
-                    'model', preset['id'], PUBLIC_READ_GRANT
-                )
-                log.info(
-                    'seed_three_assistants: created %s (base %s)', preset['id'], base_model_id
-                )
+                await AccessGrants.set_access_grants('model', preset['id'], PUBLIC_READ_GRANT)
+                log.info('seed_three_assistants: created %s (base %s)', preset['id'], base_model_id)
             else:
                 log.warning('seed_three_assistants: failed to create %s', preset['id'])
     except Exception as e:
