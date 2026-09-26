@@ -23,6 +23,7 @@
 	import { WEBUI_NAME, config, user, socket } from '$lib/stores';
 
 	import { generateInitialsImage, canvasPixelTest, getUserTimezone } from '$lib/utils';
+	import { buildWelcomeMessage } from '$lib/utils/welcome-message';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import OnBoarding from '$lib/components/OnBoarding.svelte';
@@ -56,6 +57,15 @@
 	// confirmation after a forgot-password / forgot-username submission.
 	let recoverySent: 'password' | 'username' | null = null;
 	$: isRecovery = mode === 'forgot-password' || mode === 'forgot-username';
+
+	// VESQOR: dynamic, deterministic sign-in greeting. Presentation copy only —
+	// it reads a name only when the existing session store already provides one,
+	// and falls back to an anonymous or generic greeting otherwise.
+	$: welcome = buildWelcomeMessage({
+		now: new Date(),
+		firstName: $user?.name ?? null,
+		locale: typeof navigator !== 'undefined' ? navigator.language : null
+	});
 
 	const enterMode = (next: string) => {
 		mode = next;
@@ -307,13 +317,13 @@
 											id="logo"
 											crossorigin="anonymous"
 											src="{WEBUI_BASE_URL}/static/favicon.png"
-											class="size-24 rounded-full dark:hidden"
+											class="size-[7.5rem] rounded-full dark:hidden"
 											alt="{$WEBUI_NAME} logo"
 										/>
 										<img
 											crossorigin="anonymous"
 											src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
-											class="size-24 rounded-full hidden dark:block"
+											class="size-[7.5rem] rounded-full hidden dark:block"
 											alt="{$WEBUI_NAME} logo"
 										/>
 									</div>
@@ -350,13 +360,13 @@
 										id="logo"
 										crossorigin="anonymous"
 										src="{WEBUI_BASE_URL}/static/favicon.png"
-										class="size-24 rounded-full shadow-lg dark:hidden"
+										class="size-[7.5rem] rounded-full shadow-lg dark:hidden"
 										alt="{$WEBUI_NAME} logo"
 									/>
 									<img
 										crossorigin="anonymous"
 										src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
-										class="size-24 rounded-full shadow-lg hidden dark:block"
+										class="size-[7.5rem] rounded-full shadow-lg hidden dark:block"
 										alt="{$WEBUI_NAME} logo"
 									/>
 								</div>
@@ -374,7 +384,7 @@
 								}}
 							>
 								<div class="mb-1">
-									<div class=" text-2xl font-normal">
+									<div class=" text-2xl font-normal text-balance">
 										{#if $config?.onboarding ?? false}
 											{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{:else if mode === 'ldap'}
@@ -384,7 +394,7 @@
 										{:else if mode === 'forgot-username'}
 											{$i18n.t('Recover your login email')}
 										{:else if mode === 'signin'}
-											{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+											{$i18n.t(welcome.key, welcome.params)}
 										{:else}
 											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{/if}
