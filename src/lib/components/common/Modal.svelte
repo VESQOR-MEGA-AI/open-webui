@@ -8,8 +8,6 @@
 	export let size = 'md';
 	export let containerClassName = 'p-3';
 	export let className = 'bg-white dark:bg-gray-900 rounded-4xl';
-	/** position="center" (по умолчанию) | "bottom" — нижняя панель (VQ-25). */
-	export let position: 'center' | 'bottom' = 'center';
 
 	let modalElement = null;
 	let mounted = false;
@@ -123,8 +121,7 @@
 		bind:this={modalElement}
 		aria-modal="true"
 		role="dialog"
-		class="modal fixed top-0 right-0 left-0 bottom-0 bg-black/45 dark:bg-black/60 w-full h-screen max-h-[100dvh] {containerClassName}  flex justify-center z-9999 overflow-y-auto overscroll-contain
-		{position === 'bottom' ? 'items-end' : ''}"
+		class="modal fixed top-0 right-0 left-0 bottom-0 bg-black/45 dark:bg-black/60 w-full h-screen max-h-[100dvh] {containerClassName}  flex justify-center z-9999 overflow-y-auto overscroll-contain"
 		style="scrollbar-gutter: stable;"
 		in:fade={{ duration: 10 }}
 		on:mousedown={() => {
@@ -132,10 +129,9 @@
 		}}
 	>
 		<div
-			class="max-w-full {sizeToWidth(size)} {size !== 'full'
+			class="m-auto max-w-full {sizeToWidth(size)} {size !== 'full'
 				? 'mx-2'
-				: ''} shadow-3xl min-h-fit scrollbar-hidden {className} border border-white dark:border-gray-850
-			{position === 'bottom' ? '!m-0 !mb-0 !rounded-b-none !w-full !max-w-none' : 'm-auto'}"
+				: ''} shadow-3xl min-h-fit scrollbar-hidden {className} border border-white dark:border-gray-850"
 			in:flyAndScale
 			on:mousedown={(e) => {
 				e.stopPropagation();

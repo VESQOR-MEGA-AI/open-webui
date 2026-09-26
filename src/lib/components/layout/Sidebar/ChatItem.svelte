@@ -567,9 +567,9 @@
 						selectedFolder.set(null);
 					}
 
-					// VQ-25 (owner 2026-09-14): панель сама скрывается после
-					// выбора чата — на любой ширине экрана.
-					showSidebar.set(false);
+					if ($mobile) {
+						showSidebar.set(false);
+					}
 
 					// Optimistically mark as read in UI when clicked
 					unread = false;

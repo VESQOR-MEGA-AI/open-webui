@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, onMount, onDestroy } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
@@ -22,14 +22,16 @@
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import Check from '$lib/components/icons/Check.svelte';
 
-	import {
-		copyToClipboard as _copyToClipboard,
-		formatMessageTimestampFull
-	} from '$lib/utils';
+	import { copyToClipboard as _copyToClipboard, formatMessageTimestampFull } from '$lib/utils';
 	import { getOutputText } from './structuredOutput';
 	import { exportVesqorReport } from '$lib/apis/vesqor';
 	import { getUserSettings, updateUserSettings } from '$lib/apis/users';
-	import { parseVqMeta, deriveReportTitle, reportBody, type ReportMeta } from '$lib/utils/vesqor-report';
+	import {
+		parseVqMeta,
+		deriveReportTitle,
+		reportBody,
+		type ReportMeta
+	} from '$lib/utils/vesqor-report';
 
 	type ExportFormat = 'pdf' | 'docx' | 'md' | 'html' | 'json';
 
@@ -60,10 +62,7 @@
 
 	$: meta = parseVqMeta(message) as ReportMeta | null;
 	$: body = reportBody(message);
-	$: title =
-		meta?.title ??
-		deriveReportTitle(body || content) ??
-		$i18n.t('VESQOR MEGA AI Report');
+	$: title = meta?.title ?? deriveReportTitle(body || content) ?? $i18n.t('VESQOR MEGA AI Report');
 	$: preparedBy = `${$i18n.t('Prepared by')}: VESQOR MEGA AI${model?.info?.meta?.effortTier ? ` — ${model.info.meta.effortTier}` : model?.name ? ` — ${model.name}` : ''}`;
 	$: preparedFor = `${$i18n.t('Prepared for')}: ${$user?.name || $user?.email || $i18n.t('Guest')}`;
 
@@ -73,22 +72,6 @@
 	let shareCopied = false;
 	let preferredFormat: ExportFormat = 'pdf';
 	let showFormatMenu = false;
-
-	// VESQOR (owner 2026-09-10): a fully rendered report pauses the living
-	// background and tints the glass to ~95% matte (body.vesqor-report-open).
-	// While the report is LOADING (done=false) the matrix stays alive and the
-	// glass is clear — the tint applies only once content is ready.
-	$: reportReady = done === true;
-	$: {
-		if (reportReady) {
-			document.body.classList.add('vesqor-report-open');
-		} else {
-			document.body.classList.remove('vesqor-report-open');
-		}
-	}
-	onDestroy(() => {
-		document.body.classList.remove('vesqor-report-open');
-	});
 
 	onMount(async () => {
 		try {
@@ -104,9 +87,7 @@
 
 	const getMarkdown = (): string => {
 		const raw = body.trim() || content.trim() || '';
-		return raw
-			.replace(/<details[\s\S]*?<\/details>/g, '')
-			.trim();
+		return raw.replace(/<details[\s\S]*?<\/details>/g, '').trim();
 	};
 
 	const visibleContent = (): string => getOutputText(message?.output) || getMarkdown();
@@ -153,7 +134,9 @@
 			if (!res || !res.ok) return false;
 
 			const blob = await res.blob();
-			const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+			const safeTitle =
+				(title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) ||
+				'vesqor-report';
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
@@ -234,7 +217,8 @@
 			page++;
 		}
 
-		const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+		const safeTitle =
+			(title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
 		pdf.save(`${safeTitle}.pdf`);
 	};
 
@@ -247,11 +231,7 @@
 			.filter(Boolean);
 
 		const xmlEsc = (s: string) =>
-			s
-				.replace(/&/g, '&amp;')
-				.replace(/</g, '&lt;')
-				.replace(/>/g, '&gt;')
-				.replace(/"/g, '&quot;');
+			s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 		const bodyXml = paragraphs
 			.map((p) => `  <w:p><w:r><w:t xml:space="preserve">${xmlEsc(p)}</w:t></w:r></w:p>`)
@@ -286,12 +266,14 @@ ${bodyXml}
 
 		const blob = await zip.generateAsync({ type: 'blob' });
 		const fileSaver = await import('file-saver');
-		const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+		const safeTitle =
+			(title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
 		fileSaver.saveAs(blob, `${safeTitle}.docx`);
 	};
 
 	const blobClientFallback = async (fmt: Exclude<ExportFormat, 'pdf' | 'docx'>) => {
-		const safeTitle = (title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
+		const safeTitle =
+			(title || 'vesqor-report').replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 80) || 'vesqor-report';
 		const fileSaver = await import('file-saver');
 
 		let content: string;
@@ -337,7 +319,10 @@ ${bodyXml}
 		preferredFormat = fmt;
 		showFormatMenu = false;
 		try {
-			await updateUserSettings(localStorage.token, { ui: $settings, vesqor: { export_format: fmt } });
+			await updateUserSettings(localStorage.token, {
+				ui: $settings,
+				vesqor: { export_format: fmt }
+			});
 		} catch (error) {
 			console.error('Failed to save export format preference', error);
 		}
@@ -377,7 +362,9 @@ ${bodyXml}
 			`;
 
 			const styleTag = '<' + 'style>';
-			printWindow.document.write(`<!DOCTYPE html><html><head><title>${title || 'VESQOR MEGA AI Report'}</title>${styleTag}${style}</style></head><body>${clonedElement.outerHTML}</body></html>`);
+			printWindow.document.write(
+				`<!DOCTYPE html><html><head><title>${title || 'VESQOR MEGA AI Report'}</title>${styleTag}${style}</style></head><body>${clonedElement.outerHTML}</body></html>`
+			);
 			printWindow.document.close();
 			await new Promise((r) => setTimeout(r, 300));
 			printWindow.focus();
@@ -404,12 +391,16 @@ ${bodyXml}
 			class="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-850"
 		>
 			<div class="flex items-center gap-2 mb-1">
-				<Sparkles className="size-4 text-emerald-600 dark:text-emerald-400" />
-				<span class="text-[0.7rem] font-semibold tracking-[0.14em] uppercase text-emerald-700 dark:text-emerald-400">
+				<Sparkles className="size-4 text-gray-500 dark:text-gray-400" />
+				<span
+					class="text-[0.7rem] font-semibold tracking-[0.14em] uppercase text-gray-500 dark:text-gray-400"
+				>
 					VESQOR MEGA AI
 				</span>
 			</div>
-			<h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-50 leading-snug">{title}</h1>
+			<h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-50 leading-snug">
+				{title}
+			</h1>
 
 			<div class="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
 				<div>{preparedFor}</div>
@@ -420,10 +411,14 @@ ${bodyXml}
 			</div>
 
 			{#if meta && (meta.confidenceScore !== undefined || meta.notes)}
-				<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.7rem] text-gray-500 dark:text-gray-400">
+				<div
+					class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.7rem] text-gray-500 dark:text-gray-400"
+				>
 					{#if meta.confidenceScore !== undefined}
 						<span class="inline-flex items-center gap-1">
-							<span class="font-medium text-gray-600 dark:text-gray-300">{$i18n.t('Confidence')}:</span>
+							<span class="font-medium text-gray-600 dark:text-gray-300"
+								>{$i18n.t('Confidence')}:</span
+							>
 							{Math.round(meta.confidenceScore * 100)}%
 						</span>
 					{/if}
@@ -464,7 +459,10 @@ ${bodyXml}
 		>
 			<Dropdown bind:show={showFormatMenu} align="start" sideOffset={6}>
 				<div class="flex items-center rounded-lg">
-					<Tooltip content={$i18n.t('Download {{format}}', { format: preferredFormat.toUpperCase() })} placement="top">
+					<Tooltip
+						content={$i18n.t('Download {{format}}', { format: preferredFormat.toUpperCase() })}
+						placement="top"
+					>
 						<button
 							type="button"
 							class="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-l-lg dark:hover:text-white hover:text-black transition text-gray-600 dark:text-gray-400"
@@ -497,13 +495,10 @@ ${bodyXml}
 				<div slot="content">
 					<DropdownMenu className="min-w-[150px]">
 						{#each EXPORT_FORMATS as format (format.id)}
-							<button
-								type="button"
-								on:click={() => selectExportFormat(format.id)}
-							>
+							<button type="button" on:click={() => selectExportFormat(format.id)}>
 								<span class="flex-1 text-left">{$i18n.t(format.label)}</span>
 								{#if preferredFormat === format.id}
-									<Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+									<Check className="size-3.5 text-gray-500 dark:text-gray-400" />
 								{/if}
 							</button>
 						{/each}
@@ -530,7 +525,7 @@ ${bodyXml}
 					on:click={copyReport}
 				>
 					{#if copied}
-						<Check className="size-4 text-emerald-600 dark:text-emerald-400" />
+						<Check className="size-4 text-gray-500 dark:text-gray-400" />
 					{:else}
 						<Clipboard className="size-4" />
 					{/if}
@@ -545,7 +540,7 @@ ${bodyXml}
 					on:click={shareReport}
 				>
 					{#if shareCopied}
-						<Check className="size-4 text-emerald-600 dark:text-emerald-400" />
+						<Check className="size-4 text-gray-500 dark:text-gray-400" />
 					{:else}
 						<Share className="size-4" />
 					{/if}

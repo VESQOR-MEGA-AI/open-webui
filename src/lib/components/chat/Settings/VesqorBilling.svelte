@@ -21,7 +21,7 @@
 		none: 'None'
 	};
 
-	$: planName = planNames[(status?.plan ?? 'none').toLowerCase()] ?? (status?.plan ?? 'None');
+	$: planName = planNames[(status?.plan ?? 'none').toLowerCase()] ?? status?.plan ?? 'None';
 
 	const load = async () => {
 		loading = true;
@@ -46,10 +46,13 @@
 	{:else if error}
 		<div class="text-xs text-red-500 py-4">{error}</div>
 	{:else}
-		<div class="p-3 mb-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs leading-relaxed">
-			<span class="font-semibold text-emerald-700 dark:text-emerald-300">VESQOR is in open BETA.</span>
-			<span class="text-emerald-800 dark:text-emerald-200">
-				Every registered account gets 1 report per day, free. Payments are paused — you will not be charged.
+		<div
+			class="p-3 mb-3 rounded-lg bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 text-xs leading-relaxed"
+		>
+			<span class="font-semibold text-gray-900 dark:text-gray-100">VESQOR is in open BETA.</span>
+			<span class="text-gray-600 dark:text-gray-400">
+				Every registered account gets 1 report per day, free. Payments are paused — you will not be
+				charged.
 			</span>
 		</div>
 
