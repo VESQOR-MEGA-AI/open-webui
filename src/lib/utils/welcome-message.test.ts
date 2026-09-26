@@ -63,7 +63,16 @@ describe('extractFirstName', () => {
 
 describe('formatWelcomeDate', () => {
 	it('formats a weekday and date for the requested locale', () => {
-		expect(formatWelcomeDate(at(2026, 9, 26, 9), 'en-US')).toBe('Saturday, September 26');
+		expect(formatWelcomeDate(at(2026, 9, 26, 9), 'en-US')).toBe('Saturday, September\u00A026');
+	});
+
+	it('keeps month and day on one line with a non-breaking space', () => {
+		const formatted = formatWelcomeDate(at(2026, 9, 26, 9), 'en-US') as string;
+
+		// A plain space here would let the heading break the date in half.
+		expect(formatted).toContain('\u00A0');
+		expect(formatted.split('\u00A0')).toHaveLength(2);
+		expect(formatted).not.toMatch(/September 26/);
 	});
 
 	it('returns null instead of throwing on an unusable locale', () => {
@@ -148,7 +157,7 @@ describe('buildWelcomeMessage', () => {
 
 			expect(welcome.key.startsWith('{{DATE}} — ')).toBe(true);
 			expect(welcome.key).toContain(phrase);
-			expect(welcome.params.DATE).toBe('Saturday, September 26');
+			expect(welcome.params.DATE).toBe('Saturday, September\u00A026');
 			expect(welcome.params.NAME).toBe('Alex');
 		}
 	});
@@ -181,7 +190,7 @@ describe('buildWelcomeMessage', () => {
 		const welcome = buildWelcomeMessage({ now: at(2026, 9, 26, 9), locale: 'en-US' });
 
 		expect(welcome.usesDate).toBe(true);
-		expect(welcome.params.DATE).toBe('Saturday, September 26');
+		expect(welcome.params.DATE).toBe('Saturday, September\u00A026');
 		expect(welcome.key).toContain('{{DATE}}');
 	});
 
