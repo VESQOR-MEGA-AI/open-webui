@@ -122,14 +122,17 @@ export const dayOfYear = (now: Date): number => {
 /** e.g. "Friday, September 26". Returns null if the runtime cannot format it. */
 export const formatWelcomeDate = (now: Date, locale?: string | null): string | null => {
 	try {
-		const formatter = new Intl.DateTimeFormat(locale || undefined, {
+		const formatted = new Intl.DateTimeFormat(locale || undefined, {
 			weekday: 'long',
 			month: 'long',
 			day: 'numeric'
-		});
-		const formatted = formatter.format(now);
-		return typeof formatted === 'string' && formatted.length > 0 ? formatted : null;
+		}).format(now);
+
+		// Keep the month and the day together so a narrow heading never breaks
+		// the date across two lines ("Saturday, September / 26").
+		return formatted ? formatted.replace(/ (\S+)$/, '\u00A0$1') : null;
 	} catch {
+		// An unusable locale tag must not break the greeting.
 		return null;
 	}
 };
