@@ -64,6 +64,7 @@
 	import { flyAndScale } from '$lib/utils/transitions';
 	import RegenerateMenu from './ResponseMessage/RegenerateMenu.svelte';
 	import StatusHistory from './ResponseMessage/StatusHistory.svelte';
+	import VesqorThinking from './ResponseMessage/VesqorThinking.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
 	import OutputEditView from './OutputEditView.svelte';
 	import { getOutputText, replaceOutputMessageText, type OutputItem } from './structuredOutput';
@@ -218,6 +219,14 @@
 	$: visibleResponseContent =
 		getOutputText(message.output) || removeAllDetails(message.content ?? '');
 	$: hasResponseContent = Boolean((message.content ?? '').trim() || message.output?.length);
+	// VESQOR: matrix-rain thinking placeholder with the brain's live progress,
+	// until the first report text arrives.
+	$: showVesqorThinking =
+		!message.done &&
+		!message.error &&
+		!hasResponseContent &&
+		(statusEntries.some((s) => s?.action === 'vq_progress') ||
+			(message.model ?? '').startsWith('vesqor'));
 
 	let edit = false;
 	let editedContent = '';
@@ -721,7 +730,9 @@
 			<div>
 				<div class="chat-{message.role} w-full min-w-full">
 					<div>
-						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
+						{#if showVesqorThinking}
+							<VesqorThinking statusHistory={message?.statusHistory ?? []} />
+						{:else if model?.info?.meta?.capabilities?.status_updates ?? true}
 							<StatusHistory statusHistory={message?.statusHistory} />
 						{/if}
 
@@ -924,7 +935,7 @@
 								/>
 							{/if}
 
-							{#if !message.done && !message.error && (hasResponseContent || !hasVisibleStatus)}
+							{#if !message.done && !message.error && !showVesqorThinking && (hasResponseContent || !hasVisibleStatus)}
 								<div class="text-[0.9375rem] leading-relaxed">
 									<span
 										class="inline-block w-[0.125rem] h-3.5 bg-gray-400 dark:bg-gray-500 ml-0.5 animate-pulse align-text-bottom"
