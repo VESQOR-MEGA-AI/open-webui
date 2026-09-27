@@ -157,10 +157,7 @@
 		<canvas bind:this={canvas} class="block"></canvas>
 	</div>
 
-	<div
-		class="vq-scrim absolute inset-x-0 bottom-0 h-32"
-		aria-hidden="true"
-	></div>
+	<div class="vq-scrim absolute inset-x-0 bottom-0 h-32" aria-hidden="true"></div>
 
 	<div class="relative flex flex-col justify-end h-full px-3 pb-3 pt-2">
 		<div class="flex flex-col gap-0.5 font-mono text-xs">
