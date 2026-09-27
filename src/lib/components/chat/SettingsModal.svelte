@@ -262,20 +262,13 @@
 			searchPrefixes: ['settings.personal.account.']
 		},
 		{
+			// VESQOR: v0.11.4 builds a settings search index from every tab and
+			// requires titleKey + searchPrefixes; a tab without them crashes the
+			// (app) layout (black screen).
 			id: 'billing',
-			title: 'Billing',
-			keywords: [
-				'billing',
-				'subscription',
-				'plan',
-				'credits',
-				'payment',
-				'stripe',
-				'upgrade',
-				'checkout',
-				'portal',
-				'vesqor'
-			]
+			titleKey: 'Billing',
+			title: $i18n.t('Billing'),
+			searchPrefixes: []
 		},
 		{
 			id: 'about',
@@ -378,10 +371,10 @@
 		},
 		{
 			id: 'admin:vesqor',
+			titleKey: 'VESQOR',
 			title: 'VESQOR',
-			keywords: ['vesqor', 'brain', 'providers', 'tokens', 'api', 'keys', 'usage']
+			searchPrefixes: []
 		},
-
 		{
 			id: 'admin:db',
 			titleKey: 'settings.admin.db.title',
