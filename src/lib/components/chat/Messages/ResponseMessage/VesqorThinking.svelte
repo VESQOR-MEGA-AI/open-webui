@@ -113,11 +113,12 @@
 	}
 
 	function tick(t: number) {
-		// Ease toward the brain's last milestone; between milestones creep a
-		// little further (max +6, never past 99) so the counter stays alive.
+		// Ease toward the brain's last milestone; between milestones keep the
+		// bar visibly alive (rate 0.004 read as frozen — 0.015 lands visibly
+		// within seconds but still never crosses the next real milestone).
 		const ceiling = target >= 100 ? 100 : Math.min(99, target + 6);
 		const goal = shown < target ? target : ceiling;
-		const rate = shown < target ? 0.12 : 0.004;
+		const rate = shown < target ? 0.12 : 0.015;
 		shown = Math.min(goal, shown + Math.max(0, goal - shown) * rate);
 		if (visible && !reduceMotion) draw(t);
 		raf = requestAnimationFrame(tick);
