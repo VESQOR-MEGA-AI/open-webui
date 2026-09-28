@@ -54,6 +54,23 @@ DEFAULT_CACHE_TTL_SECONDS = 300
 # variable in this feature uses them.
 SECRET_NAME_RE = re.compile(r'^[0-9a-zA-Z-]{1,127}$')
 
+
+def suggest_secret_name(name: str) -> Optional[str]:
+    """The hyphenated form of an invalid name, when there is an obvious one.
+
+    A suggestion, never a substitution. Silently rewriting a configured secret
+    name would make the audit trail lie about which secret was read, and would
+    hide the misconfiguration instead of fixing it — so the value is reported and
+    the operator decides. Returns ``None`` when normalising does not produce
+    something Key Vault would accept, rather than offering a guess that is also
+    wrong.
+    """
+    candidate = re.sub(r'-{2,}', '-', re.sub(r'[\s_.]+', '-', name.strip())).strip('-')
+    if candidate and candidate != name and SECRET_NAME_RE.fullmatch(candidate):
+        return candidate
+    return None
+
+
 # The vault call is on the adjudication path, which already has a long read
 # timeout of its own. This one stays short: a hanging vault must surface as a
 # failed adjudication with a clear reason, not as a request that never returns.
@@ -166,10 +183,13 @@ async def _fetch_from_vault(source: KeyVaultSource) -> str:
     on the worker for the duration.
     """
     if not SECRET_NAME_RE.fullmatch(source.secret_name):
+        suggestion = suggest_secret_name(source.secret_name)
+        hint = f' Did you mean {suggestion!r}?' if suggestion else ''
         raise SecretResolutionError(
             f'{source.secret_name!r} is not a valid Azure Key Vault secret name. '
-            'Key Vault allows only letters, digits and hyphens — if the secret is named '
-            'with underscores somewhere else, it is not the name Key Vault knows it by.',
+            'Key Vault allows only letters, digits and hyphens — if the secret is written '
+            f'with underscores or spaces somewhere else, that is not the name Key Vault '
+            f'knows it by.{hint}',
             code='secret_name_invalid',
         )
 

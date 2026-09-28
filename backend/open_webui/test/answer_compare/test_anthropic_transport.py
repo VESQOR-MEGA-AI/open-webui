@@ -604,3 +604,37 @@ def test_the_invalid_name_error_has_page_copy():
     }
     for code in sorted(emitted):
         assert f'{code}:' in copy, code
+
+
+@pytest.mark.parametrize(
+    ('given', 'expected'),
+    [
+        ('judge apikey gatekeeper', 'judge-apikey-gatekeeper'),
+        ('judge_api_key_gatekeeper_name', 'judge-api-key-gatekeeper-name'),
+        ('  spaced  out  ', 'spaced-out'),
+        ('dot.name.here', 'dot-name-here'),
+    ],
+)
+def test_an_invalid_name_suggests_the_hyphenated_form(given, expected):
+    """The error is actionable: the operator gets the name Key Vault would accept."""
+    assert secrets.suggest_secret_name(given) == expected
+
+
+@pytest.mark.parametrize('given', ['claude-api-key', '???', 'a' * 130, '', '---'])
+def test_no_suggestion_is_offered_when_normalising_would_not_help(given):
+    """Better no hint than a second wrong name."""
+    assert secrets.suggest_secret_name(given) is None
+
+
+def test_the_suggestion_is_never_a_substitution(monkeypatch):
+    """Silently rewriting the name would make the audit trail lie about which
+    secret was read, and hide the misconfiguration rather than fix it."""
+    source = secrets.KeyVaultSource(vault_url='https://v.vault.azure.net', secret_name='judge apikey gatekeeper')
+    with pytest.raises(secrets.SecretResolutionError) as caught:
+        _run(secrets._fetch_from_vault(source))
+
+    message = caught.value.message
+    # The configured value is reported verbatim, and the fix is offered, not applied.
+    assert "'judge apikey gatekeeper'" in message
+    assert "'judge-apikey-gatekeeper'" in message
+    assert caught.value.code == 'secret_name_invalid'
