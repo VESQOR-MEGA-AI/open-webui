@@ -11,7 +11,20 @@
 
 {#if !status?.hidden}
 	<div class="status-description flex items-center gap-2 py-0.5 w-full text-left">
-		{#if status?.action === 'web_search' && (status?.urls || status?.items)}
+		{#if status?.action === 'vq_progress'}
+			<div class="flex items-center gap-2 w-full font-mono">
+				<div
+					class="{(done || status?.done) === false
+						? 'shimmer'
+						: ''} text-gray-500 dark:text-gray-500 text-sm line-clamp-1 text-wrap"
+				>
+					{status?.description}
+				</div>
+				{#if typeof status?.percent === 'number'}
+					<div class="shrink-0 text-xs tabular-nums text-[#39b54a]">{status.percent}%</div>
+				{/if}
+			</div>
+		{:else if status?.action === 'web_search' && (status?.urls || status?.items)}
 			<WebSearchResults {status}>
 				<div class="flex flex-col justify-center -space-y-0.5">
 					<div
