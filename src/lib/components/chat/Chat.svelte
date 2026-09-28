@@ -1231,6 +1231,11 @@
 					} else {
 						message.statusHistory = [data];
 					}
+					// Reassign so Svelte invalidates the top-level `history`
+					// binding — a bare `push` is invisible to the components
+					// rendering statusHistory (progress/ticker froze until a
+					// page reload because of this).
+					history.messages[event.message_id] = message;
 				} else if (type === 'context_compaction') {
 					handleContextCompactionStatus(data);
 				} else if (type === 'chat:active') {
