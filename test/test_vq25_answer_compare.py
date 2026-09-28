@@ -33,8 +33,10 @@ from open_webui.models.answer_compare import (
 from open_webui.models.users import UserModel
 from open_webui.routers import answer_compare as answer_compare_router
 from open_webui.utils import answer_compare_adjudication as adjudication
+from open_webui.utils import answer_compare_anthropic as native
 from open_webui.utils import answer_compare_client as provider_client
 from open_webui.utils import answer_compare_providers as providers
+from open_webui.utils import answer_compare_secrets as secrets
 from open_webui.utils import answer_compare_tally as tally
 from open_webui.utils.auth import get_current_user
 from sqlalchemy import select
@@ -52,6 +54,10 @@ ALL_ENV_VARS = (
     providers.ENV_ANTHROPIC_BASE_URL,
     providers.ENV_ANTHROPIC_API_KEY,
     providers.ENV_ANTHROPIC_MODEL,
+    # The adjudicator's key may come from a vault instead of the variable above.
+    secrets.key_vault_url_env('anthropic'),
+    secrets.key_vault_secret_env('anthropic'),
+    secrets.ENV_CACHE_TTL_SECONDS,
 )
 
 # Credentials belonging to other integrations. The resolver must not read any of
@@ -75,6 +81,7 @@ def clean_env(monkeypatch):
     """Every variable the resolver reads, removed — the "needs configuration" state."""
     for name in ALL_ENV_VARS + FOREIGN_CREDENTIAL_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    secrets.clear_cache()
     return monkeypatch
 
 
@@ -116,16 +123,13 @@ def test_unconfigured_providers_name_the_exact_env_vars(clean_env):
     assert by_id['vesqor'].model is None
     assert by_id['vesqor'].base_url is None
 
-    # The adjudicator: no base URL default (the gateway differs per deployment
-    # and guessing one would ship the key to it), but the model IS defaulted,
-    # because Sonnet 5 is the specified adjudicator rather than a guess.
+    # The adjudicator: both the model and the base URL are defaulted, and neither
+    # is a guess — Sonnet 5 is the specified adjudicator, and the base URL is
+    # where its API lives. Only the key is ever missing.
     assert by_id['anthropic'].configured is False
-    assert by_id['anthropic'].missing == [
-        'ANSWER_COMPARE_ANTHROPIC_API_KEY',
-        'ANSWER_COMPARE_ANTHROPIC_BASE_URL',
-    ]
+    assert by_id['anthropic'].missing == ['ANSWER_COMPARE_ANTHROPIC_API_KEY']
     assert by_id['anthropic'].model == 'claude-sonnet-5'
-    assert by_id['anthropic'].base_url is None
+    assert by_id['anthropic'].base_url == 'https://api.anthropic.com'
 
     # The other two have defaults, so the page can show where it would call.
     assert by_id['chatgpt'].base_url == 'https://api.openai.com/v1'
@@ -168,7 +172,6 @@ def test_configured_providers_report_no_secrets(clean_env):
     clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
     clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', f'https://user:{DUMMY_KEY}@door.example.com/api/v1')
     clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_API_KEY', DUMMY_KEY)
-    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://gateway.example/v1')
 
     resolved = providers.resolve_providers()
     for provider in resolved:
@@ -182,7 +185,7 @@ def test_configured_providers_report_no_secrets(clean_env):
     assert by_id['vesqor'].model == 'vesqor-reasoning'
     assert by_id['vesqor'].base_url == 'https://door.example.com/api/v1'
     assert by_id['anthropic'].model == 'claude-sonnet-5'
-    assert by_id['anthropic'].base_url == 'https://gateway.example/v1'
+    assert by_id['anthropic'].base_url == 'https://api.anthropic.com'
 
     serialized = json.dumps([p.model_dump() for p in resolved])
     assert DUMMY_KEY not in serialized
@@ -351,7 +354,6 @@ def test_startup_logging_warns_on_every_missing_var_when_nothing_configured(clea
         providers.ENV_VESQOR_MODEL,
         providers.ENV_VESQOR_BASE_URL,
         providers.ENV_ANTHROPIC_API_KEY,
-        providers.ENV_ANTHROPIC_BASE_URL,
     )
     for name in expected_missing:
         assert name in text, name
@@ -393,7 +395,6 @@ def test_startup_logging_reports_four_of_four_when_all_configured(clean_env, cap
     clean_env.setenv('ANSWER_COMPARE_VESQOR_MODEL', 'vesqor-reasoning')
     clean_env.setenv('ANSWER_COMPARE_VESQOR_BASE_URL', 'https://door.example/api/v1')
     clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_API_KEY', DUMMY_KEY)
-    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://gateway.example/v1')
 
     with caplog.at_level('INFO', logger=providers.__name__):
         providers.log_startup_configuration()  # must not raise
@@ -717,7 +718,6 @@ def test_config_endpoint_exposes_can_judge_per_provider(clean_env, clean_can_jud
 def test_the_config_endpoint_never_returns_adjudicator_key_material(clean_env, monkeypatch):
     """The adjudicator's key is reached through one header and is never reported."""
     monkeypatch.setenv('ANSWER_COMPARE_ANTHROPIC_API_KEY', 'sk-secret-adjudicator-key')
-    monkeypatch.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://gateway.example/v1')
 
     response = _client_as('admin').get('/api/v1/compare/config')
 
@@ -732,11 +732,39 @@ def test_the_adjudicator_defaults_to_the_specified_model(clean_env):
     assert providers.ENV_ANTHROPIC_MODEL not in config.missing
 
 
-def test_the_adjudicator_base_url_has_no_default(clean_env):
-    """Guessing a gateway URL would ship the key and every answer to it."""
+def test_the_adjudicator_base_url_defaults_to_the_api_itself(clean_env):
+    """The one default here that is not a guess: it is where the API lives.
+
+    This is only correct because the adjudicator speaks Anthropic's Messages API
+    natively. Pointed at the OpenAI-compatible client the candidates use, this URL
+    would fail every call — ``api.anthropic.com`` serves no OpenAI-shaped
+    ``/v1/chat/completions``.
+    """
     config = providers.resolve_provider('anthropic')
-    assert config.base_url is None
-    assert providers.ENV_ANTHROPIC_BASE_URL in config.missing
+    assert config.base_url == 'https://api.anthropic.com'
+    assert providers.ENV_ANTHROPIC_BASE_URL not in config.missing
+
+
+def test_the_adjudicator_base_url_stays_overridable(clean_env):
+    """A deployment fronting the API with its own proxy must be able to say so."""
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_BASE_URL', 'https://proxy.internal/anthropic')
+    assert providers.resolve_provider('anthropic').base_url == 'https://proxy.internal/anthropic'
+
+
+def test_a_key_vault_source_configures_the_adjudicator_without_a_direct_key(clean_env):
+    """The vault is the normal path on this deployment; the variable is break-glass."""
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_KEY_VAULT_URL', 'https://v.vault.azure.net')
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_KEY_VAULT_SECRET', 'claude-key')
+
+    config = providers.resolve_provider('anthropic')
+    assert config.configured is True
+    assert config.missing == []
+
+
+def test_a_half_configured_vault_names_the_missing_half_not_the_api_key(clean_env):
+    """Someone who set a vault URL is not asking to be told to set an API key."""
+    clean_env.setenv('ANSWER_COMPARE_ANTHROPIC_KEY_VAULT_URL', 'https://v.vault.azure.net')
+    assert providers.resolve_provider('anthropic').missing == ['ANSWER_COMPARE_ANTHROPIC_KEY_VAULT_SECRET']
 
 
 def test_no_generator_gets_an_invented_model_default(clean_env):
@@ -963,6 +991,78 @@ class _JudgeDouble:
         return httpx.Response(200, json={'model': 'judge-model-test-1', 'choices': [{'message': {'content': content}}]})
 
 
+class _AdjudicatorDouble:
+    """An Anthropic SDK stand-in, installed under the REAL native transport.
+
+    Deliberately not a stub of ``adjudicate`` itself: patching the SDK client
+    instead means every test that judges also exercises the system/user split,
+    the schema wiring and the stop-reason handling. A stub above that layer would
+    let all three rot unnoticed.
+    """
+
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+
+    def _reply(self, kwargs: dict):
+        self.requests.append(kwargs)
+        user = next(m['content'] for m in kwargs['messages'] if m['role'] == 'user')
+        labels = [m.group(1) for m in CANDIDATE_BLOCK_RE.finditer(user)]
+        assert labels, 'the double could not find a candidate block — the prompt format moved'
+        content = json.dumps(_valid_report_for(labels))
+        return _StubMessage(content)
+
+    @property
+    def messages(self):
+        return _StubMessages(self)
+
+    async def close(self) -> None:
+        return None
+
+
+class _StubMessages:
+    def __init__(self, parent: _AdjudicatorDouble) -> None:
+        self._parent = parent
+
+    def stream(self, **kwargs):
+        return _StubStream(self._parent._reply(kwargs))
+
+
+class _StubStream:
+    def __init__(self, message) -> None:
+        self._message = message
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get_final_message(self):
+        return self._message
+
+
+class _StubBlock:
+    type = 'text'
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _StubMessage:
+    stop_reason = 'end_turn'
+    stop_details = None
+    model = 'claude-sonnet-5'
+
+    def __init__(self, text: str) -> None:
+        self.content = [_StubBlock(text)]
+
+
+def _install_adjudicator_double(monkeypatch) -> _AdjudicatorDouble:
+    double = _AdjudicatorDouble()
+    monkeypatch.setattr(native, '_build_client', lambda api_key, base_url, timeout: double)
+    return double
+
+
 def _install_judge_double(monkeypatch) -> _JudgeDouble:
     double = _JudgeDouble()
 
@@ -1000,12 +1100,18 @@ def test_judge_endpoint_accepts_the_adjudicator(clean_env, clean_can_judge_env, 
     _configure_provider(monkeypatch, 'chatgpt')
     _configure_provider(monkeypatch, 'gemini')
     _configure_provider(monkeypatch, 'anthropic')
-    _install_judge_double(monkeypatch)
+    double = _install_adjudicator_double(monkeypatch)
 
     run_id = _make_run()
     _seed_complete_answers(run_id, ('chatgpt', 'gemini'))
 
     response = _client_as('admin').post(f'/api/v1/compare/runs/{run_id}/reports/anthropic')
+
+    # The adjudicator went through its own transport, not the candidates' one.
+    assert len(double.requests) == 1
+    sent = double.requests[0]
+    assert sent['system'], 'the rubric must travel as the system prompt'
+    assert sent['output_config']['format']['type'] == 'json_schema'
 
     assert response.status_code == 200
     assert response.json()['status'] == 'complete', response.json().get('error')
@@ -1035,7 +1141,7 @@ def test_run_all_calls_the_adjudicator_only_however_many_candidates_are_configur
     _configure_provider(monkeypatch, 'gemini')
     _configure_provider(monkeypatch, 'vesqor')
     _configure_provider(monkeypatch, 'anthropic')
-    double = _install_judge_double(monkeypatch)
+    double = _install_adjudicator_double(monkeypatch)
 
     run_id = _make_run()
     _seed_complete_answers(run_id, ('chatgpt', 'gemini', 'vesqor'))

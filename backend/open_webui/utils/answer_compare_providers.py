@@ -53,6 +53,7 @@ import os
 from typing import NamedTuple, Optional
 from urllib.parse import urlsplit, urlunsplit
 
+from open_webui.utils import answer_compare_secrets as secrets
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -98,15 +99,16 @@ DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/open
 # No default for the VESQOR door: its URL differs per deployment, and guessing
 # one would point the engine column at whatever happens to answer there.
 DEFAULT_VESQOR_BASE_URL = None
-# No default for the adjudicator either, and for a sharper reason than VESQOR's.
-# This deployment reaches Claude through a third-party gateway, not through
-# ``api.anthropic.com`` — and ``api.anthropic.com`` is not OpenAI-compatible at
-# ``/v1/chat/completions`` anyway, so naming it here would be a default that
-# cannot work. Guessing the gateway's URL instead would send the adjudication
-# key, the prompt and every candidate answer to whatever host happened to be
-# guessed. Unset stays honestly unconfigured; the page says which variable is
-# missing.
-DEFAULT_ANTHROPIC_BASE_URL = None
+# The adjudicator is reached through Anthropic's own Messages API, with the
+# official SDK, so its base URL is the one default in this module that is not a
+# guess at all — it is where the API lives. It stays overridable for a
+# deployment that fronts the API with a proxy of its own.
+#
+# This is only correct because the adjudicator does NOT go through the
+# OpenAI-compatible client the candidates use: ``api.anthropic.com`` serves no
+# OpenAI-shaped ``/v1/chat/completions``, so pointing that client here would
+# fail every call. See ``answer_compare_anthropic``.
+DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com'
 
 # The adjudicator model. Unlike a generator's model id this one is NOT a guess —
 # it is the model the adjudication engine is specified against. It stays
@@ -146,6 +148,36 @@ class ProviderConfig(BaseModel):
 
 def _env(name: str) -> str:
     return (os.environ.get(name) or '').strip()
+
+
+def _missing_key_vars(provider_id: str, spec: '_ProviderEnv') -> list[str]:
+    """Which variables still stand between this provider and a key.
+
+    A key may come from the direct variable or from Azure Key Vault, so
+    "configured" is a question about *sources*, never a vault read — this runs on
+    every config request (``answer_compare_secrets`` explains why that matters).
+
+    A half-configured vault names the half that is missing rather than the
+    direct variable: someone who set a vault URL is not asking to be told to set
+    an API key instead.
+    """
+    if _env(spec.key_env):
+        return []
+
+    vault_url = _env(secrets.key_vault_url_env(provider_id))
+    vault_secret = _env(secrets.key_vault_secret_env(provider_id))
+    if vault_url and vault_secret:
+        return []
+    if vault_url or vault_secret:
+        return [
+            name
+            for name, value in (
+                (secrets.key_vault_url_env(provider_id), vault_url),
+                (secrets.key_vault_secret_env(provider_id), vault_secret),
+            )
+            if not value
+        ]
+    return [spec.key_env]
 
 
 def _sanitize_base_url(url: str) -> Optional[str]:
@@ -253,9 +285,7 @@ def resolve_provider(provider_id: str) -> ProviderConfig:
         raise ValueError(f'Unknown answer-compare provider: {provider_id}')
 
     missing: list[str] = []
-
-    if not _env(spec.key_env):
-        missing.append(spec.key_env)
+    missing.extend(_missing_key_vars(provider_id, spec))
 
     # A default model is only ever a *specified* one (the adjudicator's), never
     # a guess: inventing a model id for a generator is the fabricated-output
@@ -348,6 +378,23 @@ def resolve_api_key(provider_id: str) -> str:
     if spec is None:
         raise ValueError(f'Unknown answer-compare provider: {provider_id}')
     return _env(spec.key_env)
+
+
+async def resolve_api_key_async(provider_id: str) -> str:
+    """The provider's key, resolving Azure Key Vault when that is the source.
+
+    Async, and separate from ``resolve_api_key`` above, because it may make a
+    network call: the candidates' keys are plain environment variables and stay
+    on the synchronous path, while the adjudicator's may live in a vault. Raises
+    ``SecretResolutionError`` when a source is configured but unreadable, and
+    returns ``''`` when none is configured — the caller must keep those apart,
+    since "the vault is down" and "nobody set this up" need different words on
+    the page.
+    """
+    spec = _PROVIDER_ENV.get(provider_id)
+    if spec is None:
+        raise ValueError(f'Unknown answer-compare provider: {provider_id}')
+    return await secrets.resolve_key(provider_id, _env(spec.key_env))
 
 
 def max_input_chars_env(provider_id: str) -> str:

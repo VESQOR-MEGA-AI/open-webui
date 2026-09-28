@@ -52,7 +52,16 @@ export const JUDGE_ERROR_COPY: Record<string, string> = {
 	already_running: 'This judge is already running.',
 	not_configured: 'Requires configuration',
 	label_not_in_map: 'This report could not be mapped to provider names. The raw report is kept.',
-	judge_not_capable: 'This provider cannot act as a judge.'
+	judge_not_capable: 'This provider cannot act as a judge.',
+	// The adjudicator's key may live in a key vault. These say so specifically:
+	// "the vault would not give us the key" is a different problem from "nobody
+	// configured a key", and only one of them is fixed by setting a variable.
+	secret_unavailable: "The adjudicator's key could not be read from the key vault. Retry.",
+	secret_auth: 'The application could not authenticate to the key vault holding the adjudicator key.',
+	secret_not_found: 'The adjudicator key was not found in the configured key vault.',
+	secret_timeout: 'The key vault did not respond in time. Retry.',
+	secret_empty: 'The adjudicator key stored in the key vault is empty.',
+	secret_backend_missing: 'This deployment cannot read key vaults; set the adjudicator key directly.'
 };
 
 export const JUDGE_RETRY_DISABLED_CODES = [

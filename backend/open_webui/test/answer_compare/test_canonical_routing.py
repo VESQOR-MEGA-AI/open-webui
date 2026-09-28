@@ -464,3 +464,67 @@ def test_the_adjudicator_is_not_reachable_through_the_generation_endpoint():
     source = read(ROUTER)
     assert 'if provider not in GENERATOR_IDS:' in source
     assert 'if provider not in PROVIDER_IDS:' not in source
+
+
+####################
+# The adjudicator's transport
+####################
+
+
+def test_the_adjudicator_does_not_go_through_the_openai_compatible_client():
+    """It cannot: api.anthropic.com serves no OpenAI-shaped /v1/chat/completions.
+
+    The dispatch is on the judge set, so this is the structural guard that the
+    candidates' ladder and the adjudicator's native call stay separate paths.
+    """
+    source = read(REPO / 'backend' / 'open_webui' / 'utils' / 'answer_compare_judge.py')
+    assert 'if provider_id in JUDGE_IDS:' in source
+    assert 'adjudication_call' in source
+    # The ladder's mode cache is keyed per provider; the adjudicator returns
+    # before reaching it, so it must never appear in that cache.
+    dispatch = source.index('if provider_id in JUDGE_IDS:')
+    cache = source.index('cache_key = (provider_id, model)')
+    assert dispatch < cache, 'the adjudicator must return before the ladder'
+
+
+def test_the_adjudicator_transport_enforces_the_engines_own_schema():
+    """The rubric's schema is the API's contract, not a hope expressed in prose."""
+    source = read(REPO / 'backend' / 'open_webui' / 'utils' / 'answer_compare_judge.py')
+    assert 'schema=report_schema(labels)' in source
+
+    transport = read(REPO / 'backend' / 'open_webui' / 'utils' / 'answer_compare_anthropic.py')
+    assert "'format': {'type': 'json_schema', 'schema': schema}" in transport
+
+
+def test_the_adjudicator_never_requests_reasoning_text():
+    """The adjudication row is an audit record; chain-of-thought must not be in it."""
+    transport = read(REPO / 'backend' / 'open_webui' / 'utils' / 'answer_compare_anthropic.py')
+    assert "THINKING_DISPLAY = 'omitted'" in transport
+    assert "'display': 'summarized'" not in transport
+
+
+def test_the_adjudication_path_resolves_the_key_asynchronously():
+    """A vault-held key is read on the adjudication path, not the config path.
+
+    Using the synchronous resolver here would silently ignore a Key Vault source
+    and report the adjudicator as unconfigured on a deployment that configured it.
+    """
+    router = read(ROUTER)
+    assert 'await resolve_api_key_async(judge_id)' in router
+    assert 'api_key=resolve_api_key(judge_id)' not in router
+    # A candidate's key is a plain variable and stays on the cheap path.
+    assert 'api_key=resolve_api_key(provider)' in router
+
+
+def test_the_config_endpoint_never_reads_the_vault():
+    """`resolve_provider` runs on every config request and every run payload.
+
+    A vault round trip there would make an admin page's load time depend on
+    Azure, and a vault outage would present as a broken page rather than as a
+    failed adjudication.
+    """
+    providers_source = read(REPO / 'backend' / 'open_webui' / 'utils' / 'answer_compare_providers.py')
+    body = providers_source[providers_source.index('def resolve_provider(') :]
+    body = body[: body.index('\ndef ')]
+    assert 'resolve_key' not in body
+    assert 'await' not in body
