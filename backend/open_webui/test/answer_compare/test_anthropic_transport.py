@@ -12,6 +12,7 @@ model returns something the rubric accepts — and skips when unconfigured.
 
 import asyncio
 import logging
+import pathlib
 from typing import Any, Optional
 
 import anthropic
@@ -24,6 +25,8 @@ from open_webui.utils import answer_compare_judge as judge
 from open_webui.utils import answer_compare_secrets as secrets
 
 SENTINEL_KEY = 'sk-ant-api03-SENTINEL-do-not-leak'
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
 
 
 ####################
@@ -546,3 +549,58 @@ def test_a_failed_read_is_not_cached(monkeypatch):
         _run(secrets.resolve_key('anthropic', ''))
     assert _run(secrets.resolve_key('anthropic', '')) == SENTINEL_KEY
     assert len(attempts) == 2
+
+
+@pytest.mark.parametrize(
+    'name',
+    [
+        'judge_api_key_gatekeeper_name',  # underscores — the likeliest real typo
+        'has space',
+        'dot.name',
+        'a' * 128,  # 127 is the limit
+        '',
+    ],
+)
+def test_an_invalid_secret_name_fails_before_any_vault_call(monkeypatch, name):
+    """Key Vault allows letters, digits and hyphens only.
+
+    Checked locally because the service's rejection is opaque: an invalid name
+    comes back as a generic 4xx that reads like a permissions problem, sending
+    the reader to the service principal's access policy instead of to the typo.
+    """
+    source = secrets.KeyVaultSource(vault_url='https://v.vault.azure.net', secret_name=name)
+    touched: list[str] = []
+
+    def explode(*args, **kwargs):
+        touched.append('network')
+        raise AssertionError('an invalid name must not reach the network')
+
+    monkeypatch.setattr('azure.keyvault.secrets.aio.SecretClient', explode, raising=False)
+
+    with pytest.raises(secrets.SecretResolutionError) as caught:
+        _run(secrets._fetch_from_vault(source))
+
+    assert caught.value.code == 'secret_name_invalid'
+    assert touched == []
+
+
+@pytest.mark.parametrize('name', ['claude-api-key', 'judge-api-key-gatekeeper-name', 'k', 'a' * 127])
+def test_a_valid_secret_name_is_not_rejected_by_the_guard(name):
+    """The guard must not be stricter than Key Vault itself."""
+    assert secrets.SECRET_NAME_RE.fullmatch(name), name
+
+
+def test_the_invalid_name_error_has_page_copy():
+    """Every code this module can emit must reach the admin as words, not a code."""
+    copy = (REPO_ROOT / 'src' / 'lib' / 'components' / 'admin' / 'AnswerCompare' / 'judgeState.ts').read_text()
+    emitted = {
+        'secret_unavailable',
+        'secret_auth',
+        'secret_not_found',
+        'secret_timeout',
+        'secret_empty',
+        'secret_backend_missing',
+        'secret_name_invalid',
+    }
+    for code in sorted(emitted):
+        assert f'{code}:' in copy, code

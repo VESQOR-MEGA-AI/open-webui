@@ -61,7 +61,9 @@ export const JUDGE_ERROR_COPY: Record<string, string> = {
 	secret_not_found: 'The adjudicator key was not found in the configured key vault.',
 	secret_timeout: 'The key vault did not respond in time. Retry.',
 	secret_empty: 'The adjudicator key stored in the key vault is empty.',
-	secret_backend_missing: 'This deployment cannot read key vaults; set the adjudicator key directly.'
+	secret_backend_missing: 'This deployment cannot read key vaults; set the adjudicator key directly.',
+	secret_name_invalid:
+		'The configured key vault secret name is not a valid Azure Key Vault name (letters, digits and hyphens only).'
 };
 
 export const JUDGE_RETRY_DISABLED_CODES = [

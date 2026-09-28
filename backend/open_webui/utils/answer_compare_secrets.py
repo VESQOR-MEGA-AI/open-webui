@@ -33,6 +33,7 @@ this module exists to avoid.
 import asyncio
 import logging
 import os
+import re
 import time
 from typing import NamedTuple, Optional
 
@@ -43,6 +44,15 @@ ENV_KEY_VAULT_SECRET_TEMPLATE = 'ANSWER_COMPARE_{provider}_KEY_VAULT_SECRET'
 
 ENV_CACHE_TTL_SECONDS = 'ANSWER_COMPARE_KEY_VAULT_CACHE_TTL_SECONDS'
 DEFAULT_CACHE_TTL_SECONDS = 300
+
+# Azure Key Vault object names are letters, digits and hyphens only, up to 127
+# characters — no underscores, dots, or spaces. Checked here rather than left to
+# the service because the round trip's failure is opaque: an invalid name comes
+# back as a generic 4xx that reads like a permissions problem, which sends the
+# reader to the service principal's access policy instead of to the typo. A
+# name with an underscore in it is the likeliest such typo, since every other
+# variable in this feature uses them.
+SECRET_NAME_RE = re.compile(r'^[0-9a-zA-Z-]{1,127}$')
 
 # The vault call is on the adjudication path, which already has a long read
 # timeout of its own. This one stays short: a hanging vault must surface as a
@@ -155,6 +165,14 @@ async def _fetch_from_vault(source: KeyVaultSource) -> str:
     event loop, and a blocking vault call there would stall every other request
     on the worker for the duration.
     """
+    if not SECRET_NAME_RE.fullmatch(source.secret_name):
+        raise SecretResolutionError(
+            f'{source.secret_name!r} is not a valid Azure Key Vault secret name. '
+            'Key Vault allows only letters, digits and hyphens — if the secret is named '
+            'with underscores somewhere else, it is not the name Key Vault knows it by.',
+            code='secret_name_invalid',
+        )
+
     try:
         from azure.identity.aio import DefaultAzureCredential
         from azure.keyvault.secrets.aio import SecretClient
