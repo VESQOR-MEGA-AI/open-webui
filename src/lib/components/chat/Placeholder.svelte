@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
+	import { marked } from 'marked';
+	import DOMPurify from 'dompurify';
 
 	import { onMount, getContext, tick, createEventDispatcher } from 'svelte';
-	import { fade } from 'svelte/transition';
+	import { blur, fade } from 'svelte/transition';
 
 	const dispatch = createEventDispatcher();
 
@@ -15,8 +17,15 @@
 		temporaryChatEnabled,
 		selectedFolder
 	} from '$lib/stores';
-	import { refreshChatList } from '$lib/stores/chatList';
-	import { extractCurlyBraceWords } from '$lib/utils';
+	import { refreshChatList, refreshFolderChatLists } from '$lib/stores/chatList';
+	import { sanitizeResponseContent, extractCurlyBraceWords } from '$lib/utils';
+	import {
+		resolveLocalizedModelDescription,
+		resolveLocalizedModelName,
+		resolveLocalizedModelPromptSuggestions,
+		resolveLocalizedPromptSuggestions
+	} from '$lib/utils/localizedContent';
+	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
 	import Suggestions from './Suggestions.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -25,7 +34,7 @@
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	export let createMessagePair: Function;
 	export let stopResponse: Function;
@@ -51,33 +60,59 @@
 	export let imageGenerationEnabled = false;
 	export let codeInterpreterEnabled = false;
 	export let webSearchEnabled = false;
+	export let toolApprovalMode = 'full';
+	export let onToolApprovalModeChange: Function = () => {};
+	export let oauthRedirectHandler: Function = () => {};
 
 	export let onUpload: Function = (e) => {};
+	export let onUpdate: (data?: { file?: any }) => void = () => {};
 	export let onSelect = (e) => {};
 	export let onChange = (e) => {};
 	export let onWebSearchToggle: Function = () => {};
-
-	export let toolServers = [];
+	export let messageQueue: { id: string; prompt: string; files: any[] }[] = [];
+	export let onQueueSendNow: (id: string) => void = () => {};
+	export let onQueueEdit: (id: string) => void = () => {};
+	export let onQueueDelete: (id: string) => void = () => {};
+	export let askUser = {
+		show: false,
+		questions: [],
+		allowOther: true,
+		timeoutMs: null,
+		onConfirm: (_value: any) => {},
+		onCancel: () => {}
+	};
 
 	export let dragged = false;
 
 	let models = [];
-	let selectedModelIdx = 0;
-
-	$: if (selectedModels.length > 0) {
-		selectedModelIdx = models.length - 1;
-	}
+	export let selectedModelIdx = 0;
+	let selectedModel;
+	let selectedModelName = '';
+	let selectedModelDescription = '';
+	let selectedSuggestionPrompts = [];
 
 	$: models = selectedModels.map((id) => $_models.find((m) => m.id === id));
+	$: selectedModel = atSelectedModel ?? models[selectedModelIdx];
+	$: selectedModelName = resolveLocalizedModelName(selectedModel, $i18n.language);
+	$: selectedModelDescription = resolveLocalizedModelDescription(selectedModel, $i18n.language);
+	$: selectedSuggestionPrompts =
+		resolveLocalizedModelPromptSuggestions(atSelectedModel, $i18n.language) ??
+		resolveLocalizedModelPromptSuggestions(models[selectedModelIdx], $i18n.language) ??
+		resolveLocalizedPromptSuggestions(
+			$config?.default_prompt_suggestions,
+			$config?.default_prompt_suggestions_i18n ?? {},
+			$i18n.language,
+			(key) => $i18n.t(key)
+		);
 
 	// True when viewing a shared folder the current user doesn't own AND lacks write access
 	$: folderReadOnly =
 		$selectedFolder != null &&
 		$selectedFolder.user_id !== $user?.id &&
-		$selectedFolder.permission !== 'write';
+		!$selectedFolder.write_access;
 </script>
 
-<div class="m-auto w-full max-w-[58rem] px-2 @2xl:px-20 translate-y-6 py-24 text-center">
+<div class="m-auto w-full max-w-[58rem] px-1 @2xl:px-20 translate-y-6 py-24 text-center">
 	{#if $temporaryChatEnabled}
 		<Tooltip
 			content={$i18n.t("This chat won't appear in history and your messages will not be saved.")}
@@ -96,41 +131,109 @@
 				<FolderTitle
 					folder={$selectedFolder}
 					readOnly={folderReadOnly}
-					onUpdate={async (folder) => {
-						await refreshChatList(localStorage.token);
+					onUpdate={async () => {
+						await Promise.all([refreshChatList(localStorage.token), refreshFolderChatLists(null)]);
 					}}
 					onDelete={async () => {
-						await refreshChatList(localStorage.token);
+						await Promise.all([refreshChatList(localStorage.token), refreshFolderChatLists(null)]);
 
 						selectedFolder.set(null);
 					}}
 				/>
 			{:else}
-				<!-- VESQOR официальное лого (owner 2026-09-14): значок-галочка +
-				     белые буквы ESQR, PNG 2560x484 с прозрачным фоном. Полный
-				     логотип НЕ дублирует слово «VESQOR» текстом — буквы уже в
-				     лого. Макет скопирован в static/vesqor-logo.png заранее. -->
-				<div class="flex justify-center mb-4" aria-hidden="true">
-					<img
-						src="/static/vesqor-logo.png"
-						alt=""
-						class="max-w-[min(34rem,85vw)] w-full h-auto drop-shadow-[0_0_24px_rgba(57,181,74,0.35)]"
-					/>
-				</div>
 				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
+					<div class="flex shrink-0 justify-center">
+						<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
+							{#each models as model, modelIdx}
+								<Tooltip
+									content={(models[modelIdx]?.info?.meta?.tags ?? [])
+										.map((tag) => tag.name.toUpperCase())
+										.join(', ')}
+									placement="top"
+								>
+									<button
+										aria-hidden={models.length <= 1}
+										aria-label={$i18n.t('Get information on {{name}} in the UI', {
+											name: models[modelIdx]?.name
+										})}
+										on:click={() => {
+											selectedModelIdx = modelIdx;
+										}}
+									>
+										<img
+											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
+											class=" size-9 @sm:size-10 rounded-2xl"
+											aria-hidden="true"
+											draggable="false"
+											on:error={(e) => {
+												// LICENSE covers this Open WebUI fallback logo.
+												// Do not alter, remove, obscure, or replace it except as LICENSE permits:
+												// https://docs.openwebui.com/license.
+												e.currentTarget.src = '/favicon.png';
+											}}
+										/>
+									</button>
+								</Tooltip>
+							{/each}
+						</div>
+					</div>
+
 					<div
 						class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
 						in:fade={{ duration: 100 }}
 					>
-						<span class="line-clamp-1 font-semibold">MEGA AI</span>
+						{#if selectedModelName}
+							<Tooltip content={selectedModelName} placement="top" className=" flex items-center ">
+								<span class="line-clamp-1">
+									{selectedModelName}
+								</span>
+							</Tooltip>
+						{:else}
+							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
+						{/if}
 					</div>
 				</div>
 
 				<div class="flex mt-1 mb-2">
 					<div in:fade={{ duration: 100, delay: 50 }}>
-						<div class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 max-w-xl">
-							{$i18n.t('How can I help you today?')}
-						</div>
+						{#if selectedModelDescription}
+							<Tooltip
+								className=" w-fit"
+								content={DOMPurify.sanitize(
+									marked.parse(
+										sanitizeResponseContent(selectedModelDescription).replaceAll('\n', '<br>')
+									)
+								)}
+								placement="top"
+							>
+								<div
+									class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
+								>
+									{@html DOMPurify.sanitize(
+										marked.parse(
+											sanitizeResponseContent(selectedModelDescription).replaceAll('\n', '<br>')
+										)
+									)}
+								</div>
+							</Tooltip>
+
+							{#if models[selectedModelIdx]?.info?.meta?.user}
+								<div class="mt-0.5 text-sm font-normal text-gray-400 dark:text-gray-500">
+									{$i18n.t('By')}
+									{#if models[selectedModelIdx]?.info?.meta?.user.community}
+										<a
+											href="https://openwebui.com/m/{models[selectedModelIdx]?.info?.meta?.user
+												.username}"
+											>{models[selectedModelIdx]?.info?.meta?.user.name
+												? models[selectedModelIdx]?.info?.meta?.user.name
+												: `@${models[selectedModelIdx]?.info?.meta?.user.username}`}</a
+										>
+									{:else}
+										{models[selectedModelIdx]?.info?.meta?.user.name}
+									{/if}
+								</div>
+							{/if}
+						{/if}
 					</div>
 				</div>
 			{/if}
@@ -154,12 +257,20 @@
 						bind:showCommands
 						bind:dragged
 						{pendingOAuthTools}
-						{toolServers}
+						{oauthRedirectHandler}
+						{toolApprovalMode}
+						{onToolApprovalModeChange}
 						{stopResponse}
 						{createMessagePair}
 						placeholder={$i18n.t('How can I help you today?')}
 						{onChange}
 						{onUpload}
+						{onUpdate}
+						{messageQueue}
+						{onQueueSendNow}
+						{onQueueEdit}
+						{onQueueDelete}
+						{askUser}
 						{onWebSearchToggle}
 						on:chatVariables
 						on:submit={(e) => {
@@ -178,14 +289,7 @@
 	{:else}
 		<div class="mx-auto max-w-2xl mt-2" in:fade={{ duration: 200, delay: 200 }}>
 			<div class="mx-5">
-				<Suggestions
-					suggestionPrompts={atSelectedModel?.info?.meta?.suggestion_prompts ??
-						models[selectedModelIdx]?.info?.meta?.suggestion_prompts ??
-						$config?.default_prompt_suggestions ??
-						[]}
-					inputValue={prompt}
-					{onSelect}
-				/>
+				<Suggestions suggestionPrompts={selectedSuggestionPrompts} inputValue={prompt} {onSelect} />
 			</div>
 		</div>
 	{/if}

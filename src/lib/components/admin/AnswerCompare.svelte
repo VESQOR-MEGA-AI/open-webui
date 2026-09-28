@@ -723,11 +723,8 @@
 		onLoadOlder={loadOlderHistory}
 	/>
 
-	<!-- A visible border, explicit text colours and a label on each field: the
-	     page sits on a dark themed background, and a fill-only textarea with no
-	     border reads as "there is no field here". This must hold without any
-	     page-level stylesheet — vq25.css skins it further, but legibility is
-	     not allowed to depend on that. -->
+	<!-- A visible border, explicit text colours and a label on each field: a
+	     fill-only textarea with no border reads as "there is no field here". -->
 	<div class="flex flex-col gap-3">
 		<label class="flex flex-col gap-1">
 			<span class="text-xs font-medium text-gray-600 dark:text-gray-300">{$i18n.t('Prompt')}</span>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { getContext, onDestroy, onMount, tick } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import SearchInput from './Sidebar/SearchInput.svelte';
@@ -14,6 +14,7 @@
 		archiveChatById,
 		updateChatById,
 		updateChatFolderIdById,
+		markChatUnreadById,
 		getAllTags
 	} from '$lib/apis/chats';
 	import Spinner from '../common/Spinner.svelte';
@@ -25,7 +26,7 @@
 	import { createMessagesList } from '$lib/utils';
 	import { getOutputText } from '$lib/components/chat/Messages/structuredOutput';
 	import { config, user, chatId as currentChatId, tags } from '$lib/stores';
-	import { refreshChatList } from '$lib/stores/chatList';
+	import { refreshSidebar } from '$lib/stores/chatList';
 	import Messages from '../chat/Messages.svelte';
 	import { goto } from '$app/navigation';
 	import EditPencilIcon from './Sidebar/icons/EditPencil.svelte';
@@ -64,10 +65,6 @@
 	};
 	let generating = false;
 
-	const refreshSidebar = async () => {
-		await refreshChatList(localStorage.token, { refreshPinned: true });
-	};
-
 	const cloneChatHandler = async (id) => {
 		const chat = chatList?.find((c) => c.id === id);
 		const res = await cloneChatById(
@@ -82,14 +79,25 @@
 		});
 
 		if (res) {
-			await refreshSidebar();
+			await refreshSidebar(localStorage.token);
 			await searchHandler();
+		}
+	};
+
+	const markUnreadHandler = async (id) => {
+		const res = await markChatUnreadById(localStorage.token, id).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+
+		if (res) {
+			await refreshSidebar(localStorage.token);
 		}
 	};
 
 	const archiveChatHandler = async (id) => {
 		try {
-			await archiveChatById(localStorage.token, id);
+			const res = await archiveChatById(localStorage.token, id);
 
 			chatList = chatList?.filter((c) => c.id !== id) ?? null;
 
@@ -98,8 +106,8 @@
 				currentChatId.set('');
 			}
 
-			await refreshSidebar();
-			toast.success($i18n.t('Chat archived.'));
+			await refreshSidebar(localStorage.token);
+			toast.success(res?.archived ? $i18n.t('Chat archived.') : $i18n.t('Chat unarchived.'));
 		} catch (error) {
 			toast.error($i18n.t('Failed to archive chat.'));
 		}
@@ -120,7 +128,7 @@
 				currentChatId.set('');
 			}
 
-			await refreshSidebar();
+			await refreshSidebar(localStorage.token);
 		}
 	};
 
@@ -135,7 +143,7 @@
 
 			if (res) {
 				chatList = chatList?.filter((c) => c.id !== chatId) ?? null;
-				await refreshSidebar();
+				await refreshSidebar(localStorage.token);
 				toast.success($i18n.t('Chat moved successfully'));
 			}
 		}
@@ -170,7 +178,7 @@
 
 		editingChatId = null;
 		editingChatTitle = '';
-		await refreshSidebar();
+		await refreshSidebar(localStorage.token);
 	};
 
 	const cancelRename = () => {
@@ -513,18 +521,6 @@
 		item?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
 	};
 
-	const handleOutsidePointerDown = (e: PointerEvent) => {
-		// VQ-25 (owner 2026-09-14): клик ЗА РАМКАМИ окна поиска закрывает его.
-		// Слушаем на document (фаза capture), чтобы не зависеть от вложенности
-		// бэкдропа и CSS-перекрытий.
-		if (!show) return;
-		const target = e.target as HTMLElement | null;
-		if (!target) return;
-		if (target.closest('.vq25-search-window')) return;
-		show = false;
-		onClose();
-	};
-
 	onMount(() => {
 		actions = [
 			...actions,
@@ -534,7 +530,7 @@
 						{
 							label: $i18n.t('Create a new note'),
 							onClick: async () => {
-								await goto(`/notes?content=${query}`);
+								await goto(`/notes/new?content=${encodeURIComponent(query)}`);
 								show = false;
 								onClose();
 							},
@@ -547,14 +543,12 @@
 		document.addEventListener('keydown', onKeyDown);
 		document.addEventListener('keydown', onShiftKeyDown);
 		document.addEventListener('keyup', onShiftKeyUp);
-		document.addEventListener('pointerdown', handleOutsidePointerDown, true);
 	});
 
 	onDestroy(() => {
 		if (searchDebounceTimeout) {
 			clearTimeout(searchDebounceTimeout);
 		}
-		document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
 		document.removeEventListener('keydown', onKeyDown);
 		document.removeEventListener('keydown', onShiftKeyDown);
 		document.removeEventListener('keyup', onShiftKeyUp);
@@ -575,8 +569,8 @@
 	</div>
 </DeleteConfirmDialog>
 
-<Modal size="xl" bind:show position="center" containerClassName="vq25-search-modal p-0" className="vq25-search-window">
-	<div class="py-2.5 dark:text-gray-300 text-gray-700 h-full flex flex-col overflow-hidden">
+<Modal size="xl" bind:show>
+	<div class="py-2.5 dark:text-gray-300 text-gray-700">
 		<div class="px-3.5 pb-1">
 			<SearchInput
 				bind:value={query}
@@ -610,9 +604,9 @@
 			/>
 		</div>
 
-		<div class="flex px-3.5 pb-0.5 flex-1 min-h-0">
+		<div class="flex px-3.5 pb-0.5">
 			<div
-				class="flex flex-col overflow-y-auto h-full max-h-[16rem] scrollbar-hidden w-full flex-1 pr-2"
+				class="flex flex-col overflow-y-auto h-96 md:h-[40rem] max-h-full scrollbar-hidden w-full flex-1 pr-2"
 			>
 				<div class="w-full text-xs text-gray-500 dark:text-gray-500 font-normal pb-2 px-2">
 					{$i18n.t('Actions')}
@@ -800,22 +794,25 @@
 												</button>
 											</Tooltip>
 
-											<Tooltip content={$i18n.t('Delete')}>
-												<button
-													class="self-center dark:hover:text-white transition"
-													on:click|stopPropagation={() => {
-														deleteChatHandler(chat.id);
-													}}
-													type="button"
-												>
-													<GarbageBin strokeWidth="2" />
-												</button>
-											</Tooltip>
+											{#if $user?.role === 'admin' || ($user?.permissions?.chat?.delete ?? true)}
+												<Tooltip content={$i18n.t('Delete')}>
+													<button
+														class="self-center dark:hover:text-white transition"
+														on:click|stopPropagation={() => {
+															deleteChatHandler(chat.id);
+														}}
+														type="button"
+													>
+														<GarbageBin strokeWidth="2" />
+													</button>
+												</Tooltip>
+											{/if}
 										</div>
 									{:else}
 										<div class="flex items-center">
 											<ChatMenu
 												chatId={chat.id}
+												archived={chat.archived ?? false}
 												shareHandler={() => {
 													menuChatId = chat.id;
 													showShareChatModal = true;
@@ -830,6 +827,9 @@
 												renameHandler={() => {
 													renameHandler(chat.id);
 												}}
+												markUnreadHandler={() => {
+													markUnreadHandler(chat.id);
+												}}
 												deleteHandler={() => {
 													menuChatId = chat.id;
 													menuChatTitle = chat.title;
@@ -837,12 +837,12 @@
 												}}
 												onClose={() => {}}
 												onPinChange={async () => {
-													await refreshSidebar();
+													await refreshSidebar(localStorage.token);
 													await searchHandler();
 												}}
 											>
 												<button
-													aria-label="Chat Menu"
+													aria-label={$i18n.t('Chat Menu')}
 													class="self-center dark:hover:text-white transition"
 												>
 													<svg
@@ -887,7 +887,7 @@
 			<div
 				id={messagesContainerId}
 				bind:this={messagesContainerElement}
-				class="hidden"
+				class="hidden md:flex md:flex-1 w-full overflow-y-auto h-96 md:h-[40rem] scrollbar-hidden @container"
 			>
 				{#if messages === null}
 					<div

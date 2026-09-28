@@ -23,6 +23,7 @@
 	import { WEBUI_NAME, config, user, socket } from '$lib/stores';
 
 	import { generateInitialsImage, canvasPixelTest, getUserTimezone } from '$lib/utils';
+	import { buildWelcomeMessage } from '$lib/utils/welcome-message';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import OnBoarding from '$lib/components/OnBoarding.svelte';
@@ -56,6 +57,15 @@
 	// confirmation after a forgot-password / forgot-username submission.
 	let recoverySent: 'password' | 'username' | null = null;
 	$: isRecovery = mode === 'forgot-password' || mode === 'forgot-username';
+
+	// VESQOR: dynamic, deterministic sign-in greeting. Presentation copy only —
+	// it reads a name only when the existing session store already provides one,
+	// and falls back to an anonymous or generic greeting otherwise.
+	$: welcome = buildWelcomeMessage({
+		now: new Date(),
+		firstName: $user?.name ?? null,
+		locale: typeof navigator !== 'undefined' ? navigator.language : null
+	});
 
 	const enterMode = (next: string) => {
 		mode = next;
@@ -211,7 +221,9 @@
 
 	onMount(async () => {
 		const redirectPath = $page.url.searchParams.get('redirect');
-		if ($user) {
+		const logout = $page.url.searchParams.get('state') === 'logout';
+
+		if ($user && !logout) {
 			goto(redirectPath || '/');
 		} else {
 			if (redirectPath) {
@@ -229,9 +241,9 @@
 
 		// Auto-redirect to SSO when OAUTH_AUTO_REDIRECT is enabled and the
 		// deployment is unambiguously SSO-only (single provider, no login form,
-		// no LDAP). Suppressed by ?form=, ?error=, onboarding, trusted-header
-		// auth, or an existing session/token.
-		if ($config?.oauth?.auto_redirect && !form && !error) {
+		// no LDAP). Suppressed after logout, by ?form=, ?error=, onboarding,
+		// trusted-header auth, or an existing session/token.
+		if ($config?.oauth?.auto_redirect && !logout && !form && !error) {
 			const providers = Object.keys($config?.oauth?.providers ?? {});
 			if (
 				providers.length === 1 &&
@@ -259,6 +271,9 @@
 </script>
 
 <svelte:head>
+	<!-- LICENSE covers this Open WebUI browser-title identifier.
+	Do not alter, remove, obscure, or replace it except as LICENSE permits:
+	https://docs.openwebui.com/license. -->
 	<title>
 		{`${$WEBUI_NAME}`}
 	</title>
@@ -307,7 +322,13 @@
 											id="logo"
 											crossorigin="anonymous"
 											src="{WEBUI_BASE_URL}/static/favicon.png"
-											class="size-24 rounded-full"
+											class="size-[7.5rem] rounded-full dark:hidden"
+											alt="{$WEBUI_NAME} logo"
+										/>
+										<img
+											crossorigin="anonymous"
+											src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
+											class="size-[7.5rem] rounded-full hidden dark:block"
 											alt="{$WEBUI_NAME} logo"
 										/>
 									</div>
@@ -340,11 +361,20 @@
 							{:else}
 							{#if !$config?.onboarding ?? false}
 								<div class="flex justify-center mb-6">
+									<!-- LICENSE covers this Open WebUI sign-in logo.
+									Do not alter, remove, obscure, or replace it except as LICENSE permits:
+									https://docs.openwebui.com/license. -->
 									<img
 										id="logo"
 										crossorigin="anonymous"
 										src="{WEBUI_BASE_URL}/static/favicon.png"
-										class="size-24 rounded-full shadow-lg"
+										class="size-[7.5rem] rounded-full shadow-lg dark:hidden"
+										alt="{$WEBUI_NAME} logo"
+									/>
+									<img
+										crossorigin="anonymous"
+										src="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
+										class="size-[7.5rem] rounded-full shadow-lg hidden dark:block"
 										alt="{$WEBUI_NAME} logo"
 									/>
 								</div>
@@ -362,7 +392,7 @@
 								}}
 							>
 								<div class="mb-1">
-									<div class=" text-2xl font-normal">
+									<div class=" text-2xl font-normal text-balance">
 										{#if $config?.onboarding ?? false}
 											{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{:else if mode === 'ldap'}
@@ -372,7 +402,7 @@
 										{:else if mode === 'forgot-username'}
 											{$i18n.t('Recover your login email')}
 										{:else if mode === 'signin'}
-											{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+											{$i18n.t(welcome.key, welcome.params)}
 										{:else}
 											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{/if}

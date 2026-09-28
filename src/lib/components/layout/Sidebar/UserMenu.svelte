@@ -5,7 +5,7 @@
 	import { fade, slide } from 'svelte/transition';
 
 	import { getUsage } from '$lib/apis';
-	import { getSessionUser, userSignOut } from '$lib/apis/auths';
+	import { getLogoutRedirectUrl, getSessionUser, userSignOut } from '$lib/apis/auths';
 
 	import { showSettings, mobile, showSidebar, user, config, settings } from '$lib/stores';
 
@@ -42,7 +42,7 @@
 	export let profile = false;
 	export let help = false;
 
-	export let className = 'w-[240px]';
+	export let className = 'w-[15rem]';
 	export let align = 'end';
 
 	export let showActiveUsers = true;
@@ -68,7 +68,7 @@
 			updated = [...pinnedItems, id];
 		}
 		await settings.set({ ...$settings, pinnedMenuItems: updated });
-		await updateUserSettings(localStorage.token, { ui: $settings });
+		await updateUserSettings(localStorage.token, { ui: { pinnedMenuItems: updated } });
 	};
 
 	let usage = null;
@@ -114,11 +114,11 @@
 	<slot />
 
 	<div slot="content">
-		<DropdownMenu className="{className} font-sans text-sm">
+		<DropdownMenu className="{className} font-sans text-xs">
 			{#if $user}
 				<div>
 					<button
-						class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none text-left"
+						class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-xs w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none text-left"
 						type="button"
 						on:click={async () => {
 							show = false;
@@ -130,11 +130,11 @@
 							}
 						}}
 					>
-						<div class="self-center shrink-0 size-5 flex items-center justify-center">
+						<div class="self-center shrink-0 size-4.5 flex items-center justify-center">
 							<img
 								src={`${WEBUI_API_BASE_URL}/users/${$user.id}/profile/image`}
 								alt=""
-								class="size-5 rounded-full object-cover"
+								class="size-4.5 rounded-full object-cover"
 							/>
 						</div>
 						<div class="self-center min-w-0 flex-1 truncate">{$user.name}</div>
@@ -146,7 +146,7 @@
 									: $i18n.t('Active Users')}
 							>
 								<div
-									class="ml-auto flex shrink-0 items-center justify-end gap-1 rounded-full px-1.5 py-0.5 text-[11px] leading-none text-gray-500 dark:text-gray-400"
+									class="ml-auto flex shrink-0 items-center justify-end gap-1 rounded-full px-1.5 py-0.5 text-[0.6875rem] leading-none text-gray-500 dark:text-gray-400"
 									on:mouseenter={() => {
 										if ($config?.features?.enable_public_active_users_count || role === 'admin') {
 											getUsageInfo();
@@ -166,7 +166,7 @@
 				{#if $user?.status_emoji || $user?.status_message}
 					<div class="user-menu-status">
 						<button
-							class="w-full h-10 gap-2 rounded-xl px-2 hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none text-sm flex items-center text-left"
+							class="w-full h-[1.6875rem] gap-2 rounded-xl px-2 hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none text-xs flex items-center text-left"
 							type="button"
 							on:click={() => {
 								show = false;
@@ -174,7 +174,7 @@
 							}}
 						>
 							{#if $user?.status_emoji}
-								<div class="self-center shrink-0 size-5 flex items-center justify-center">
+								<div class="self-center shrink-0 size-4.5 flex items-center justify-center">
 									<Emoji className="size-3.5" shortCode={$user?.status_emoji} />
 								</div>
 							{/if}
@@ -218,14 +218,14 @@
 				{:else}
 					<div class="user-menu-status">
 						<button
-							class="w-full h-10 gap-2 rounded-xl px-2 hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none text-sm flex items-center text-left"
+							class="w-full h-[1.6875rem] gap-2 rounded-xl px-2 hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none text-xs flex items-center text-left"
 							type="button"
 							on:click={() => {
 								show = false;
 								showUserStatusModal = true;
 							}}
 						>
-							<div class="self-center shrink-0 size-5 flex items-center justify-center">
+							<div class="self-center shrink-0 size-4.5 flex items-center justify-center">
 								<EmojiFaceIcon className="size-3.5" strokeWidth="1.5" />
 							</div>
 							<div class="self-center truncate">{$i18n.t('Update your status')}</div>
@@ -239,11 +239,13 @@
 			{/if}
 
 			{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.tools || $user?.permissions?.workspace?.skills}
-				<div class="flex items-center w-full">
+				<div
+					class="user-menu-row flex items-center w-full rounded-xl hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition-colors"
+				>
 					<a
 						href="/workspace"
 						draggable="false"
-						class="flex flex-1 h-10 items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex flex-1 min-w-0 h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none"
 						on:click={async (e) => {
 							if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
 							e.preventDefault();
@@ -283,11 +285,13 @@
 			{/if}
 
 			{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))}
-				<div class="flex items-center w-full">
+				<div
+					class="user-menu-row flex items-center w-full rounded-xl hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition-colors"
+				>
 					<a
 						href="/notes"
 						draggable="false"
-						class="flex flex-1 h-10 items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex flex-1 min-w-0 h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none"
 						on:click={async (e) => {
 							if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
 							e.preventDefault();
@@ -327,11 +331,13 @@
 			{/if}
 
 			{#if $config?.features?.enable_calendar && ($user?.role === 'admin' || $user?.permissions?.features?.calendar)}
-				<div class="flex items-center w-full">
+				<div
+					class="user-menu-row flex items-center w-full rounded-xl hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition-colors"
+				>
 					<a
 						href="/calendar"
 						draggable="false"
-						class="flex flex-1 h-10 items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex flex-1 min-w-0 h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none"
 						on:click={async (e) => {
 							if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
 							e.preventDefault();
@@ -371,11 +377,13 @@
 			{/if}
 
 			{#if $config?.features?.enable_automations && ($user?.role === 'admin' || $user?.permissions?.features?.automations)}
-				<div class="flex items-center w-full">
+				<div
+					class="user-menu-row flex items-center w-full rounded-xl hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition-colors"
+				>
 					<a
 						href="/automations"
 						draggable="false"
-						class="flex flex-1 h-10 items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex flex-1 min-w-0 h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none"
 						on:click={async (e) => {
 							if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
 							e.preventDefault();
@@ -415,11 +423,13 @@
 			{/if}
 
 			{#if role === 'admin'}
-				<div class="flex items-center w-full">
+				<div
+					class="user-menu-row flex items-center w-full rounded-xl hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition-colors"
+				>
 					<a
 						href="/playground"
 						draggable="false"
-						class="flex flex-1 h-10 items-center gap-2 rounded-xl px-2 text-sm hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex flex-1 min-w-0 h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none"
 						on:click={async (e) => {
 							if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
 							e.preventDefault();
@@ -468,7 +478,7 @@
 						href="https://docs.openwebui.com"
 						target="_blank"
 						draggable="false"
-						class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none"
 						id="chat-share-button"
 						on:click={() => {
 							show = false;
@@ -485,7 +495,7 @@
 						href="https://github.com/open-webui/open-webui/releases"
 						target="_blank"
 						draggable="false"
-						class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+						class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none"
 						id="chat-share-button"
 						on:click={() => {
 							show = false;
@@ -499,7 +509,7 @@
 				{/if}
 
 				<button
-					class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+					class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none"
 					type="button"
 					id="chat-share-button"
 					on:click={async () => {
@@ -525,7 +535,7 @@
 				<a
 					href="/admin"
 					draggable="false"
-					class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+					class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none"
 					on:click={async (e) => {
 						if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) {
 							return;
@@ -547,7 +557,7 @@
 			{/if}
 
 			<button
-				class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+				class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none"
 				type="button"
 				on:click={async () => {
 					show = false;
@@ -567,14 +577,13 @@
 			</button>
 
 			<button
-				class="flex h-10 items-center gap-2 rounded-xl px-2 text-sm w-full hover:bg-gray-50/40 dark:hover:bg-gray-800/40 transition cursor-pointer select-none"
+				class="flex h-[1.6875rem] items-center gap-2 rounded-xl px-2 text-[0.8125rem] w-full hover:bg-gray-50/60 dark:hover:bg-gray-800/60 transition cursor-pointer select-none"
 				type="button"
 				on:click={async () => {
 					const res = await userSignOut();
-					user.set(null);
 					localStorage.removeItem('token');
 
-					location.href = res?.redirect_url ?? '/auth';
+					location.href = getLogoutRedirectUrl(res?.redirect_url);
 					show = false;
 				}}
 			>

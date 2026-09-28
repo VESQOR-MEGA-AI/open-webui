@@ -1,7 +1,12 @@
 <script>
 	import { io } from 'socket.io-client';
+	import { spring } from 'svelte/motion';
 	import { createPyodideWorker } from '$lib/pyodide/createPyodideWorker';
 	import { Toaster, toast } from 'svelte-sonner';
+
+	let loadingProgress = spring(0, {
+		stiffness: 0.05
+	});
 
 	import { onMount, tick, setContext, onDestroy } from 'svelte';
 	import {
@@ -26,6 +31,7 @@
 		channels,
 		channelId,
 		terminalServers,
+		connectedUserTerminals,
 		showControls,
 		showFileNavPath,
 		showFileNavDir,
@@ -57,7 +63,7 @@
 		removeTerminalConnection
 	} from '$lib/utils/connections';
 
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL, WEBUI_HOSTNAME } from '$lib/constants';
+	import { COMMUNITY_ORIGINS, WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 	import {
 		bestMatchingLanguage,
 		cleanText,
@@ -158,12 +164,6 @@
 	};
 
 	const setupSocket = async (enableWebsocket) => {
-		let socketToken = null;
-		try {
-			socketToken = localStorage.token;
-		} catch (error) {
-			// storage denied
-		}
 		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
 			reconnection: true,
 			reconnectionDelay: 1000,
@@ -171,7 +171,7 @@
 			randomizationFactor: 0.5,
 			path: '/ws/socket.io',
 			transports: enableWebsocket ? ['websocket'] : ['polling', 'websocket'],
-			auth: { token: socketToken }
+			auth: { token: localStorage.token }
 		});
 		await socket.set(_socket);
 
@@ -198,7 +198,7 @@
 			disconnectReason = null;
 			hasConnectedOnce = true;
 
-			const res = await getVersion(socketToken);
+			const res = await getVersion(localStorage.token);
 
 			const deploymentId = res?.deployment_id ?? null;
 			const version = res?.version ?? null;
@@ -214,13 +214,15 @@
 				}
 			}
 
-			// Send heartbeat every 30 seconds
-			heartbeatInterval = setInterval(() => {
-				if (_socket.connected) {
-					console.log('Sending heartbeat');
-					_socket.emit('heartbeat', {});
-				}
-			}, 30000);
+			heartbeatInterval = setInterval(
+				() => {
+					if (_socket.connected) {
+						console.log('Sending heartbeat');
+						_socket.emit('heartbeat', {});
+					}
+				},
+				($config?.features?.websocket_heartbeat_interval ?? 30) * 1000
+			);
 
 			if (deploymentId !== null) {
 				WEBUI_DEPLOYMENT_ID.set(deploymentId);
@@ -233,21 +235,9 @@
 
 			console.log('version', version);
 
-			let hasToken = false;
-			try {
-				hasToken = !!localStorage.getItem('token');
-			} catch (error) {
-				// storage denied
-			}
-			if (hasToken) {
-				let joinToken = null;
-				try {
-					joinToken = localStorage.token;
-				} catch (error) {
-					// storage denied
-				}
+			if (localStorage.getItem('token')) {
 				// Emit user-join event with auth token
-				_socket.emit('user-join', { auth: { token: joinToken } });
+				_socket.emit('user-join', { auth: { token: localStorage.token } });
 			} else {
 				console.warn('No token found in localStorage, user-join event not emitted');
 			}
@@ -277,6 +267,10 @@
 			if (heartbeatInterval) {
 				clearInterval(heartbeatInterval);
 				heartbeatInterval = null;
+			}
+
+			if (reason === 'io server disconnect') {
+				_socket.connect();
 			}
 
 			if (details) {
@@ -317,7 +311,9 @@
 			/\bimport\s+seaborn\b|\bfrom\s+seaborn\b/.test(code) ? 'seaborn' : null,
 			/\bimport\s+sympy\b|\bfrom\s+sympy\b/.test(code) ? 'sympy' : null,
 			/\bimport\s+tiktoken\b|\bfrom\s+tiktoken\b/.test(code) ? 'tiktoken' : null,
-			/\bimport\s+pytz\b|\bfrom\s+pytz\b/.test(code) ? 'pytz' : null
+			/\bimport\s+pytz\b|\bfrom\s+pytz\b/.test(code) ? 'pytz' : null,
+			/\bimport\s+openpyxl\b|\bfrom\s+openpyxl\b/.test(code) ? 'openpyxl' : null,
+			/\.(read|to)_excel\(|\.Excel(Writer|File)\(/.test(code) ? 'openpyxl' : null
 		].filter(Boolean);
 
 		const worker = getOrCreateWorker();
@@ -468,8 +464,52 @@
 		return { toolServer, toolServerData, token };
 	};
 
+	const isDirectTerminalServer = (serverUrl) =>
+		!!serverUrl &&
+		(($settings?.terminalServers ?? []).some((server) => server.url === serverUrl) ||
+			($terminalServers ?? []).some((server) => !server.id && server.url === serverUrl));
+
+	const terminalFileResult = (result, params, serverUrl, chatId) => {
+		const path = result?.path ?? params?.path;
+		const name =
+			result?.name ??
+			String(path ?? '')
+				.split('/')
+				.filter(Boolean)
+				.at(-1) ??
+			'file';
+		const contentType = result?.content_type ?? result?.mime_type ?? 'application/octet-stream';
+
+		return {
+			...(result ?? {}),
+			type: 'file',
+			source: 'open_terminal',
+			displayed: true,
+			terminal_selector: serverUrl,
+			terminal_url: serverUrl,
+			session_id: chatId,
+			path,
+			full_path: result?.full_path ?? path,
+			name,
+			mime_type: contentType,
+			content_type: contentType,
+			page: result?.page ?? params?.page
+		};
+	};
+
 	const executeTool = async (data, cb, chatId) => {
 		const { toolServer, toolServerData, token } = resolveToolServer(data.server?.url);
+		const defaultInline =
+			data?.name === 'display_file' &&
+			data?.params?.path &&
+			data?.params?.inline === undefined &&
+			$settings?.terminalFileDisplay === 'inline' &&
+			isDirectTerminalServer(data.server?.url);
+		const params = defaultInline ? { ...data.params, inline: true } : data?.params;
+		const serverParams = data?.name === 'display_file' && params ? { ...params } : params;
+		if (serverParams && data?.name === 'display_file') {
+			delete serverParams.page;
+		}
 
 		console.log('executeTool', data, toolServer);
 
@@ -478,25 +518,38 @@
 				token,
 				toolServer.url,
 				data?.name,
-				data?.params,
+				serverParams,
 				toolServerData,
 				chatId
 			);
 
 			console.log('executeToolServer', res);
+			const result = Array.isArray(res) ? res[0] : res;
+			const inlineDisplayFile =
+				data?.name === 'display_file' && params?.path && params?.inline === true;
+			const output =
+				inlineDisplayFile && result?.exists !== false
+					? Array.isArray(res)
+						? [terminalFileResult(result, params, toolServer.url, chatId)]
+						: terminalFileResult(result, params, toolServer.url, chatId)
+					: res;
 
-			if (data?.name === 'display_file' && data?.params?.path) {
-				if (res?.exists !== false) {
-					displayFileHandler(data.params.path, { showControls, showFileNavPath });
+			if (data?.name === 'display_file' && params?.path && !inlineDisplayFile) {
+				if (result?.exists !== false) {
+					displayFileHandler(
+						result?.path ?? params.path,
+						{ showControls, showFileNavPath },
+						{ page: params?.page }
+					);
 				}
 			}
 
-			if (['write_file'].includes(data?.name) && data?.params?.path) {
-				showFileNavDir.set(res?.path ?? data.params.path);
+			if (['write_file'].includes(data?.name) && params?.path) {
+				showFileNavDir.set(result?.path ?? params.path);
 			}
 
 			if (cb) {
-				cb(structuredClone(res));
+				cb(structuredClone(output));
 			}
 		} else {
 			if (cb) {
@@ -506,6 +559,19 @@
 	};
 
 	const chatEventHandler = async (event, cb) => {
+		// Answer this session's availability check even when another chat is active.
+		if (
+			event?.data?.type === 'request:terminal:state' &&
+			event.data.data?.session_id === $socket?.id
+		) {
+			cb?.({
+				connected: [...$connectedUserTerminals.values()].some(
+					(shell) =>
+						shell.terminalId === event.data.data?.terminal_id && shell.chatId === event.chat_id
+				)
+			});
+			return;
+		}
 		const chat = $page.url.pathname.includes(`/c/${event.chat_id}`);
 
 		// Skip events from temporary chats that are not the current chat.
@@ -553,8 +619,11 @@
 
 			if ($isLastActiveTab) {
 				if ($settings?.notificationEnabled ?? false) {
-					new Notification(`${data.title} / ${$WEBUI_NAME}`, {
+					new Notification(`${data.title} / Open WebUI`, {
 						body: timeStr,
+						// LICENSE covers this Open WebUI notification identifier.
+						// Do not alter, remove, obscure, or replace it except as LICENSE permits:
+						// https://docs.openwebui.com/license.
 						icon: `${WEBUI_BASE_URL}/static/favicon.png`
 					});
 				}
@@ -688,8 +757,11 @@
 
 					if ($isLastActiveTab) {
 						if ($settings?.notificationEnabled ?? false) {
-							new Notification(`${displayTitle} / ${$WEBUI_NAME}`, {
+							new Notification(`${displayTitle} / Open WebUI`, {
 								body: contentPreview,
+								// LICENSE covers this Open WebUI notification identifier.
+								// Do not alter, remove, obscure, or replace it except as LICENSE permits:
+								// https://docs.openwebui.com/license.
 								icon: `${WEBUI_BASE_URL}/static/favicon.png`
 							});
 						}
@@ -795,7 +867,10 @@
 
 				if ($isLastActiveTab) {
 					if ($settings?.notificationEnabled ?? false) {
-						new Notification(`${title} / ${$WEBUI_NAME}`, {
+						// LICENSE covers this Open WebUI notification identifier.
+						// Do not alter, remove, obscure, or replace it except as LICENSE permits:
+						// https://docs.openwebui.com/license.
+						new Notification(`${title} / Open WebUI`, {
 							body: data?.content,
 							icon: `${WEBUI_API_BASE_URL}/users/${data?.user?.id}/profile/image`
 						});
@@ -805,7 +880,9 @@
 				toast.custom(NotificationToast, {
 					componentProps: {
 						onClick: () => {
-							goto(`/channels/${event.channel_id}`);
+							goto(
+								`/channels/${event.channel_id}${data?.parent_id ? `?thread=${data.parent_id}` : ''}`
+							);
 						},
 						content: data?.content,
 						title: `${title}`
@@ -988,11 +1065,7 @@
 	};
 
 	const windowMessageEventHandler = async (event) => {
-		if (
-			!['https://openwebui.com', 'https://www.openwebui.com', 'http://localhost:9999'].includes(
-				event.origin
-			)
-		) {
+		if (!COMMUNITY_ORIGINS.includes(event.origin)) {
 			return;
 		}
 
@@ -1130,13 +1203,7 @@
 		// Call visibility change handler initially to set state on load
 		handleVisibilityChange();
 
-		let savedTheme = null;
-		try {
-			savedTheme = localStorage.theme;
-		} catch (error) {
-			// storage denied (private mode / sandbox) — fall back to default
-		}
-		theme.set(savedTheme);
+		theme.set(localStorage.theme);
 
 		mobile.set(window.innerWidth < BREAKPOINT);
 
@@ -1184,20 +1251,8 @@
 		// Initialize i18n even if we didn't get a backend config,
 		// so `/error` can show something that's not `undefined`.
 
-		let savedLocale = null;
-		try {
-			savedLocale = localStorage?.locale;
-		} catch (error) {
-			// storage denied
-		}
-		initI18n(savedLocale);
-		let hasLocale = false;
-		try {
-			hasLocale = !!localStorage.locale;
-		} catch (error) {
-			// storage denied
-		}
-		if (!hasLocale) {
+		await initI18n(localStorage?.locale, backendConfig?.i18n ?? {});
+		if (!localStorage.locale) {
 			const languages = await getLanguages();
 			const browserLanguages = navigator.languages
 				? navigator.languages
@@ -1205,39 +1260,41 @@
 			const lang = backendConfig?.default_locale
 				? backendConfig.default_locale
 				: bestMatchingLanguage(languages, browserLanguages, 'en-US');
-			changeLanguage(lang);
+			await changeLanguage(lang);
 			dayjs.locale(lang);
 		}
 
 		if (backendConfig) {
 			// Save Backend Status to Store
 			await config.set(backendConfig);
+			// LICENSE covers this Open WebUI branding surface, including name, logo,
+			// visual, textual, symbolic identifiers, metadata, and surrounding UI.
+			// Do not alter, remove, obscure, or replace it except as LICENSE permits:
+			// https://docs.openwebui.com/license.
 			await WEBUI_NAME.set(backendConfig.name);
 
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
 
-				let token = null;
-				try {
-					token = localStorage.token;
-				} catch (error) {
-					// storage denied
-				}
-
-				if (token) {
+				if (localStorage.token) {
 					// Get Session User Info
-					const sessionUser = await getSessionUser(token).catch((error) => {
+					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
 						toast.error(`${error}`);
 						return null;
 					});
 
 					if (sessionUser) {
 						await user.set(sessionUser);
+						try {
+							await config.set(await getBackendConfig());
+						} catch (error) {
+							console.error('Error refreshing backend config:', error);
+						}
+
 						// Keep user timezone in sync on every app load/refresh
-						// (fire-and-forget: must not block first paint)
 						const timezone = getUserTimezone();
 						if (timezone) {
-							updateUserTimezone(token, timezone).catch(() => {});
+							updateUserTimezone(localStorage.token, timezone);
 						}
 
 						// Relay auth token to desktop app for API access
@@ -1245,16 +1302,12 @@
 							window.electronAPI
 								.send({
 									type: 'token:update',
-									token
+									token: localStorage.token
 								})
 								.catch(() => {});
 						}
 					} else {
-						try {
-							localStorage.removeItem('token');
-						} catch (error) {
-							// storage denied
-						}
+						localStorage.removeItem('token');
 						await user.set(null);
 					}
 				}
@@ -1266,7 +1319,35 @@
 
 		await tick();
 
-		loaded = true;
+		if (
+			document.documentElement.classList.contains('her') &&
+			document.getElementById('progress-bar')
+		) {
+			loadingProgress.subscribe((value) => {
+				const progressBar = document.getElementById('progress-bar');
+
+				if (progressBar) {
+					progressBar.style.width = `${value}%`;
+				}
+			});
+
+			await loadingProgress.set(100);
+
+			document.getElementById('splash-screen')?.remove();
+
+			const audio = new Audio(`/audio/greeting.mp3`);
+			const playAudio = () => {
+				audio.play();
+				document.removeEventListener('click', playAudio);
+			};
+
+			document.addEventListener('click', playAudio);
+
+			loaded = true;
+		} else {
+			document.getElementById('splash-screen')?.remove();
+			loaded = true;
+		}
 
 		// Auto-show SyncStatsModal when opened with ?sync=true (from community)
 		if (
@@ -1302,8 +1383,18 @@
 </script>
 
 <svelte:head>
+	<!-- LICENSE covers this Open WebUI branding surface, including name, logo,
+	visual, textual, symbolic identifiers, metadata, and surrounding UI.
+	Do not alter, remove, obscure, or replace it except as LICENSE permits:
+	https://docs.openwebui.com/license. -->
 	<title>{$WEBUI_NAME}</title>
 	<link crossorigin="anonymous" rel="icon" href="{WEBUI_BASE_URL}/static/favicon.png" />
+	<link
+		crossorigin="anonymous"
+		rel="icon"
+		media="(prefers-color-scheme: dark)"
+		href="{WEBUI_BASE_URL}/static/vesqor-logo-dark.png"
+	/>
 
 	<meta name="apple-mobile-web-app-title" content={$WEBUI_NAME} />
 	<meta name="description" content={$WEBUI_NAME} />

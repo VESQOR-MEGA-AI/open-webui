@@ -1,0 +1,67 @@
+name: Internal Memory Guard
+
+# VQA-305-T2 — this repository is PUBLIC and once carried internal agent
+# working material (project profile, technical facts, decision records, weekly
+# work reports) under `memory/`. Untracking it did not remove it, and
+# `.gitignore` does not enforce anything: `git add -f memory/PROFILE.md`
+# succeeds, which is exactly how it got in the first time.
+#
+# This workflow is the enforcement. It is independent of `.gitignore` and
+# runs on EVERY pull request regardless of target branch, so material cannot
+# reach a protected branch through a PR.
+#
+# Deliberately self-contained: standard library only, no npm/pip install, so it
+# costs seconds and cannot be masked by a dependency failure elsewhere.
+
+on:
+  pull_request:
+  push:
+    branches: [main, vesqor]
+  workflow_dispatch:
+    inputs:
+      history_scan:
+        description: "Also run the advisory full-history scan"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: internal-memory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: No internal working material
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Exit 0 = clean, 1 = material tracked in the tree, 2 = guard could not
+      # run. A guard error must never be read as "clean", so exit 2 also fails.
+      - name: Reject internal agent working material (tree)
+        run: python3 scripts/check_internal_memory.py
+
+      # Prove the gate has teeth on every run, not just in the author's
+      # sandbox: the harness mutates the guard and requires the mutant to
+      # ACCEPT what the real guard rejects. A control that cannot go RED would
+      # make the gate above meaningless.
+      - name: Negative-controlled guard tests
+        run: python3 test/test_internal_memory_guard.py
+
+  history-advisory:
+    name: Advisory history scan
+    # Never blocks unrelated work: the pre-existing history exposure is a known
+    # owner decision (rewrite vs. recorded acceptance), documented by VQA-305-T1.
+    continue-on-error: true
+    if: github.event_name == 'workflow_dispatch' && inputs.history_scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan every reachable ref (advisory)
+        run: python3 scripts/check_internal_memory.py --history
