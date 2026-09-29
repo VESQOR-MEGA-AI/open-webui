@@ -807,7 +807,7 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
         payload = await process_pipeline_inlet_filter(request, payload, user, models)
         payload = apply_task_model_params(
             payload, models, task_model_id,
-            {**(task_model_params or {}), **{'max_tokens': 2048}}
+            {**(task_model_params or {}), **{'max_tokens': 4096}}
         )
 
         response = await asyncio.wait_for(
