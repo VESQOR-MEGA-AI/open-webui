@@ -31,12 +31,14 @@ from open_webui.utils.answer_compare_providers import (
     PROVIDER_IDS,
     ProviderConfig,
     resolve_api_key,
+    resolve_api_key_async,
     resolve_judge_ids,
     resolve_judge_max_input_chars,
     resolve_max_input_chars,
     resolve_provider,
     resolve_providers,
 )
+from open_webui.utils.answer_compare_secrets import SecretResolutionError
 from open_webui.utils.auth import get_admin_user
 from pydantic import BaseModel
 
@@ -891,11 +893,25 @@ async def judge_once(
     if attempt is not None:
         attempt['report_row_id'] = report_row.id
 
+    # Resolved here, not at configuration time: the adjudicator's key may live in
+    # a vault, and a failure to read it is a failed adjudication with its own
+    # reason — not the same thing as nobody having configured one, and not a
+    # reason for the config endpoint to depend on Azure.
+    try:
+        api_key = await resolve_api_key_async(judge_id)
+    except SecretResolutionError as err:
+        settled = await AnswerCompareReports.update_result(
+            id=report_row.id,
+            status=STATUS_FAILED,
+            error=_encode_error(err.code, err.message),
+        )
+        return await _settled_report_response(report_row, settled)
+
     try:
         called = await judge.call_judge(
             provider_id=judge_id,
             base_url=config.base_url,
-            api_key=resolve_api_key(judge_id),
+            api_key=api_key,
             model=config.model,
             messages=messages,
             labels=labels,

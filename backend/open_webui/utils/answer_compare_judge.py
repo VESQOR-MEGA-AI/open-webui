@@ -23,6 +23,7 @@ import random
 from typing import Any, Awaitable, Callable, Optional
 
 from open_webui.utils import answer_compare_adjudication as adjudication
+from open_webui.utils import answer_compare_anthropic as native
 from open_webui.utils import answer_compare_client as client
 from open_webui.utils.answer_compare_adjudication import (
     ADJUDICATION_ENGINE_VERSION,
@@ -36,7 +37,7 @@ from open_webui.utils.answer_compare_adjudication import (
     MalformedAdjudication,
     NormalizedAdjudication,
 )
-from open_webui.utils.answer_compare_providers import GENERATOR_IDS
+from open_webui.utils.answer_compare_providers import GENERATOR_IDS, JUDGE_IDS
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -58,11 +59,18 @@ FINDING_FIELDS: tuple[str, ...] = (
     'improvements',
 )
 
-# Structured-output ladder, tried in order. Any 400 on a request that carried
-# response_format moves one step down; a 400 on step 3 is a real error.
+# The OpenAI-compatible structured-output ladder, tried in order, which only the
+# candidates' transport walks. Any 400 on a request that carried response_format
+# moves one step down; a 400 on step 3 is a real error.
 MODE_JSON_SCHEMA = 1
 MODE_JSON_OBJECT = 2
 MODE_PLAIN = 3
+
+# Not a step on that ladder: the adjudicator's transport gets schema-valid JSON as
+# an API guarantee, so there is nothing to fall back to and nothing to remember.
+# It is numbered 0 so the audit field stays one integer across both transports and
+# a reader can tell "no ladder was walked" from "step 1 worked".
+MODE_NATIVE_JSON_SCHEMA = 0
 MODES: tuple[int, ...] = (MODE_JSON_SCHEMA, MODE_JSON_OBJECT, MODE_PLAIN)
 
 JUDGE_TEMPERATURE = 0
@@ -429,6 +437,7 @@ class JudgeCallResult(BaseModel):
 
 
 CompletionFn = Callable[..., Awaitable[client.CompletionResult]]
+AdjudicateFn = Callable[..., Awaitable[client.CompletionResult]]
 
 
 def _response_format(mode: int, labels: list[str]) -> Optional[dict[str, Any]]:
@@ -475,6 +484,7 @@ async def call_judge(
     messages: list[dict[str, str]],
     labels: list[str],
     completion: CompletionFn = client.chat_completion,
+    adjudication_call: AdjudicateFn = native.adjudicate,
 ) -> JudgeCallResult:
     """Call the judge, walking the structured-output ladder as needed.
 
@@ -485,7 +495,30 @@ async def call_judge(
     mode 1 works, and later diagnostics would lie.
 
     ``completion`` is injectable for tests; the application uses the client.
+
+    The adjudicator does not come down here at all — it has its own transport and
+    a schema the API enforces, so it returns above with no ladder and no mode
+    cache. Everything below this point is the candidates' OpenAI-compatible path.
     """
+    if provider_id in JUDGE_IDS:
+        result = await adjudication_call(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            messages=messages,
+            schema=report_schema(labels),
+        )
+        return JudgeCallResult(
+            content=result.content,
+            model=result.model,
+            engine_version=result.engine_version,
+            params={
+                **result.params,
+                'structured_output_mode': MODE_NATIVE_JSON_SCHEMA,
+                'structured_output_rejections': [],
+            },
+        )
+
     cache_key = (provider_id, model)
     cached = _MODE_CACHE.get(cache_key)
     mode, with_temperature = cached if cached is not None else (MODE_JSON_SCHEMA, True)
