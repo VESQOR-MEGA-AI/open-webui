@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 SUGGESTIONS_CACHE_TTL_SECONDS = 15 * 60
-SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 90
+SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 240
 SUGGESTIONS_COUNT = 4
 SUGGESTIONS_MAX_CHAT_TITLES = 10
 SUGGESTIONS_MAX_MEMORIES = 10
@@ -807,7 +807,7 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
         payload = await process_pipeline_inlet_filter(request, payload, user, models)
         payload = apply_task_model_params(
             payload, models, task_model_id,
-            {**(task_model_params or {}), **{'max_tokens': 1024}}
+            {**(task_model_params or {}), **{'max_tokens': 2048}}
         )
 
         response = await asyncio.wait_for(
