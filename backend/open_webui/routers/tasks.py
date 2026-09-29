@@ -821,7 +821,7 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
         if not suggestions:
             log.info('Smart suggestions parse-empty; raw head: %r', (raw or '')[:200])
     except Exception:
-        log.info('Smart suggestions generation failed for user %s', user.id, exc_info=True)
+        log.exception('Smart suggestions generation failed for user %s', user.id)
         return []
 
     if suggestions:
