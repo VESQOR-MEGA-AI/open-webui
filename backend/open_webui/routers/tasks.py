@@ -815,6 +815,15 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
             timeout=SUGGESTIONS_GENERATION_TIMEOUT_SECONDS,
         )
 
+        # Upstream errors surface as JSONResponse, not dicts — indexing a
+        # JSONResponse raises TypeError. Fail open with a clean log instead.
+        if isinstance(response, JSONResponse) or hasattr(response, 'body'):
+            ct = response.headers.get('content-type', '')
+            if 'application/json' in ct:
+                err = json.loads(response.body or b'{}')
+                log.info('Smart suggestions upstream error: %s', err.get('detail') or err.get('error', {}).get('message', '?'))
+            return []
+
         raw = response['choices'][0]['message']['content']
         suggestions = parse_smart_suggestions(raw)
         log.info('Suggestions parse result count=%s raw_head=%r', len(suggestions), (raw or '')[:200])
