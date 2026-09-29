@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 SUGGESTIONS_CACHE_TTL_SECONDS = 15 * 60
-SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 20
+SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 45
 SUGGESTIONS_COUNT = 4
 SUGGESTIONS_MAX_CHAT_TITLES = 10
 SUGGESTIONS_MAX_MEMORIES = 10
@@ -696,10 +696,14 @@ def build_smart_suggestions_prompt(chat_titles: list[str], memory_contents: list
         "Do not quote the user's data verbatim if it is long — paraphrase it.\n"
         'Do not mention any AI model, vendor, or provider name.\n\n'
         f'{context}\n\n'
-        f'Return ONLY a JSON object with this exact shape, with exactly {SUGGESTIONS_COUNT} items:\n'
-        '{"suggestions": [{"title": ["short line one (max 4 words)", "short continuation"], '
-        '"content": "a full, ready-to-send prompt message"}]}\n'
-        'No extra text or formatting outside the JSON object.'
+        'You are operating inside a system whose output contract is a JSON envelope with fields '
+        '{"userIntent", "report", "confidenceScore", "notes"}. The `report` field is a STRING that '
+        'carries the answer. Follow that outer contract, and make the `report` string contain exactly '
+        'this JSON (nothing else inside it):\n'
+        f'{{"suggestions": [{{"title": ["short line one (max 4 words)", "short continuation"], '
+        '"content": "a full, ready-to-send prompt message"}}]}}\n'
+        f'Exactly {SUGGESTIONS_COUNT} items in the suggestions array. Everything (the JSON above, '
+        'escaped as a string) goes inside the `report` field of the envelope.'
     )
 
 
@@ -791,5 +795,6 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
         log.debug('Smart suggestions generation failed for user %s', user.id, exc_info=True)
         return []
 
-    _suggestions_cache[user.id] = (time.time(), suggestions)
+    if suggestions:
+        _suggestions_cache[user.id] = (time.time(), suggestions)
     return suggestions
