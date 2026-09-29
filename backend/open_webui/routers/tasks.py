@@ -45,6 +45,7 @@ router = APIRouter()
 
 SUGGESTIONS_CACHE_TTL_SECONDS = 15 * 60
 SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 240
+SUGGESTIONS_RETRIES = 2  # deepseek reasoning sometimes returns empty on first pass
 SUGGESTIONS_COUNT = 4
 SUGGESTIONS_MAX_CHAT_TITLES = 10
 SUGGESTIONS_MAX_MEMORIES = 10
@@ -807,13 +808,22 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
         payload = await process_pipeline_inlet_filter(request, payload, user, models)
         payload = apply_task_model_params(
             payload, models, task_model_id,
-            {**(task_model_params or {}), **{'max_tokens': 4096}}
+            {**(task_model_params or {}), **{'max_tokens': 2600}}
         )
 
-        response = await asyncio.wait_for(
-            generate_chat_completion(request, form_data=payload, user=user),
-            timeout=SUGGESTIONS_GENERATION_TIMEOUT_SECONDS,
-        )
+        for attempt in range(SUGGESTIONS_RETRIES):
+            if attempt:
+                await asyncio.sleep(5)
+            response = await asyncio.wait_for(
+                generate_chat_completion(request, form_data=payload, user=user),
+                timeout=SUGGESTIONS_GENERATION_TIMEOUT_SECONDS,
+            )
+            done = not isinstance(response, JSONResponse) and not hasattr(response, 'headers')
+            if done:
+                raw = response['choices'][0]['message']['content']
+                suggestions = parse_smart_suggestions(raw)
+                if suggestions:
+                    break
 
         # Upstream errors surface as JSONResponse, not dicts — indexing a
         # JSONResponse raises TypeError. Fail open with a clean log instead.
@@ -824,9 +834,6 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
                 log.info('Smart suggestions upstream error: %s', err.get('detail') or err.get('error', {}).get('message', '?'))
             return []
 
-        raw = response['choices'][0]['message']['content']
-        suggestions = parse_smart_suggestions(raw)
-        log.info('Suggestions parse result count=%s raw_head=%r', len(suggestions), (raw or '')[:200])
         if not suggestions:
             log.info('Smart suggestions parse-empty; raw head: %r', (raw or '')[:200])
     except Exception:
