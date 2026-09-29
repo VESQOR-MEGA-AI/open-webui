@@ -1,5 +1,8 @@
+import asyncio
+import json
 import logging
 import re
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -16,7 +19,9 @@ from open_webui.config import (
     DEFAULT_VOICE_MODE_PROMPT_TEMPLATE,
 )
 from open_webui.constants import ERROR_MESSAGES, TASKS
+from open_webui.models.chats import Chats
 from open_webui.models.config import Config
+from open_webui.models.memories import Memories
 from open_webui.routers.pipelines import process_pipeline_inlet_filter
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.chat import generate_chat_completion
@@ -37,6 +42,16 @@ from pydantic import BaseModel
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+SUGGESTIONS_CACHE_TTL_SECONDS = 15 * 60
+SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 20
+SUGGESTIONS_COUNT = 4
+SUGGESTIONS_MAX_CHAT_TITLES = 10
+SUGGESTIONS_MAX_MEMORIES = 10
+
+# Module-level, per-user cache. Fine for a single uvicorn worker process;
+# each worker regenerates its own copy independently.
+_suggestions_cache: dict[str, tuple[float, list[dict]]] = {}
 
 TASK_CONFIG_KEYS = {
     'TASK_MODEL': 'task.model.default',
@@ -658,3 +673,123 @@ async def generate_moa_response(request: Request, form_data: dict, user=Depends(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={'detail': str(e)},
         )
+
+
+def build_smart_suggestions_prompt(chat_titles: list[str], memory_contents: list[str]) -> str:
+    context_sections = []
+    if chat_titles:
+        context_sections.append(
+            'Recent conversation topics (most recent first):\n'
+            + '\n'.join(f'- {title}' for title in chat_titles)
+        )
+    if memory_contents:
+        context_sections.append(
+            'Known facts about the user:\n' + '\n'.join(f'- {content}' for content in memory_contents)
+        )
+
+    context = '\n\n'.join(context_sections) if context_sections else 'No prior context is available for this user.'
+
+    return (
+        'You anticipate what this user plausibly wants to ask next, based only on their own history below.\n'
+        'Ground every suggestion in the context provided. If the context is empty or too thin, fall back to '
+        "generally useful starter prompts instead of inventing facts.\n"
+        "Do not quote the user's data verbatim if it is long — paraphrase it.\n"
+        'Do not mention any AI model, vendor, or provider name.\n\n'
+        f'{context}\n\n'
+        f'Return ONLY a JSON object with this exact shape, with exactly {SUGGESTIONS_COUNT} items:\n'
+        '{"suggestions": [{"title": ["short line one (max 4 words)", "short continuation"], '
+        '"content": "a full, ready-to-send prompt message"}]}\n'
+        'No extra text or formatting outside the JSON object.'
+    )
+
+
+def parse_smart_suggestions(raw: str) -> list[dict]:
+    text = (raw or '').strip()
+    start = text.find('{')
+    end = text.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        return []
+
+    try:
+        parsed = json.loads(text[start : end + 1])
+    except ValueError:
+        return []
+
+    items = parsed.get('suggestions') if isinstance(parsed, dict) else None
+    if not isinstance(items, list):
+        return []
+
+    suggestions = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+
+        title = item.get('title')
+        content = item.get('content')
+        if not isinstance(title, list) or len(title) != 2:
+            continue
+        if not all(isinstance(part, str) and part.strip() for part in title):
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+
+        suggestions.append({'title': [part.strip() for part in title], 'content': content.strip()})
+        if len(suggestions) == SUGGESTIONS_COUNT:
+            break
+
+    return suggestions
+
+
+@router.get('/suggestions')
+async def get_smart_suggestions(request: Request, user=Depends(get_verified_user)):
+    if not await Config.get('task.suggestions.enable', True):
+        return []
+
+    cached = _suggestions_cache.get(user.id)
+    if cached and (time.time() - cached[0]) < SUGGESTIONS_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    try:
+        models = request.app.state.MODELS
+        default_model_id = next(iter(models), None)
+        if not default_model_id:
+            return []
+
+        task_model_id, task_model_params = await get_task_model_generation_config(default_model_id, models)
+
+        chats = await Chats.get_chat_list_by_user_id(user.id, limit=SUGGESTIONS_MAX_CHAT_TITLES)
+        chat_titles = [chat.title for chat in chats if chat.title]
+
+        memories = await Memories.get_memories_by_user_id(user.id) or []
+        memories = sorted(memories, key=lambda memory: memory.updated_at, reverse=True)[:SUGGESTIONS_MAX_MEMORIES]
+        memory_contents = [memory.content for memory in memories if memory.content]
+
+        content = build_smart_suggestions_prompt(chat_titles, memory_contents)
+
+        payload = {
+            'model': task_model_id,
+            'messages': [{'role': 'user', 'content': content}],
+            'stream': False,
+            'metadata': {
+                **(request.state.metadata if hasattr(request.state, 'metadata') else {}),
+                'task': str(TASKS.SUGGESTIONS_GENERATION),
+                'chat_id': None,
+            },
+        }
+
+        payload = await process_pipeline_inlet_filter(request, payload, user, models)
+        payload = apply_task_model_params(payload, models, task_model_id, task_model_params)
+
+        response = await asyncio.wait_for(
+            generate_chat_completion(request, form_data=payload, user=user),
+            timeout=SUGGESTIONS_GENERATION_TIMEOUT_SECONDS,
+        )
+
+        raw = response['choices'][0]['message']['content']
+        suggestions = parse_smart_suggestions(raw)
+    except Exception:
+        log.debug('Smart suggestions generation failed for user %s', user.id, exc_info=True)
+        return []
+
+    _suggestions_cache[user.id] = (time.time(), suggestions)
+    return suggestions

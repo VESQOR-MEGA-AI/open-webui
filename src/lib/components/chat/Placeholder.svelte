@@ -9,6 +9,7 @@
 	const dispatch = createEventDispatcher();
 
 	import { updateFolderById } from '$lib/apis/folders';
+	import { getSmartSuggestions } from '$lib/apis/tasks';
 
 	import {
 		config,
@@ -90,20 +91,42 @@
 	let selectedModelName = '';
 	let selectedModelDescription = '';
 	let selectedSuggestionPrompts = [];
+	let smartSuggestionPrompts = null;
 
 	$: models = selectedModels.map((id) => $_models.find((m) => m.id === id));
 	$: selectedModel = atSelectedModel ?? models[selectedModelIdx];
 	$: selectedModelName = resolveLocalizedModelName(selectedModel, $i18n.language);
 	$: selectedModelDescription = resolveLocalizedModelDescription(selectedModel, $i18n.language);
-	$: selectedSuggestionPrompts =
+	$: modelSuggestionPrompts =
 		resolveLocalizedModelPromptSuggestions(atSelectedModel, $i18n.language) ??
-		resolveLocalizedModelPromptSuggestions(models[selectedModelIdx], $i18n.language) ??
-		resolveLocalizedPromptSuggestions(
-			$config?.default_prompt_suggestions,
-			$config?.default_prompt_suggestions_i18n ?? {},
-			$i18n.language,
-			(key) => $i18n.t(key)
-		);
+		resolveLocalizedModelPromptSuggestions(models[selectedModelIdx], $i18n.language);
+	$: selectedSuggestionPrompts =
+		modelSuggestionPrompts ??
+		(smartSuggestionPrompts?.length
+			? smartSuggestionPrompts
+			: resolveLocalizedPromptSuggestions(
+					$config?.default_prompt_suggestions,
+					$config?.default_prompt_suggestions_i18n ?? {},
+					$i18n.language,
+					(key) => $i18n.t(key)
+				));
+
+	onMount(async () => {
+		// Only worth asking for personalized suggestions when we're about to
+		// fall back to the static, global list (no per-model prompts set).
+		if (modelSuggestionPrompts) {
+			return;
+		}
+
+		try {
+			const suggestions = await getSmartSuggestions(localStorage.token);
+			if (Array.isArray(suggestions) && suggestions.length > 0) {
+				smartSuggestionPrompts = suggestions;
+			}
+		} catch (e) {
+			// Silently keep the static suggestions on any failure.
+		}
+	});
 
 	// True when viewing a shared folder the current user doesn't own AND lacks write access
 	$: folderReadOnly =

@@ -2298,6 +2298,8 @@ JSON format: { "follow_ups": ["Question 1?", "Question 2?", "Question 3?"] }
 
 ENABLE_FOLLOW_UP_GENERATION = os.getenv('ENABLE_FOLLOW_UP_GENERATION', 'True').lower() == 'true'
 
+ENABLE_SUGGESTIONS_GENERATION = os.getenv('ENABLE_SUGGESTIONS_GENERATION', 'True').lower() == 'true'
+
 ENABLE_TAGS_GENERATION = os.getenv('ENABLE_TAGS_GENERATION', 'True').lower() == 'true'
 
 ENABLE_TITLE_GENERATION = os.getenv('ENABLE_TITLE_GENERATION', 'True').lower() == 'true'
@@ -3145,6 +3147,7 @@ DEFAULT_CONFIG = {
     'task.image.prompt_template': IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE,
     'task.follow_up.prompt_template': FOLLOW_UP_GENERATION_PROMPT_TEMPLATE,
     'task.follow_up.enable': ENABLE_FOLLOW_UP_GENERATION,
+    'task.suggestions.enable': ENABLE_SUGGESTIONS_GENERATION,
     'task.tags.enable': ENABLE_TAGS_GENERATION,
     'task.title.enable': ENABLE_TITLE_GENERATION,
     'task.query.search.enable': ENABLE_SEARCH_QUERY_GENERATION,
