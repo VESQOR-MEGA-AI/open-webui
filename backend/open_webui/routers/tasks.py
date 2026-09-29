@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 SUGGESTIONS_CACHE_TTL_SECONDS = 15 * 60
-SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 20
+SUGGESTIONS_GENERATION_TIMEOUT_SECONDS = 45
 SUGGESTIONS_COUNT = 4
 SUGGESTIONS_MAX_CHAT_TITLES = 10
 SUGGESTIONS_MAX_MEMORIES = 10
@@ -690,53 +690,80 @@ def build_smart_suggestions_prompt(chat_titles: list[str], memory_contents: list
     context = '\n\n'.join(context_sections) if context_sections else 'No prior context is available for this user.'
 
     return (
-        'You anticipate what this user plausibly wants to ask next, based only on their own history below.\n'
-        'Ground every suggestion in the context provided. If the context is empty or too thin, fall back to '
-        "generally useful starter prompts instead of inventing facts.\n"
-        "Do not quote the user's data verbatim if it is long — paraphrase it.\n"
-        'Do not mention any AI model, vendor, or provider name.\n\n'
+        'A business user has been working with us. Their recent conversation topics and known preferences are ground truth.\n'
+        'The task: propose the four most useful follow-up questions this user could ask next, grounded in that history\n'
+        '(if the history is thin, propose generally useful starter questions instead of inventing facts).\n'
+        'Do not mention any AI model, vendor, or provider name. paraphrase, never quote the data verbatim.\n\n'
         f'{context}\n\n'
-        f'Return ONLY a JSON object with this exact shape, with exactly {SUGGESTIONS_COUNT} items:\n'
-        '{"suggestions": [{"title": ["short line one (max 4 words)", "short continuation"], '
-        '"content": "a full, ready-to-send prompt message"}]}\n'
-        'No extra text or formatting outside the JSON object.'
+        'FORMAT (strict): a numbered list of exactly 4 items. Each item is one line:\n'
+        '1. <short title, max 4 words> | <short continuation> || <full ready-to-send prompt message>\n'
+        'No preamble, no explanation, just the 4 numbered lines.'
     )
 
 
 def parse_smart_suggestions(raw: str) -> list[dict]:
+    """Parse the model's answer into suggestion cards.
+
+    Accepts either a JSON {"suggestions": [...]} payload (legacy) or the
+    strict number lines format the task prompt asks for:
+        1. <title> | <continuation> || <full prompt>
+    """
     text = (raw or '').strip()
     start = text.find('{')
     end = text.rfind('}')
-    if start == -1 or end == -1 or end <= start:
-        return []
+    if start != -1 and end > start:
+        try:
+            parsed = json.loads(text[start : end + 1])
+            items = parsed.get('suggestions') if isinstance(parsed, dict) else None
+            if isinstance(items, list):
+                suggestions = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    title = item.get('title')
+                    content = item.get('content')
+                    if not isinstance(title, list) or len(title) != 2:
+                        continue
+                    if not all(isinstance(part, str) and part.strip() for part in title):
+                        continue
+                    if not isinstance(content, str) or not content.strip():
+                        continue
+                    suggestions.append({'title': [part.strip() for part in title], 'content': content.strip()})
+                    if len(suggestions) == SUGGESTIONS_COUNT:
+                        break
+                if suggestions:
+                    return suggestions
+        except ValueError:
+            pass
 
-    try:
-        parsed = json.loads(text[start : end + 1])
-    except ValueError:
-        return []
-
-    items = parsed.get('suggestions') if isinstance(parsed, dict) else None
-    if not isinstance(items, list):
-        return []
-
+    # Line-based fallback (the format the task prompt asks for).
     suggestions = []
-    for item in items:
-        if not isinstance(item, dict):
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or '|' not in line:
             continue
-
-        title = item.get('title')
-        content = item.get('content')
-        if not isinstance(title, list) or len(title) != 2:
+        # Strip a leading "1. " numbering if present.
+        line = re.sub(r'^\d+\.\s*', '', line)
+        parts = [part.strip() for part in line.split('|')]
+        if len(parts) < 2:
             continue
-        if not all(isinstance(part, str) and part.strip() for part in title):
+        title_parts = parts[0].split('||')
+        headline = title_parts[0].strip()
+        content = parts[-1].strip()
+        # Remove the ||-joined full prompt from the tail if it leaked there.
+        if '||' in parts[-1]:
+            tailParts = parts[-1].split('||')
+            content = tailParts[-1].strip()
+        continuation = ''
+        if len(parts) >= 3:
+            continuation = parts[1].strip()
+        elif len(title_parts) > 1:
+            continuation = title_parts[1].strip()
+        if not headline or not content:
             continue
-        if not isinstance(content, str) or not content.strip():
-            continue
-
-        suggestions.append({'title': [part.strip() for part in title], 'content': content.strip()})
+        suggestions.append({'title': [headline, continuation or ''], 'content': content})
         if len(suggestions) == SUGGESTIONS_COUNT:
             break
-
     return suggestions
 
 
@@ -791,5 +818,6 @@ async def get_smart_suggestions(request: Request, user=Depends(get_verified_user
         log.debug('Smart suggestions generation failed for user %s', user.id, exc_info=True)
         return []
 
-    _suggestions_cache[user.id] = (time.time(), suggestions)
+    if suggestions:
+        _suggestions_cache[user.id] = (time.time(), suggestions)
     return suggestions
