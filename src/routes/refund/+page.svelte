@@ -84,7 +84,7 @@
 				<h2 class="mb-1 font-semibold text-gray-900 dark:text-white">6. Technical defects</h2>
 				<p>
 					If you experience a consistent technical defect that materially prevents you from using
-					the Service, contact us at <strong>info@vesqor.com</strong> with supporting evidence,
+					the Service, contact us at <strong>info@vesqorai.com</strong> with supporting evidence,
 					such as screenshots or other relevant information. We may, at our discretion, provide a
 					refund where the defect is verified. In the event of any discrepancy, our server logs and
 					system records prevail in determining eligibility.
@@ -114,7 +114,7 @@
 			<div>
 				<h2 class="mb-1 font-semibold text-gray-900 dark:text-white">9. Contact</h2>
 				<p>
-					Questions about this policy: <strong>info@vesqor.com</strong>.
+					Questions about this policy: <strong>info@vesqorai.com</strong>.
 				</p>
 			</div>
 		</div>

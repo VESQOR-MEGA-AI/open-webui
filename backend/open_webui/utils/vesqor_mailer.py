@@ -1,14 +1,25 @@
-"""SMTP mailer for VESQOR account emails (verification, password reset)."""
+"""Account mailer for VESQOR account emails (verification, password reset).
+
+Sends through Microsoft Graph when MS_GRAPH_* is configured (the tenant has SMTP
+AUTH disabled), falling back to SMTP otherwise.
+"""
 
 from __future__ import annotations
 
 import html
+import json
 import logging
 import smtplib
+import urllib.request
+import urllib.parse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from open_webui.env import (
+    MS_GRAPH_CLIENT_ID,
+    MS_GRAPH_CLIENT_SECRET,
+    MS_GRAPH_SENDER,
+    MS_GRAPH_TENANT_ID,
     SMTP_FROM,
     SMTP_FROM_NAME,
     SMTP_HOST,
@@ -20,9 +31,61 @@ from open_webui.env import (
 
 log = logging.getLogger(__name__)
 
+_graph_token: dict = {'value': '', 'exp': 0.0}
+
+
+def _graph_access_token() -> str:
+    """Cached client-credentials token for Graph."""
+    import time
+
+    if _graph_token['value'] and _graph_token['exp'] > time.time() + 60:
+        return _graph_token['value']
+    body = urllib.parse.urlencode({
+        'client_id': MS_GRAPH_CLIENT_ID,
+        'client_secret': MS_GRAPH_CLIENT_SECRET,
+        'scope': 'https://graph.microsoft.com/.default',
+        'grant_type': 'client_credentials',
+    }).encode()
+    req = urllib.request.Request(
+        f'https://login.microsoftonline.com/{MS_GRAPH_TENANT_ID}/oauth2/v2.0/token',
+        data=body, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        data = json.load(resp)
+    _graph_token['value'] = data['access_token']
+    _graph_token['exp'] = time.time() + int(data.get('expires_in', 3600))
+    return _graph_token['value']
+
+
+def _send_via_graph(to_email: str, subject: str, text_body: str, html_body: str) -> None:
+    """POST /users/<sender>/sendMail. Raises on failure so the caller can fall back."""
+    token = _graph_access_token()
+    payload = {
+        'message': {
+            'subject': subject,
+            'body': {'contentType': 'HTML', 'content': html_body},
+            'toRecipients': [{'emailAddress': {'address': to_email}}],
+        },
+        'saveToSentItems': False,
+    }
+    req = urllib.request.Request(
+        f'https://graph.microsoft.com/v1.0/users/{urllib.parse.quote(MS_GRAPH_SENDER)}/sendMail',
+        method='POST', data=json.dumps(payload).encode(),
+        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        if resp.status not in (200, 202):
+            raise RuntimeError(f'graph sendMail status {resp.status}')
+
 
 def _send(to_email: str, subject: str, text_body: str, html_body: str, kind: str) -> bool:
-    """Deliver one message over SMTP. Returns True if the server accepted it."""
+    """Deliver one message. Graph first (tenant SMTP AUTH is disabled), then SMTP."""
+    if MS_GRAPH_TENANT_ID and MS_GRAPH_CLIENT_ID and MS_GRAPH_CLIENT_SECRET and MS_GRAPH_SENDER:
+        try:
+            _send_via_graph(to_email, subject, text_body, html_body)
+            log.info('%s email sent to %s via Graph (%s)', kind.capitalize(), to_email, MS_GRAPH_SENDER)
+            return True
+        except Exception as e:
+            log.exception('Graph send failed for %s email to %s: %s', kind, to_email, e)
+
     if not SMTP_HOST:
         log.warning('SMTP not configured — %s email for %s not sent', kind, to_email)
         return False
@@ -146,10 +209,6 @@ def send_verification_email(to_email: str, verify_url: str) -> bool:
 
     Returns True if the message was accepted by the SMTP server.
     """
-    if not SMTP_HOST:
-        log.warning('SMTP not configured — verification email for %s not sent', to_email)
-        return False
-
     subject = 'Confirm your VESQOR MEGA AI account'
     body = (
         f'Hello,\n\n'
@@ -183,6 +242,20 @@ def send_verification_email(to_email: str, verify_url: str) -> bool:
         'This link is valid for 24 hours. If you did not create this account, you can safely ignore this email.</p>'
         '</div></div>'
     )
+
+    # Graph first (tenant SMTP AUTH is disabled); SMTP only as a fallback.
+    if MS_GRAPH_TENANT_ID and MS_GRAPH_CLIENT_ID and MS_GRAPH_CLIENT_SECRET and MS_GRAPH_SENDER:
+        try:
+            _send_via_graph(to_email, subject, body, html)
+            log.info('Verification email sent to %s via Graph (%s)', to_email, MS_GRAPH_SENDER)
+            return True
+        except Exception as e:
+            log.exception('Graph send failed for verification email to %s: %s', to_email, e)
+
+    if not SMTP_HOST:
+        log.warning('SMTP not configured and Graph unavailable — verification email for %s not sent', to_email)
+        return False
+
     msg.attach(MIMEText(html, 'html', 'utf-8'))
 
     try:
@@ -194,7 +267,7 @@ def send_verification_email(to_email: str, verify_url: str) -> bool:
             if SMTP_USER:
                 server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_FROM, [to_email], msg.as_string())
-        log.info('Verification email sent to %s', to_email)
+        log.info('Verification email sent to %s via SMTP', to_email)
         return True
     except Exception as e:
         log.exception('Failed to send verification email to %s: %s', to_email, e)
