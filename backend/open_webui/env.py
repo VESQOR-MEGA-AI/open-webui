@@ -811,10 +811,18 @@ SMTP_HOST = os.getenv('SMTP_HOST', '')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
 SMTP_USER = os.getenv('SMTP_USER', '')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
-SMTP_FROM = os.getenv('SMTP_FROM', 'no-reply@vesqor.com')
+SMTP_FROM = os.getenv('SMTP_FROM', 'no-reply@vesqorai.com')
 SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', 'VESQOR MEGA AI')
 SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', 'True').lower() == 'true'
 SMTP_VERIFY_ENABLED = os.getenv('SMTP_VERIFY_ENABLED', 'True').lower() == 'true'
+
+# Microsoft Graph mail (preferred): the tenant has SMTP AUTH disabled and every
+# VESQOR app sends through Graph. When these are set, account emails use Graph
+# instead of SMTP. MS_GRAPH_APP needs only the Mail.Send application permission.
+MS_GRAPH_TENANT_ID = os.getenv('MS_GRAPH_TENANT_ID', '')
+MS_GRAPH_CLIENT_ID = os.getenv('MS_GRAPH_CLIENT_ID', '')
+MS_GRAPH_CLIENT_SECRET = os.getenv('MS_GRAPH_CLIENT_SECRET', '')
+MS_GRAPH_SENDER = os.getenv('MS_GRAPH_SENDER', '')
 VERIFY_EMAIL_URL = os.getenv('VERIFY_EMAIL_URL', '')  # public base, e.g. https://chat.vesqorai.com
 
 # ── VESQOR: billing + admin proxy to the brain (api.vesqorai.com) ─────
