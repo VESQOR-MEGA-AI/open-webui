@@ -70,14 +70,37 @@ def _git(args: list[str]) -> tuple[int, str]:
     return p.returncode, p.stdout
 
 
+def normalise(path: str) -> str:
+    """Repo-relative path, with any leading './' removed and separators unified.
+
+    NEVER use ``str.lstrip("./")`` here. ``lstrip`` takes a CHARACTER SET, not a
+    prefix, so it strips every leading '.' and '/': ``.agent-memory/ctx.md``
+    becomes ``agent-memory/ctx.md``, which no longer starts with
+    ``.agent-memory/`` and is silently accepted. Measured 2026-11-20 on
+    main@412e0b93: a force-added ``.agent-memory/ctx.md`` was tracked in the
+    repo and the gate still printed "OK" and exited 0 - one of the four
+    declared prefixes could never fire. The loop below removes a literal
+    './' prefix and touches nothing else.
+    """
+    norm = path.strip().replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    return norm
+
+
 def is_forbidden(path: str) -> bool:
-    norm = path.strip().lstrip("./")
+    norm = normalise(path)
     if not norm:
         return False
     if norm in ALLOWED_EXACT:
         return False
+    # Case-folded: git records the path exactly as typed, and contributors on
+    # case-insensitive filesystems (Windows, macOS) reach the same file through
+    # `MEMORY/PROFILE.md`. Comparing case-sensitively would let that spelling
+    # walk past the gate while landing the identical blob.
+    low = norm.lower()
     return any(
-        norm == p.rstrip("/") or norm.startswith(p) for p in FORBIDDEN_PREFIXES
+        low == p.rstrip("/") or low.startswith(p.lower()) for p in FORBIDDEN_PREFIXES
     )
 
 

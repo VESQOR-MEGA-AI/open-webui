@@ -35,12 +35,22 @@ LEAKED = [
     "memory/weeks/2026-W37/CHRONICLE.md",
     "memory/repo-wiki/module-answer-compare.md",
 ]
+# The same material may also be rooted at the repository top level, and one of
+# the four declared prefixes begins with a dot. Neither shape was covered until
+# 2026-11-20, which is exactly how a dead prefix shipped green.
+LEAKED_ROOTED = [
+    "repo-wiki/meta.json",
+    "weeks/2026-W46.md",
+    ".agent-memory/context.md",
+]
 # Paths that look like the forbidden prefixes but are NOT under them.
 SAFE = [
     "src/app.html",
     "test/test_vesqor_signup_gates.py",
     "docs/git-memory-management.md",
     "backend/open_webui/memory_utils.py",
+    "memoryfoo/notes.md",
+    "src/weeks-ago.ts",
 ]
 
 results: list[tuple[bool, str]] = []
@@ -94,6 +104,41 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="vqa305t2-") as td:
         tmp = Path(td)
 
+        # ---------------------------------------------------------------- P0
+        # Regression guard for the 2026-11-20 defect: `lstrip("./")` stripped
+        # leading DOTS, so `.agent-memory/…` could never match its own prefix.
+        # This asserts behaviour of the matcher directly, and the control below
+        # proves the assertion can go RED.
+        print("\nP0. every declared prefix must actually fire (path normalisation)")
+        import importlib.util
+
+        def load_guard(src: Path):
+            spec = importlib.util.spec_from_file_location(f"guard_{src.stem}", src)
+            assert spec is not None and spec.loader is not None, f"cannot load {src}"
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+
+        guard = load_guard(GUARD)
+        for p in LEAKED + LEAKED_ROOTED:
+            check(guard.is_forbidden(p) is True, f"is_forbidden({p!r}) is True")
+        for p in SAFE:
+            check(guard.is_forbidden(p) is False, f"is_forbidden({p!r}) is False")
+        check(guard.is_forbidden("./.agent-memory/context.md") is True,
+              "is_forbidden('./.agent-memory/context.md') is True")
+        check(guard.is_forbidden("MEMORY/FACTS.md") is True,
+              "is_forbidden('MEMORY/FACTS.md') is True (case-insensitive filesystem)")
+
+        # Negative control: the OLD implementation must accept the dot path.
+        old = tmp / "old_normalise.py"
+        old.write_text(GUARD.read_text().replace(
+            "    norm = normalise(path)",
+            "    norm = path.strip().lstrip(\"./\")"))
+        assert old.read_text() != GUARD.read_text(), "mutation had no effect - control is void"
+        old_guard = load_guard(old)
+        check(old_guard.is_forbidden(".agent-memory/context.md") is False,
+              "control: pre-fix lstrip() ACCEPTS the dot path -> P0 is live")
+
         # ---------------------------------------------------------------- P1
         print("\nP1. clean repository must pass (exit 0)")
         repo = fresh_repo(tmp / "p1", GUARD)
@@ -109,6 +154,15 @@ def main() -> int:
             rc, out = run([], r)
             ok = rc == 1 and path in out
             check(ok, f"rejects {path}", f"rc={rc}")
+
+        # --------------------------------------------------------------- P2b
+        print("\nP2b. top-level and dot-prefixed material must also be REJECTED")
+        for i, path in enumerate(LEAKED_ROOTED):
+            r = fresh_repo(tmp / f"p2b_{i}", GUARD)
+            stage_leak(r, path)
+            rc, out = run([], r)
+            ok = rc == 1 and path in out
+            check(ok, f"rejects {path}", f"rc={rc} out={out[:160]}")
 
         # ------------------------------------------------------------ NEG-CTL
         print("\nNEG-CTL. the controls themselves must be able to go RED")
@@ -126,7 +180,7 @@ def main() -> int:
         # Mutate harder: make is_forbidden always return False.
         mutant2 = tmp / "mutant_always.py"
         src2 = GUARD.read_text().replace(
-            "    return any(\n        norm == p.rstrip(\"/\") or norm.startswith(p) for p in FORBIDDEN_PREFIXES\n    )",
+            "    return any(\n        low == p.rstrip(\"/\") or low.startswith(p.lower()) for p in FORBIDDEN_PREFIXES\n    )",
             "    return False")
         assert src2 != GUARD.read_text(), "mutation 2 had no effect - control is void"
         mutant2.write_text(src2)
