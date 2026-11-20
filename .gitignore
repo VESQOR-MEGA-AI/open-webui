@@ -311,3 +311,8 @@ cypress/videos
 cypress/screenshots
 .vscode/settings.json
 .cptr
+
+# Internal agent working memory (repo wiki, weekly work reports, decisions).
+# VQA-305: this repository is PUBLIC. .gitignore is advisory; the enforcing
+# control is scripts/check_internal_memory.py via .github/workflows/internal-memory-guard.yml.
+memory/
